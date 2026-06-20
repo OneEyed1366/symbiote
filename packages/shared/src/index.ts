@@ -22,6 +22,14 @@ export { SymbioteSurface, createSurface } from './surface'
 export { setEventDispatcher } from './dispatch'
 export { setColorProcessor, dispatchViewCommand } from './commit'
 export { flattenStyle } from './style'
+export { StyleSheet, computeHairlineWidth } from './style-sheet'
+export { Platform } from './platform'
+export type {
+  PlatformStatic,
+  PlatformOSType,
+  PlatformConstantsIOS,
+  PlatformSelectSpec,
+} from './platform'
 export { dlog, isDebug } from './debug'
 
 export { getNativeModule, getEnforcingNativeModule } from './native-modules'

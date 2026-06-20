@@ -60,4 +60,14 @@ export type { VirtualizedListProps } from './virtualized-list'
 export type { ViewStyle, TextStyle, FlexAlign, FlexJustify } from './styles'
 export { mount } from './render'
 
+// Framework-agnostic runtime utilities live in shared; the adapter re-exports them
+// so app code names only @symbiote/react (RN's surface, one import root).
+export { Platform, StyleSheet } from '@symbiote/shared'
+export type {
+  PlatformStatic,
+  PlatformOSType,
+  PlatformConstantsIOS,
+  PlatformSelectSpec,
+} from '@symbiote/shared'
+
 export type { SymbioteEvent } from '@symbiote/shared'
