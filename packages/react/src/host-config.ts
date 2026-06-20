@@ -11,7 +11,7 @@ import {
   createRawText,
   insertBefore,
   removeChild,
-  setProp,
+  routeProp,
   setText,
   type SymbioteNode,
   type SymbioteSurface,
@@ -45,6 +45,13 @@ const COMPONENTS: Readonly<Record<string, ComponentDescriptor>> = {
     component: 'RCTMultilineTextInputView',
     isText: false,
   },
+  // Fabric component names are the codegen spec's first arg (the new-arch
+  // registered name), not the legacy paperComponentName (RCTSwitch, …).
+  'symbiote-switch': { component: 'Switch', isText: false },
+  'symbiote-activity-indicator': { component: 'ActivityIndicatorView', isText: false },
+  'symbiote-safe-area-view': { component: 'SafeAreaView', isText: false },
+  'symbiote-modal': { component: 'ModalHostView', isText: false },
+  'symbiote-refresh-control': { component: 'PullToRefreshView', isText: false },
 }
 
 function descriptorFor(type: string): ComponentDescriptor {
@@ -58,18 +65,18 @@ function descriptorFor(type: string): ComponentDescriptor {
 function applyProps(node: SymbioteNode, props: Props): void {
   for (const [key, value] of Object.entries(props)) {
     if (key === 'children') continue
-    setProp(node, key, value)
+    routeProp(node, key, value)
   }
 }
 
 function applyUpdate(node: SymbioteNode, oldProps: Props, newProps: Props): void {
   for (const key of Object.keys(oldProps)) {
     if (key === 'children') continue
-    if (!Object.hasOwn(newProps, key)) setProp(node, key, undefined)
+    if (!Object.hasOwn(newProps, key)) routeProp(node, key, undefined)
   }
   for (const [key, value] of Object.entries(newProps)) {
     if (key === 'children') continue
-    if (value !== oldProps[key]) setProp(node, key, value)
+    if (value !== oldProps[key]) routeProp(node, key, value)
   }
 }
 

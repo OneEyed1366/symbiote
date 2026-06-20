@@ -39,12 +39,21 @@ const DIRECT_EVENTS: Readonly<Record<string, string>> = {
   topError: 'error',
   topProgress: 'progress',
   topPartialLoad: 'partialLoad',
+  topRefresh: 'refresh',
+  topShow: 'show',
+  topRequestClose: 'requestClose',
+  topDismiss: 'dismiss',
+  topOrientationChange: 'orientationChange',
 }
 
 const TOUCH_START = 'topTouchStart'
 const TOUCH_END = 'topTouchEnd'
 const TOUCH_CANCEL = 'topTouchCancel'
 const PRESS = 'press'
+// Synthesized alongside press so Pressable can show pressed-state feedback: both
+// fire on the node the touch STARTED on (the responder), pressOut on end/cancel.
+const PRESS_IN = 'pressIn'
+const PRESS_OUT = 'pressOut'
 
 let installed = false
 
@@ -75,23 +84,34 @@ export function installEventHandler(): void {
     if (topLevelType === TOUCH_START) {
       dlog(`event ${TOUCH_START}`)
       pressStart = instanceHandle
+      wrapDispatch(() => bubble(instanceHandle, PRESS_IN, nativeEvent))
       return
     }
 
     if (topLevelType === TOUCH_END) {
       const start = pressStart
       pressStart = undefined
-      if (start && endsWithin(instanceHandle, start)) {
-        dlog('event press -> dispatch')
-        wrapDispatch(() => bubble(start, PRESS, nativeEvent))
-      } else {
+      if (!start) {
         dlog(`event ${TOUCH_END} ignored (no matching start)`)
+        return
       }
+      // press fires only on an honest tap (ended within the responder); pressOut
+      // always fires on the responder so its pressed-state can release.
+      const tapped = endsWithin(instanceHandle, start)
+      wrapDispatch(() => {
+        if (tapped) {
+          dlog('event press -> dispatch')
+          bubble(start, PRESS, nativeEvent)
+        }
+        bubble(start, PRESS_OUT, nativeEvent)
+      })
       return
     }
 
     if (topLevelType === TOUCH_CANCEL) {
+      const start = pressStart
       pressStart = undefined
+      if (start) wrapDispatch(() => bubble(start, PRESS_OUT, nativeEvent))
       return
     }
 

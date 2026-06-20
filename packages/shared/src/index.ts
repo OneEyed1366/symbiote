@@ -10,9 +10,12 @@ export {
   insertBefore,
   removeChild,
   setProp,
+  setEventListener,
+  routeProp,
   setText,
   isSymbioteNode,
 } from './node'
+export { isEventFor } from './view-config'
 export type { SymbioteNode, SymbioteEvent, Listener } from './node'
 
 export { SymbioteSurface, createSurface } from './surface'

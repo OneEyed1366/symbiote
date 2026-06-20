@@ -4,6 +4,8 @@
 // tree mutable while the Fabric mirror stays persistent is the core R2 trick,
 // and it lives here in shared so no adapter re-implements it.
 
+import { isEventFor } from './view-config'
+
 const BRAND: unique symbol = Symbol('symbiote.node')
 
 // A node carries the Fabric view name directly, so adding a primitive (Image,
@@ -69,32 +71,52 @@ export function isSymbioteNode(value: unknown): value is SymbioteNode {
   return typeof value === 'object' && value !== null && BRAND in value
 }
 
-const EVENT_PROP = /^on[A-Z]/
-
-// onPress -> press
-function listenerName(propName: string): string {
-  return propName.charAt(2).toLowerCase() + propName.slice(3)
-}
-
+// A pure prop set: no event inference. `onTintColor` is a Switch prop and reaches
+// Fabric like any other — the event-vs-prop decision is made by routeProp, never by
+// the key's name.
 export function setProp(node: SymbioteNode, key: string, value: unknown): void {
-  if (EVENT_PROP.test(key)) {
-    const name = listenerName(key)
-    if (typeof value === 'function') {
-      const handler = value
-      const listeners = (node.listeners ??= new Map())
-      listeners.set(name, (event: SymbioteEvent) => {
-        handler(event)
-      })
-    } else {
-      node.listeners?.delete(name)
-    }
-    return
-  }
   if (value === undefined) {
     delete node.props[key]
   } else {
     node.props[key] = value
   }
+}
+
+// The explicit event channel. Structural adapters (Svelte addEventListener, Angular
+// Renderer2.listen) call this directly with an already-known event name; flat-bag
+// adapters reach it through routeProp. A non-function value clears the listener.
+export function setEventListener(node: SymbioteNode, name: string, value: unknown): void {
+  if (typeof value === 'function') {
+    const handler = value
+    const listeners = (node.listeners ??= new Map())
+    listeners.set(name, (event: SymbioteEvent) => {
+      handler(event)
+    })
+  } else {
+    node.listeners?.delete(name)
+  }
+}
+
+const ON_PREFIX = /^on[A-Z]/
+
+// onChange -> change
+function listenerName(propName: string): string {
+  return propName.charAt(2).toLowerCase() + propName.slice(3)
+}
+
+// The flat-bag split (React / Vue / Solid): an `onX` prop becomes an event listener
+// ONLY when the node's component actually declares `x` as an event (per the shared
+// ViewConfig). Otherwise it is a plain prop — so `onTintColor` on a Switch, whose
+// only event is `change`, routes to setProp and reaches Fabric.
+export function routeProp(node: SymbioteNode, key: string, value: unknown): void {
+  if (ON_PREFIX.test(key)) {
+    const name = listenerName(key)
+    if (isEventFor(node.component, name)) {
+      setEventListener(node, name, value)
+      return
+    }
+  }
+  setProp(node, key, value)
 }
 
 export function setText(node: SymbioteNode, text: string): void {

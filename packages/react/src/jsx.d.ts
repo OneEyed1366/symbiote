@@ -23,6 +23,11 @@ declare module 'react' {
       'symbiote-scroll-content': HostProps
       'symbiote-text-input': HostProps
       'symbiote-text-input-multiline': HostProps
+      'symbiote-switch': HostProps
+      'symbiote-activity-indicator': HostProps
+      'symbiote-safe-area-view': HostProps
+      'symbiote-modal': HostProps
+      'symbiote-refresh-control': HostProps
     }
   }
 }

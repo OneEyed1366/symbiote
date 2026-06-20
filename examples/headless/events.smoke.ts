@@ -3,7 +3,7 @@
 // tree and assert press correlation, bubbling + stopPropagation, and direct layout
 // delivery — no simulator, all in JS.
 
-import { appendChild, createElement, setProp, type SymbioteEvent } from '@symbiote/shared'
+import { appendChild, createElement, routeProp, type SymbioteEvent } from '@symbiote/shared'
 // installEventHandler is not on the public barrel (surface.ts calls it internally);
 // reach it directly so the smoke can drive the handler without standing up a surface.
 import { installEventHandler } from '../../packages/shared/src/events'
@@ -62,7 +62,7 @@ let buttonPresses = 0
 // Read through a function so control-flow analysis can't pin the counter to a
 // literal after a `!==` check (it can't see the closure increment between checks).
 const pressCount = (): number => buttonPresses
-setProp(button, 'onPress', () => {
+routeProp(button, 'onPress', () => {
   buttonPresses += 1
 })
 
@@ -92,10 +92,10 @@ if (pressCount() !== 2) throw new Error(`cancel must drop the press: got ${butto
 const order: string[] = []
 let stopAtChild = false
 
-setProp(button, 'onPress', () => {
+routeProp(button, 'onPress', () => {
   order.push('parent')
 })
-setProp(child, 'onPress', (event: SymbioteEvent) => {
+routeProp(child, 'onPress', (event: SymbioteEvent) => {
   order.push('child')
   if (stopAtChild) event.stopPropagation()
 })
@@ -122,10 +122,10 @@ if (order.join(',') !== 'child') {
 order.length = 0
 stopAtChild = false
 let seenCurrentTargets = 0
-setProp(child, 'onPress', (event: SymbioteEvent) => {
+routeProp(child, 'onPress', (event: SymbioteEvent) => {
   if (event.target === child && event.currentTarget === child) seenCurrentTargets += 1
 })
-setProp(button, 'onPress', (event: SymbioteEvent) => {
+routeProp(button, 'onPress', (event: SymbioteEvent) => {
   if (event.target === child && event.currentTarget === button) seenCurrentTargets += 1
 })
 fire(child, 'topTouchStart')
@@ -137,7 +137,7 @@ if (seenCurrentTargets !== 2) {
 // ---- 4. layout is direct, delivered only to the target's own listener ----
 
 let layoutPayload: unknown
-setProp(sibling, 'onLayout', (event: SymbioteEvent) => {
+routeProp(sibling, 'onLayout', (event: SymbioteEvent) => {
   layoutPayload = event.nativeEvent.layout
 })
 const frame = { x: 0, y: 0, width: 100, height: 40 }
@@ -146,10 +146,21 @@ if (layoutPayload !== frame) throw new Error('layout listener did not receive th
 
 // layout must NOT bubble to an ancestor
 let rootLayoutFired = false
-setProp(root, 'onLayout', () => {
+routeProp(root, 'onLayout', () => {
   rootLayoutFired = true
 })
 fire(sibling, 'topLayout', { layout: frame })
 if (rootLayoutFired) throw new Error('layout must not bubble to the ancestor')
+
+// ---- 5. an onX prop the component does NOT declare stays a prop -----------
+// The whole point of the ViewConfig split: a name that merely looks like an event
+// (no view declares `tintColor` as one) routes to props, not the listener map.
+routeProp(sibling, 'onTintColor', '#34c759')
+if (sibling.props.onTintColor !== '#34c759') {
+  throw new Error(`onTintColor must stay a prop, got ${JSON.stringify(sibling.props.onTintColor)}`)
+}
+if (sibling.listeners?.has('tintColor')) {
+  throw new Error('onTintColor must NOT become a listener')
+}
 
 console.log('events.smoke OK')
