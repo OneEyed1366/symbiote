@@ -207,7 +207,9 @@ installFakeTimers()
 
   fire(handle, TOUCH_END)
   const back = responderProps()
-  if (back.opacity !== undefined) {
+  // A removed prop is sent to Fabric as an explicit `null` (the reset signal that
+  // survives Fabric's prop merge); null and undefined both mean "cleared" here.
+  if (back.opacity != null) {
     throw new Error(`released opacity should clear, got ${JSON.stringify(back.opacity)}`)
   }
 }

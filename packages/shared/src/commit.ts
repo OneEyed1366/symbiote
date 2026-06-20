@@ -94,6 +94,20 @@ function fabricProps(node: SymbioteNode): FabricProps {
   return out
 }
 
+// Fabric's clone*WithNewProps MERGES the raw payload onto the node's existing
+// props, so a prop that simply disappears between commits (e.g. `opacity` when a
+// pressed style is released, or any conditionally-applied style key) would keep its
+// stale value. Mirror React's diffProperties: carry every current key, and send any
+// key the node held last time but no longer has as `null` so Fabric resets it to its
+// default. Only matters for clones — a fresh createNode starts from nothing.
+function diffProps(previous: FabricProps, next: FabricProps): FabricProps {
+  const out: Record<string, unknown> = { ...next }
+  for (const key of Object.keys(previous)) {
+    if (!(key in next)) out[key] = null
+  }
+  return out
+}
+
 // Deep structural equality over the JSON-shaped props payload (Fabric props are
 // serializable: primitives, arrays, plain objects). Used to decide whether a
 // node's props actually changed — `fabricProps` builds a fresh object each
@@ -184,14 +198,14 @@ function reconcile(
   if (childrenChanged) {
     stats.cloneChildren += 1
     handle = propsChanged
-      ? slot.cloneNodeWithNewChildrenAndProps(committed.handle, props)
+      ? slot.cloneNodeWithNewChildrenAndProps(committed.handle, diffProps(committed.props, props))
       : slot.cloneNodeWithNewChildren(committed.handle)
     for (const childHandle of childHandles) {
       slot.appendChild(handle, childHandle)
     }
   } else {
     stats.cloneProps += 1
-    handle = slot.cloneNodeWithNewProps(committed.handle, props)
+    handle = slot.cloneNodeWithNewProps(committed.handle, diffProps(committed.props, props))
   }
 
   mirror.set(node, { handle, props, children: node.children.slice(), viewName })
