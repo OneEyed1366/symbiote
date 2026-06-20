@@ -7,10 +7,15 @@
  * there and drives nativeFabricUIManager directly via @symbiote/shared.
  */
 
-import { AppRegistry, processColor, Image as RNImage } from 'react-native';
+import {
+  AppRegistry,
+  processColor,
+  Image as RNImage,
+  DeviceEventEmitter,
+} from 'react-native';
 import { createElement } from 'react';
 import { mount, setImageSourceResolver } from '@symbiote/react';
-import { setColorProcessor } from '@symbiote/shared';
+import { setColorProcessor, setDeviceEventSource } from '@symbiote/shared';
 import App from './App';
 import { name as appName } from './app.json';
 
@@ -24,6 +29,11 @@ setColorProcessor(processColor);
 // require('./x.png') asset ids and {uri} sources are resolved by RN's own
 // resolver before they reach Fabric, keeping @symbiote/react react-native-free.
 setImageSourceResolver(source => RNImage.resolveAssetSource(source));
+
+// Native device events (keyboard, app-state, …) are delivered by RN's own
+// RCTDeviceEventEmitter — the JS module native actually invokes. We subscribe
+// through it rather than registering our own (native ignores a duplicate name).
+setDeviceEventSource(DeviceEventEmitter);
 
 AppRegistry.registerRunnable(appName, appParameters => {
   mount(appParameters.rootTag, createElement(App));

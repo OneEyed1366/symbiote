@@ -9,7 +9,7 @@
  * @format
  */
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   View,
   Text,
@@ -23,6 +23,9 @@ import {
   Modal,
   FlatList,
   RefreshControl,
+  StatusBar,
+  Keyboard,
+  KEYBOARD_EVENT,
 } from '@symbiote/react'
 
 const CHIP_WIDTH = 72
@@ -42,6 +45,31 @@ function App() {
   const [modalVisible, setModalVisible] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshes, setRefreshes] = useState(0)
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
+  const [statusBarHidden, setStatusBarHidden] = useState(false)
+  const [darkStatusBar, setDarkStatusBar] = useState(false)
+
+  // native -> JS: the device hub pushes keyboard frames; we read the height live.
+  useEffect(() => {
+    const onShow = (payload: unknown) => {
+      const height =
+        typeof payload === 'object' &&
+        payload !== null &&
+        'endCoordinates' in payload &&
+        typeof payload.endCoordinates === 'object' &&
+        payload.endCoordinates !== null &&
+        'height' in payload.endCoordinates &&
+        typeof payload.endCoordinates.height === 'number'
+          ? payload.endCoordinates.height
+          : 0
+      setKeyboardHeight(height)
+    }
+    const subscriptions = [
+      Keyboard.addListener(KEYBOARD_EVENT.didShow, onShow),
+      Keyboard.addListener(KEYBOARD_EVENT.didHide, () => setKeyboardHeight(0)),
+    ]
+    return () => subscriptions.forEach(subscription => subscription.remove())
+  }, [])
 
   const onRefresh = useCallback(() => {
     setRefreshing(true)
@@ -63,9 +91,37 @@ function App() {
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7fb5ff" />
       }>
+      {/* JS->native: StatusBar renders nothing — it drives the iOS status bar
+          (the top strip: clock, wi-fi, battery) imperatively from these props. */}
+      <StatusBar
+        barStyle={darkStatusBar ? 'dark-content' : 'light-content'}
+        hidden={statusBarHidden}
+        animated
+      />
       <Text style={{ color: '#7fb5ff', fontSize: 16, textAlign: 'center' }}>
         symbiote · all primitives
       </Text>
+      {/* native->JS: keyboard height pushed from the device hub, read live */}
+      <Text style={{ color: '#7fb5ff', fontSize: 13, textAlign: 'center' }}>
+        {keyboardHeight > 0 ? `keyboard up · ${keyboardHeight}px` : 'keyboard down'}
+      </Text>
+      {/* JS->native StatusBar controls — watch the top strip react */}
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <Button
+            title={statusBarHidden ? 'Show status bar' : 'Hide status bar'}
+            onPress={() => setStatusBarHidden(value => !value)}
+            color="#7fb5ff"
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Button
+            title={darkStatusBar ? 'Light text' : 'Dark text'}
+            onPress={() => setDarkStatusBar(value => !value)}
+            color="#7fb5ff"
+          />
+        </View>
+      </View>
       <Text style={{ color: '#41506a', fontSize: 13, textAlign: 'center' }}>
         {`pull to refresh · refreshed ${refreshes}×`}
       </Text>
