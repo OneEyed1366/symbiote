@@ -1,0 +1,179 @@
+// react-reconciler host config in MUTATION mode. Every host operation maps onto
+// shared's tiny mutation API; shared owns all Fabric-specific work (tag
+// allocation, view-name resolution, clone-on-write, events). This is the
+// canary: a known-good driver exercising shared end to end.
+
+import createReconciler from 'react-reconciler'
+import { createContext } from 'react'
+import {
+  appendChild,
+  createElement,
+  createRawText,
+  insertBefore,
+  removeChild,
+  setProp,
+  setText,
+  type SymbioteNode,
+  type SymbioteSurface,
+} from '@symbiote/shared'
+import {
+  DefaultEventPriority,
+  DiscreteEventPriority,
+  NoEventPriority,
+} from './reconciler-constants'
+
+type Props = Record<string, unknown>
+
+interface HostContext {
+  isInsideText: boolean
+}
+
+function applyProps(node: SymbioteNode, props: Props): void {
+  for (const [key, value] of Object.entries(props)) {
+    if (key === 'children') continue
+    setProp(node, key, value)
+  }
+}
+
+function applyUpdate(node: SymbioteNode, oldProps: Props, newProps: Props): void {
+  for (const key of Object.keys(oldProps)) {
+    if (key === 'children') continue
+    if (!Object.hasOwn(newProps, key)) setProp(node, key, undefined)
+  }
+  for (const [key, value] of Object.entries(newProps)) {
+    if (key === 'children') continue
+    if (value !== oldProps[key]) setProp(node, key, value)
+  }
+}
+
+let currentUpdatePriority = NoEventPriority
+
+// Run an externally-triggered update (a native event) at discrete priority so it
+// lands on the sync lane and flushSyncWork paints it immediately.
+export function withDiscretePriority(run: () => void): void {
+  const previous = currentUpdatePriority
+  currentUpdatePriority = DiscreteEventPriority
+  try {
+    run()
+  } finally {
+    currentUpdatePriority = previous
+  }
+}
+
+const reconciler = createReconciler<
+  'symbiote-view' | 'symbiote-text', // Type
+  Props, // Props
+  SymbioteSurface, // Container
+  SymbioteNode, // Instance
+  SymbioteNode, // TextInstance
+  never, // SuspenseInstance
+  unknown, // HydratableInstance
+  unknown, // FormInstance
+  SymbioteNode, // PublicInstance
+  HostContext, // HostContext
+  unknown, // ChildSet
+  number, // TimeoutHandle
+  number, // NoTimeout
+  unknown // TransitionStatus
+>({
+  isPrimaryRenderer: true,
+  supportsMutation: true,
+  supportsPersistence: false,
+  supportsHydration: false,
+  noTimeout: -1,
+  scheduleTimeout: setTimeout,
+  cancelTimeout: clearTimeout,
+
+  getRootHostContext: () => ({ isInsideText: false }),
+  getChildHostContext(parentHostContext, type) {
+    const isInsideText = type === 'symbiote-text'
+    return parentHostContext.isInsideText === isInsideText
+      ? parentHostContext
+      : { isInsideText }
+  },
+  getPublicInstance: (instance) => instance,
+
+  prepareForCommit: () => null,
+  resetAfterCommit: (container) => {
+    container.commit()
+  },
+  preparePortalMount: () => {},
+  clearContainer: (container) => {
+    container.clear()
+  },
+
+  shouldSetTextContent: () => false,
+
+  createInstance(type, props, _container, hostContext) {
+    if (hostContext.isInsideText && type === 'symbiote-view') {
+      throw new Error("<View> can't be nested inside <Text>")
+    }
+    const node = createElement(type === 'symbiote-text' ? 'text' : 'view')
+    applyProps(node, props)
+    return node
+  },
+  createTextInstance(text, _container, hostContext) {
+    if (!hostContext.isInsideText) {
+      throw new Error(`Text string "${text}" must be rendered inside a <Text>`)
+    }
+    return createRawText(text)
+  },
+
+  appendInitialChild: (parent, child) => appendChild(parent, child),
+  appendChild: (parent, child) => appendChild(parent, child),
+  appendChildToContainer: (container, child) => container.appendChild(child),
+  insertBefore: (parent, child, before) => insertBefore(parent, child, before),
+  insertInContainerBefore: (container, child, before) =>
+    container.insertBefore(child, before),
+  removeChild: (parent, child) => removeChild(parent, child),
+  removeChildFromContainer: (container, child) => container.removeChild(child),
+
+  finalizeInitialChildren: () => false,
+  commitUpdate(node, _type, oldProps, newProps) {
+    applyUpdate(node, oldProps, newProps)
+  },
+  commitTextUpdate(node, _oldText, newText) {
+    setText(node, newText)
+  },
+
+  resetTextContent: () => {},
+  hideTextInstance: (node) => setText(node, ''),
+  unhideTextInstance: (node, text) => setText(node, text),
+  hideInstance: () => {},
+  unhideInstance: () => {},
+
+  beforeActiveInstanceBlur: () => {},
+  afterActiveInstanceBlur: () => {},
+  detachDeletedInstance: () => {},
+  getInstanceFromNode: () => null,
+  prepareScopeUpdate: () => {},
+  getInstanceFromScope: () => null,
+
+  setCurrentUpdatePriority: (priority) => {
+    currentUpdatePriority = priority
+  },
+  getCurrentUpdatePriority: () => currentUpdatePriority,
+  resolveUpdatePriority: () =>
+    currentUpdatePriority !== NoEventPriority ? currentUpdatePriority : DefaultEventPriority,
+
+  maySuspendCommit: () => false,
+  NotPendingTransition: null,
+  // react's Context IS the runtime value react-reconciler's ReactContext wants
+  // (it reads _currentValue off it); the two libraries' type defs model
+  // Consumer/Provider differently and cannot be reconciled structurally. This is
+  // a type-def mismatch only — flagged here so a future @types fix forces cleanup.
+  // @ts-expect-error cross-library Context type-def mismatch (runtime-correct)
+  HostTransitionContext: createContext<unknown>(null),
+  resetFormInstance: () => {},
+  requestPostPaintCallback: () => {},
+  shouldAttemptEagerTransition: () => false,
+  trackSchedulerEvent: () => {},
+  resolveEventType: () => null,
+  resolveEventTimeStamp: () => -1.1,
+  preloadInstance: () => true,
+  startSuspendingCommit: () => {},
+  suspendInstance: () => {},
+  waitForCommitToBeReady: () => null,
+})
+
+export default reconciler

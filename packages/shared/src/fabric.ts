@@ -1,0 +1,91 @@
+// The one seam symbiote drives. `global.nativeFabricUIManager` is the
+// framework-agnostic, JSI-bound mutation API that Fabric exposes; React's
+// renderer is just one client of it. We bind to it directly.
+//
+// The live object is a lazy caching proxy: every property access mints a fresh
+// host function, so we read each method once and cache a plain facade.
+
+export type RootTag = number
+
+// Opaque native handles. We never construct these — the slot mints and returns
+// them. The phantom brand fields make the two handle kinds non-interchangeable
+// and stop a raw object being passed where a handle is expected.
+export interface FabricNode {
+  readonly __fabricNode: unique symbol
+}
+export interface FabricChildSet {
+  readonly __fabricChildSet: unique symbol
+}
+
+export type FabricProps = Record<string, unknown>
+
+export type FabricEventHandler = (
+  instanceHandle: unknown,
+  topLevelType: string,
+  nativeEvent: Record<string, unknown>,
+) => void
+
+export interface FabricSlot {
+  createNode(
+    reactTag: number,
+    viewName: string,
+    rootTag: RootTag,
+    props: FabricProps,
+    instanceHandle: unknown,
+  ): FabricNode
+  cloneNodeWithNewProps(node: FabricNode, newProps: FabricProps): FabricNode
+  cloneNodeWithNewChildren(node: FabricNode): FabricNode
+  createChildSet(rootTag: RootTag): FabricChildSet
+  appendChild(parent: FabricNode, child: FabricNode): FabricNode
+  appendChildToSet(childSet: FabricChildSet, child: FabricNode): void
+  completeRoot(rootTag: RootTag, childSet: FabricChildSet): void
+  registerEventHandler(handler: FabricEventHandler): void
+}
+
+// The JSI global, typed at the trust boundary. RN's InitializeCore installs it
+// on Fabric hosts; it is absent on the legacy (Paper) architecture. Declaring
+// its type here is how host globals are typed (cf. `window` in lib.dom) — the
+// single point where we vouch for the native contract, with no per-call cast.
+// Accessed via globalThis to match how RN itself reads it (global.nativeFabricUIManager).
+declare global {
+  // eslint-disable-next-line no-var
+  var nativeFabricUIManager: FabricSlot | undefined
+}
+
+let cached: FabricSlot | undefined
+
+export function getSlot(): FabricSlot {
+  if (cached) return cached
+
+  const host = globalThis.nativeFabricUIManager
+  if (host === undefined) {
+    throw new Error(
+      'nativeFabricUIManager is not installed on the global. ' +
+        'Is this running on a Fabric (New Architecture) host with InitializeCore loaded?',
+    )
+  }
+
+  // Read each method exactly once — the live binding re-mints host functions on
+  // every property access, so caching the references avoids that churn.
+  const { createNode } = host
+  const { cloneNodeWithNewProps } = host
+  const { cloneNodeWithNewChildren } = host
+  const { createChildSet } = host
+  const { appendChild } = host
+  const { appendChildToSet } = host
+  const { completeRoot } = host
+  const { registerEventHandler } = host
+
+  cached = {
+    createNode: (reactTag, viewName, rootTag, props, instanceHandle) =>
+      createNode(reactTag, viewName, rootTag, props, instanceHandle),
+    cloneNodeWithNewProps: (node, newProps) => cloneNodeWithNewProps(node, newProps),
+    cloneNodeWithNewChildren: (node) => cloneNodeWithNewChildren(node),
+    createChildSet: (rootTag) => createChildSet(rootTag),
+    appendChild: (parent, child) => appendChild(parent, child),
+    appendChildToSet: (childSet, child) => appendChildToSet(childSet, child),
+    completeRoot: (rootTag, childSet) => completeRoot(rootTag, childSet),
+    registerEventHandler: (handler) => registerEventHandler(handler),
+  }
+  return cached
+}

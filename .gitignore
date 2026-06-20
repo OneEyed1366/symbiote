@@ -1,0 +1,19 @@
+node_modules/
+build/
+dist/
+*.tsbuildinfo
+
+# iOS
+ios/Pods/
+ios/build/
+ios/*.xcworkspace/xcuserdata/
+ios/*.xcodeproj/xcuserdata/
+DerivedData/
+
+# Metro / Hermes
+.metro-health-check*
+*.jsbundle
+
+# misc
+.DS_Store
+.docs/
