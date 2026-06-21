@@ -5,7 +5,14 @@
 export { View, Text } from './components'
 export type { ViewProps, TextProps } from './components'
 export { Image, setImageSourceResolver } from './image'
-export type { ImageProps, ImageSource, ImageSourceProp, ResizeMode } from './image'
+export type {
+  ImageProps,
+  ImageSource,
+  ImageSourceProp,
+  ResizeMode,
+  ImageSize,
+  ImageCacheStatus,
+} from './image'
 export { ImageBackground } from './image-background'
 export type { ImageBackgroundProps } from './image-background'
 export { ScrollView } from './scroll-view'
@@ -115,6 +122,9 @@ export { Share } from './share'
 export type { ShareContent, ShareOptions, ShareAction } from './share'
 export { AccessibilityInfo } from './accessibility-info'
 export type { AccessibilityChangeEvent } from './accessibility-info'
+export { I18nManager } from './i18n-manager'
+export type { I18nManagerConstants } from './i18n-manager'
+export { Settings } from './settings'
 
 // Interaction subsystems — gestures, deferred work, and layout transitions.
 export { default as PanResponder } from './pan-responder'
