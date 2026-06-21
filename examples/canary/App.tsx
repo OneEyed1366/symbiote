@@ -9,10 +9,11 @@
  * @format
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   View,
   Text,
+  Animated,
   ScrollView,
   TextInput,
   Image,
@@ -37,6 +38,7 @@ import {
   Linking,
   Vibration,
   Share,
+  PanResponder,
 } from '@symbiote/react'
 // A real third-party native view, used straight from the library — no symbiote
 // wrapper. symbiote derives RNCSlider's events and prop processors from its own
@@ -52,6 +54,259 @@ const chips = Array.from({ length: 24 }, (_, index) => ({
   index,
   color: `hsl(${(index * 37) % 360} 70% 55%)`,
 }))
+
+const SLIDE_DISTANCE = 220
+
+// Animated, both drivers side by side. The pulse runs on the NATIVE driver — the
+// curve lives in NativeAnimated, so zero JS runs per frame (DEBUG shows a single
+// `native: startAnimatingNode`, no per-frame commits). The two slide dots run the
+// SAME timing on different drivers: the JS one commits a clone every frame (DEBUG
+// logs `commit … incremental` ~60×/run), the native one offloads it. Each dot keeps
+// its own Animated.Value so a JS run and a native run never touch the same node.
+function AnimatedDemo() {
+  const pulse = useRef(new Animated.Value(0)).current
+  const jsSlide = useRef(new Animated.Value(0)).current
+  const nativeSlide = useRef(new Animated.Value(0)).current
+  const [jsForward, setJsForward] = useState(false)
+  const [nativeForward, setNativeForward] = useState(false)
+
+  // A perpetual native-driven heartbeat: scale + opacity breathing.
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 700, useNativeDriver: true }),
+      ]),
+    )
+    animation.start()
+    return () => animation.stop()
+  }, [pulse])
+
+  const pulseScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.3] })
+  const pulseOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] })
+
+  const slide = (
+    value: typeof jsSlide,
+    forward: boolean,
+    setForward: (next: boolean) => void,
+    useNativeDriver: boolean,
+  ): void => {
+    Animated.timing(value, {
+      toValue: forward ? 0 : 1,
+      duration: 600,
+      useNativeDriver,
+    }).start()
+    setForward(!forward)
+  }
+
+  const jsX = jsSlide.interpolate({ inputRange: [0, 1], outputRange: [0, SLIDE_DISTANCE] })
+  const nativeX = nativeSlide.interpolate({ inputRange: [0, 1], outputRange: [0, SLIDE_DISTANCE] })
+
+  // Proof of offload (ADR 0017): kick both slides, then jam the JS thread for 1.5s.
+  // The native-driven pulse + green slide keep moving on the UI side through the
+  // freeze; the JS-driven orange slide stalls until the thread is released. If the
+  // "native" path had silently fallen back to JS, the pulse would freeze too.
+  const freezeJs = (): void => {
+    slide(jsSlide, jsForward, setJsForward, false)
+    slide(nativeSlide, nativeForward, setNativeForward, true)
+    const until = Date.now() + 1500
+    while (Date.now() < until) {
+      // Intentionally block the JS thread — no requestAnimationFrame can fire here.
+    }
+  }
+
+  return (
+    <View style={{ gap: 12 }}>
+      <Text style={{ color: '#41506a', fontSize: 13 }}>Animated · JS vs native driver</Text>
+
+      {/* native-driven perpetual pulse */}
+      <View style={{ height: 64, alignItems: 'center', justifyContent: 'center' }}>
+        <Animated.View
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 24,
+            backgroundColor: '#7fb5ff',
+            opacity: pulseOpacity,
+            transform: [{ scale: pulseScale }],
+          }}
+        />
+      </View>
+
+      {/* JS-driven slide: a commit per frame */}
+      <View style={{ height: 36, justifyContent: 'center' }}>
+        <Animated.View
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 8,
+            backgroundColor: '#f6ad55',
+            transform: [{ translateX: jsX }],
+          }}
+        />
+      </View>
+      <Button
+        title="Slide (JS driver)"
+        onPress={() => slide(jsSlide, jsForward, setJsForward, false)}
+        color="#f6ad55"
+      />
+
+      {/* native-driven slide: offloaded, zero JS frames */}
+      <View style={{ height: 36, justifyContent: 'center' }}>
+        <Animated.View
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 8,
+            backgroundColor: '#68d391',
+            transform: [{ translateX: nativeX }],
+          }}
+        />
+      </View>
+      <Button
+        title="Slide (native driver)"
+        onPress={() => slide(nativeSlide, nativeForward, setNativeForward, true)}
+        color="#68d391"
+      />
+
+      {/* Freeze the JS thread 1.5s: native (pulse + green) keep moving, JS (orange) stalls */}
+      <Button title="Freeze JS 1.5s" onPress={freezeJs} color="#fc8181" />
+    </View>
+  )
+}
+
+// The rest of the Animated surface: ValueXY (2D), tracking (chase a moving target),
+// and diffClamp (a collapsing header). Each is a thin port of the RN node.
+const XY_SPAN = 96
+const TRACK_DISTANCE = 200
+const HEADER_COLLAPSE = 60
+
+function AnimatedParityDemo() {
+  // --- ValueXY + PanResponder: drag the box around --------------------------
+  // On grant, fold the resting position into the offset and zero the value, so the
+  // gesture's dx/dy maps straight onto the value; on release, flatten it back.
+  const xy = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => xy.extractOffset(),
+      onPanResponderMove: (_event, gesture) => xy.setValue({ x: gesture.dx, y: gesture.dy }),
+      onPanResponderRelease: () => xy.flattenOffset(),
+    }),
+  ).current
+
+  // --- Tracking: a follower spring-chases a lead value that animates on tap ---
+  const lead = useRef(new Animated.Value(0)).current
+  const follow = useRef(new Animated.Value(0)).current
+  const [leadForward, setLeadForward] = useState(false)
+  useEffect(() => {
+    // Set up once: follow tracks lead. Every lead change re-aims the spring, so the
+    // follower lags and chases rather than jumping — the tracking signature.
+    Animated.spring(follow, { toValue: lead, useNativeDriver: false }).start()
+    return () => follow.stopAnimation()
+  }, [follow, lead])
+  const moveLead = (): void => {
+    Animated.timing(lead, {
+      toValue: leadForward ? 0 : TRACK_DISTANCE,
+      duration: 700,
+      useNativeDriver: false,
+    }).start()
+    setLeadForward(!leadForward)
+  }
+
+  // --- diffClamp: a header that collapses as you scroll down, reveals on up ---
+  const scroll = useRef(new Animated.Value(0)).current
+  const scrollPos = useRef(0)
+  const headerOffset = useRef(
+    Animated.diffClamp(scroll, 0, HEADER_COLLAPSE).interpolate({
+      inputRange: [0, HEADER_COLLAPSE],
+      outputRange: [0, -HEADER_COLLAPSE],
+    }),
+  ).current
+  const scrollBy = (delta: number): void => {
+    scrollPos.current = Math.max(0, scrollPos.current + delta)
+    Animated.timing(scroll, { toValue: scrollPos.current, duration: 180, useNativeDriver: false }).start()
+  }
+
+  return (
+    <View style={{ gap: 12 }}>
+      <Text style={{ color: '#41506a', fontSize: 13 }}>Animated · ValueXY / tracking / diffClamp</Text>
+
+      {/* ValueXY box you drag with a finger (PanResponder) */}
+      <Text style={{ color: '#718096', fontSize: 11 }}>drag the purple box →</Text>
+      <View
+        style={{
+          width: XY_SPAN + 36,
+          height: XY_SPAN + 36,
+          borderRadius: 12,
+          backgroundColor: '#eef2f9',
+          padding: 6,
+        }}
+      >
+        <Animated.View
+          {...panResponder.panHandlers}
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            backgroundColor: '#9f7aea',
+            transform: xy.getTranslateTransform(),
+          }}
+        />
+      </View>
+
+      {/* Tracking: lead dot (blue) and follower (orange) that lags behind it */}
+      <View style={{ height: 30, justifyContent: 'center' }}>
+        <Animated.View
+          style={{
+            width: 22,
+            height: 22,
+            borderRadius: 11,
+            backgroundColor: '#4299e1',
+            transform: [{ translateX: lead }],
+          }}
+        />
+      </View>
+      <View style={{ height: 30, justifyContent: 'center' }}>
+        <Animated.View
+          style={{
+            width: 22,
+            height: 22,
+            borderRadius: 11,
+            backgroundColor: '#f6ad55',
+            transform: [{ translateX: follow }],
+          }}
+        />
+      </View>
+      <Button title="Move target (follower chases)" onPress={moveLead} color="#4299e1" />
+
+      {/* diffClamp collapsing header */}
+      <View style={{ height: HEADER_COLLAPSE + 24, overflow: 'hidden', justifyContent: 'flex-start' }}>
+        <Animated.View
+          style={{
+            height: HEADER_COLLAPSE,
+            borderRadius: 8,
+            backgroundColor: '#38b2ac',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transform: [{ translateY: headerOffset }],
+          }}
+        >
+          <Text style={{ color: 'white', fontSize: 12 }}>collapsing header</Text>
+        </Animated.View>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <View style={{ flex: 1 }}>
+          <Button title="Scroll ↓" onPress={() => scrollBy(40)} color="#38b2ac" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Button title="Scroll ↑" onPress={() => scrollBy(-40)} color="#38b2ac" />
+        </View>
+      </View>
+    </View>
+  )
+}
 
 function App() {
   const [count, setCount] = useState(0)
@@ -316,6 +571,12 @@ function App() {
           style={{ height: 40, alignSelf: 'stretch' }}
         />
       </View>
+
+      {/* Animated — JS driver vs native driver, side by side */}
+      <AnimatedDemo />
+
+      {/* Animated — ValueXY, tracking, diffClamp */}
+      <AnimatedParityDemo />
 
       {/* Button opens a Modal */}
       <Button title="Open modal" onPress={() => setModalVisible(true)} color="#7fb5ff" />
