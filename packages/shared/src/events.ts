@@ -10,6 +10,7 @@ import { dlog } from './debug'
 import { runWrapped } from './dispatch'
 import { getSlot } from './fabric'
 import { isSymbioteNode, type SymbioteEvent, type SymbioteNode } from './node'
+import { registeredNativeEvent } from './registry'
 
 // Raw Fabric event name -> listener name. Generic bubbling events live here; press
 // is synthesized from a touch sequence and layout is direct, so both are handled
@@ -114,7 +115,30 @@ export function installEventHandler(): void {
     if (bubbling !== undefined) {
       dlog(`event ${topLevelType} -> ${bubbling} (bubble)`)
       runWrapped(() => bubble(instanceHandle, bubbling, nativeEvent))
+      return
     }
+
+    // Third-party Fabric views (registerComponent) declare their own events; the
+    // built-in tables above don't know them, so fall back to the registry, keyed by
+    // the node's own component. `direct` events fire only on their target, the rest
+    // bubble — same split as the built-ins.
+    const registered = registeredNativeEvent(instanceHandle.component, topLevelType)
+    if (registered !== undefined) {
+      const phase = registered.direct ? 'direct' : 'bubble'
+      dlog(`event ${topLevelType} -> ${registered.listener} (${phase}, registered)`)
+      runWrapped(() =>
+        registered.direct
+          ? deliverDirect(instanceHandle, registered.listener, nativeEvent)
+          : bubble(instanceHandle, registered.listener, nativeEvent),
+      )
+      return
+    }
+
+    // Nothing claimed this event — neither a built-in table nor the view's derived
+    // config. A permanent diagnostic seam: if a native view fires something we drop
+    // on the floor (an event the ViewConfig didn't surface, or a name mismatch),
+    // this is where it shows up. Keeps "the handler silently did nothing" debuggable.
+    dlog(`event ${topLevelType} UNMATCHED on ${instanceHandle.component} (dropped)`)
   })
 }
 

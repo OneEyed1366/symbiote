@@ -16,6 +16,14 @@ export {
   isSymbioteNode,
 } from './node'
 export { isEventFor } from './view-config'
+export { registerComponent, setNativeViewConfigSource } from './registry'
+export type {
+  ComponentRegistration,
+  NativeEventBinding,
+  NativeViewConfig,
+  NativeViewConfigSource,
+  PropProcessor,
+} from './registry'
 export type { SymbioteNode, SymbioteEvent, Listener } from './node'
 
 export { SymbioteSurface, createSurface } from './surface'

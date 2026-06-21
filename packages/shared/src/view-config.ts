@@ -12,6 +12,8 @@
 // `Renderer2.listen`) deliver events pre-separated and call `setEventListener`
 // directly, bypassing this entirely.
 
+import { isRegisteredEvent } from './registry'
+
 // Events every view can emit — RN's base ViewConfig. `press`/`pressIn`/`pressOut`
 // are synthesized from the touch stream (see events.ts); `layout` is universal.
 const BASE_EVENTS: readonly string[] = ['press', 'pressIn', 'pressOut', 'layout']
@@ -56,7 +58,9 @@ const COMPONENT_EVENTS: Readonly<Record<string, readonly string[]>> = {
 
 const configCache = new Map<string, ReadonlySet<string>>()
 
-// The complete set of event names `component` can emit (its own + the base set).
+// The built-in event names `component` can emit (its own + the base set). Cached;
+// the registry layer is consulted live in isEventFor so a later registration is
+// never masked by a stale cache entry.
 function eventNamesFor(component: string): ReadonlySet<string> {
   let set = configCache.get(component)
   if (set === undefined) {
@@ -68,7 +72,8 @@ function eventNamesFor(component: string): ReadonlySet<string> {
 
 // True when `listenerName` is an event `component` emits, false when it is an
 // ordinary native prop. This is the single authority for the event-vs-prop split —
-// the name alone never decides.
+// the name alone never decides. Built-ins first, then any third-party registration.
 export function isEventFor(component: string, listenerName: string): boolean {
-  return eventNamesFor(component).has(listenerName)
+  if (eventNamesFor(component).has(listenerName)) return true
+  return isRegisteredEvent(component, listenerName)
 }
