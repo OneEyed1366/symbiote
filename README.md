@@ -26,8 +26,11 @@ and React's renderer is just *one client* of it. All of React's glue lives in a 
 file (`ReactFiberConfigFabric.js`). "Removing React" means: stop calling that file, call
 the slot from your own renderer instead. **The native core is never touched.**
 
-symbiote extracts that native stack and puts a tiny seam in front of it, so **any** UI
-framework can drive real native views. One native core, N thin adapters.
+symbiote turns React Native's **internals** — Fabric's C++ shadow tree, Yoga layout,
+Hermes, JSI — into a **universal native rendering layer**. It extracts that engine, puts a
+tiny seam in front of it, and lets **any** UI framework drive real native views through it.
+The rendering layer is React Native's; React the framework is just one client. One native
+core, N thin adapters.
 
 > If you've used [wolf-tui](https://github.com/OneEyed1366/wolf-tui) — shared retained-tree + a thin per-framework
 > reconciler, already shipping across five frameworks against a native layout engine —
@@ -87,8 +90,10 @@ The only thing symbiote replaces is the JS renderer.
 
 ## See It Work
 
-The Milestone 1 canary renders `<View><Text>…</Text></View>` to the iOS simulator with a
-working tap→increment — and React Native's own renderer is never involved.
+The canary ([`examples/canary/App.tsx`](./examples/canary/App.tsx)) runs a full demo on the
+iOS simulator — every primitive, the runtime-module layer, `Animated` on both drivers, and a
+third-party native slider, all committing through `@symbiote/shared` while React Native's own
+renderer is never involved. The smallest slice of it is a tap→increment counter:
 
 The native entry registers a low-level *runnable* instead of a React component:
 
@@ -147,12 +152,26 @@ Fabric — no React Native renderer in the path.
 
 **Done:** the native pipe, bootstrap, and `@symbiote/shared`'s mutation→clone-on-write engine
 are proven on a real iOS 26 simulator via the React canary (R1 + R2 + R3 — decision
-record 0009).
+record 0009). The canary now runs a full end-to-end demo on device — every interaction below
+commits through `@symbiote/shared` into Fabric, with React Native's renderer never in the path:
 
-**In progress:** building `@symbiote/react` out toward React Native feature parity. Primitives
-already wired include `View` · `Text` · `Image` · `ImageBackground` · `ScrollView` ·
-`TextInput` · `Pressable` · `Touchable*` · `Button` · `Switch` · `Modal` · `ActivityIndicator`
-· `SafeAreaView` · `RefreshControl` · `FlatList` · `SectionList` · `VirtualizedList`.
+- **Primitives** — `View` · `Text` · `Image` · `ImageBackground` · `ScrollView` · `TextInput` ·
+  `Pressable` · `Touchable*` · `Button` · `Switch` · `Modal` · `ActivityIndicator` ·
+  `SafeAreaView` · `RefreshControl` · `FlatList` · `SectionList` · `VirtualizedList`.
+- **Runtime modules** — `Platform` · `StyleSheet` (incl. `hairlineWidth`) · `Dimensions` ·
+  `Appearance` · `PixelRatio` · `AppState`, plus imperative `Alert` · `ActionSheetIOS` ·
+  `Share` · `Linking` · `Vibration` · `Keyboard` · `StatusBar` — each reaching its real native
+  module on the bridgeless host.
+- **`Animated`, both drivers** — JS *and* native driver side by side (`timing` · `spring` ·
+  `loop` · `interpolate` · `ValueXY` · tracking · `diffClamp`). Native offload is proven by
+  jamming the JS thread 1.5 s: the native-driven animations keep moving, the JS-driven one
+  stalls (decision records 0016 · 0017).
+- **Third-party native views** — `@react-native-community/slider` used straight from the
+  package with zero symbiote metadata; shared derives its events and prop processors from the
+  library's own ViewConfig at runtime — the "install the package, use its component" path.
+
+**In progress:** building `@symbiote/react` the rest of the way to full React Native feature
+parity (gestures, remaining components and prop edges).
 
 ---
 
@@ -168,6 +187,11 @@ the native pipe or the commit engine.
 | **M0** | Monorepo scaffold | pnpm workspaces, `shared` + `react` packages, headless harness | ✅ done |
 | **M1** | React canary on iOS | native pipe (R1) + clone-on-write engine (R2) + event→recommit (R3) | ✅ done |
 | **M2** | **React → React Native feature parity** | the full primitive + prop + event surface on the agnostic core | 🚧 in progress |
+| ↳ M2.1 | Primitive surface | `View`/`Text`/`ScrollView`/`TextInput`/`Modal`/`FlatList`/… all driven through shared, on device | ✅ done |
+| ↳ M2.2 | Runtime modules | `Platform`/`StyleSheet`/`Dimensions`/`Appearance`/`AppState` + imperative `Alert`/`ActionSheetIOS`/`Share`/`Linking`/`Vibration`/`Keyboard`/`StatusBar` | ✅ done |
+| ↳ M2.3 | `Animated`, both drivers | JS + native driver (`ValueXY`/tracking/`diffClamp`); native offload proven by a JS-thread freeze (ADR 0016 · 0017) | ✅ done |
+| ↳ M2.4 | Third-party native views | `@react-native-community/slider` via runtime ViewConfig derivation — zero symbiote metadata | ✅ done |
+| ↳ M2.5 | Gestures + remaining parity | gesture responder, remaining components, prop-edge coverage | 🚧 in progress |
 | **DX** | `create-symbiote` scaffolder | pins `react-native` + `react` at the app root so your app code imports only `@symbiote/*`, never `react-native` | ⏳ planned |
 | **M3** | Vue adapter | `createRenderer` + nodeOps on the validated core — first non-React framework (R4) | ⏳ next |
 | **M4** | Angular adapter | a second mutation-oriented framework, template/renderer seam | ⏳ planned |
