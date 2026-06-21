@@ -113,5 +113,27 @@ export type { UrlEvent } from './linking'
 export { Vibration } from './vibration'
 export { Share } from './share'
 export type { ShareContent, ShareOptions, ShareAction } from './share'
+export { AccessibilityInfo } from './accessibility-info'
+export type { AccessibilityChangeEvent } from './accessibility-info'
+
+// Interaction subsystems — gestures, deferred work, and layout transitions.
+export { default as PanResponder } from './pan-responder'
+export type {
+  PanResponderGestureState,
+  PanResponderCallbacks,
+  GestureResponderHandlers,
+  PanResponderInstance,
+} from './pan-responder'
+export { LayoutAnimation } from './layout-animation'
+export type {
+  LayoutAnimationType,
+  LayoutAnimationProperty,
+  LayoutAnimationConfig,
+  LayoutAnimationAnim,
+} from './layout-animation'
+// InteractionManager is pure JS, so it lives in shared; re-exported here so app code
+// names only @symbiote/react (RN's single import root).
+export { InteractionManager } from '@symbiote/shared'
+export type { InteractionEvent, SimpleTask, PromiseTask, Task, Handle } from '@symbiote/shared'
 
 export type { SymbioteEvent } from '@symbiote/shared'
