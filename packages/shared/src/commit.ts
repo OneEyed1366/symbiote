@@ -32,6 +32,7 @@ import { dlog, isDebug } from './debug'
 import { flattenStyle } from './style'
 import { registeredProcessor } from './registry'
 import { nextTag } from './tags'
+import { isOpaqueColorValue, type ColorValue } from './platform-color'
 
 // Per-commit work counters, surfaced via dlog so a device run can prove the
 // engine is incremental (created=0 with clones after the first mount).
@@ -57,10 +58,28 @@ const COLOR_PROPS: ReadonlySet<string> = new Set([
   'tintColor',
 ])
 
-let colorProcessor: (value: string) => unknown = (value) => value
+// Accepts a CSS string or an opaque PlatformColor / DynamicColorIOS object — RN's
+// processColor (the value the canary injects) handles both, resolving the opaque
+// shapes to the platform ints/dicts iOS UIColor expects.
+let colorProcessor: (value: ColorValue) => unknown = (value) => value
 
-export function setColorProcessor(process: (value: string) => unknown): void {
+export function setColorProcessor(process: (value: ColorValue) => unknown): void {
   colorProcessor = process
+}
+
+// Public mirror of RN's processColor: run a color through the injected platform
+// processor (the canary wires RN's own). Off a real host it resolves CSS strings
+// and opaque PlatformColor objects to the platform ints Fabric expects; headless
+// (no processor wired) it is the identity, so smokes see the input unchanged.
+export function processColor(color: ColorValue): unknown {
+  return colorProcessor(color)
+}
+
+// A color-keyed value the platform processor must convert before Fabric: a CSS
+// string, or an opaque PlatformColor / DynamicColorIOS object. Numbers (already
+// platform ints) and undefined are left untouched.
+function isProcessableColor(value: unknown): value is ColorValue {
+  return typeof value === 'string' || isOpaqueColorValue(value)
 }
 
 // Convert a prop to the shape Fabric's C++ expects. A third-party view contributes
@@ -72,7 +91,7 @@ export function setColorProcessor(process: (value: string) => unknown): void {
 function processValue(component: string, key: string, value: unknown): unknown {
   const processor = registeredProcessor(component, key)
   if (processor !== undefined) return processor(value)
-  if (typeof value === 'string' && COLOR_PROPS.has(key)) return colorProcessor(value)
+  if (COLOR_PROPS.has(key) && isProcessableColor(value)) return colorProcessor(value)
   return value
 }
 

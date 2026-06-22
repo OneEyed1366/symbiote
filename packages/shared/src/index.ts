@@ -41,6 +41,7 @@ export { SymbioteSurface, createSurface } from './surface'
 export { setEventDispatcher } from './dispatch'
 export {
   setColorProcessor,
+  processColor,
   dispatchViewCommand,
   setNativeProps,
   getNativeTag,
@@ -49,6 +50,8 @@ export {
   measureInWindow,
   measureLayout,
 } from './commit'
+export { PlatformColor, DynamicColorIOS, isOpaqueColorValue } from './platform-color'
+export type { ColorValue, OpaqueColorValue, DynamicColorIOSTuple } from './platform-color'
 export { flattenStyle } from './style'
 export { StyleSheet, computeHairlineWidth } from './style-sheet'
 export { Platform } from './platform'

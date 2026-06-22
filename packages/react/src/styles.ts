@@ -4,6 +4,8 @@
 // react-native/Libraries/StyleSheet/StyleSheetTypes — not the full thing, but the
 // load-bearing layout / box / shadow / transform / text props.
 
+import type { ColorValue } from '@symbiote/shared'
+
 // RN allows `%` strings for layout dimensions and insets, plus the 'auto' keyword.
 export type DimensionValue = number | string
 
@@ -106,24 +108,24 @@ export interface ViewStyle {
   borderEndWidth?: number
 
   // Borders — color per edge
-  borderColor?: string
-  borderTopColor?: string
-  borderRightColor?: string
-  borderBottomColor?: string
-  borderLeftColor?: string
-  borderStartColor?: string
-  borderEndColor?: string
+  borderColor?: ColorValue
+  borderTopColor?: ColorValue
+  borderRightColor?: ColorValue
+  borderBottomColor?: ColorValue
+  borderLeftColor?: ColorValue
+  borderStartColor?: ColorValue
+  borderEndColor?: ColorValue
   borderStyle?: 'solid' | 'dotted' | 'dashed'
 
   // Visual
-  backgroundColor?: string
+  backgroundColor?: ColorValue
   opacity?: number
   overflow?: 'visible' | 'hidden' | 'scroll'
   display?: 'none' | 'flex'
   backfaceVisibility?: 'visible' | 'hidden'
 
   // Shadow (iOS) + elevation (Android)
-  shadowColor?: string
+  shadowColor?: ColorValue
   shadowOffset?: { width: number; height: number }
   shadowOpacity?: number
   shadowRadius?: number
@@ -134,7 +136,7 @@ export interface ViewStyle {
 }
 
 export interface TextStyle extends ViewStyle {
-  color?: string
+  color?: ColorValue
   fontFamily?: string
   fontSize?: number
   fontStyle?: 'normal' | 'italic'

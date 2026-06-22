@@ -77,6 +77,11 @@ export { Animated, createAnimatedComponent } from './animated'
 // Framework-agnostic runtime utilities live in shared; the adapter re-exports them
 // so app code names only @symbiote/react (RN's surface, one import root).
 export { Platform, StyleSheet } from '@symbiote/shared'
+// Color utilities: PlatformColor / DynamicColorIOS build opaque platform colors;
+// processColor runs a color through the injected platform processor. All pure /
+// seam-backed, so they live in shared and the adapter re-exports them.
+export { PlatformColor, DynamicColorIOS, processColor } from '@symbiote/shared'
+export type { ColorValue, OpaqueColorValue, DynamicColorIOSTuple } from '@symbiote/shared'
 // Wired once by the app entry on a real host (like setColorProcessor): hands shared
 // RN's ViewConfig registry so third-party Fabric views auto-derive their metadata —
 //   setNativeViewConfigSource(name => ReactNativeViewConfigRegistry.get(name))
