@@ -38,6 +38,12 @@ function createAnimatedProps(
   const props: Record<string, unknown> = {}
   for (const key of Object.keys(inputProps)) {
     const value = inputProps[key]
+    // `children` is a React element (its $$typeof is a Symbol), managed by the
+    // reconciler as real Fabric child nodes — never a serializable prop. The host
+    // config strips it from every prop bag; the Animated flush must too, else each
+    // frame's setNativeProps sends the element to Fabric and folly::dynamic throws
+    // "JS Symbols are not convertible to dynamic" (Android is strict; iOS ignores it).
+    if (key === 'children') continue
     if (key === 'style') {
       const styleNode = AnimatedStyle.from(value)
       if (styleNode !== undefined) {
