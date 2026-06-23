@@ -13,6 +13,11 @@ export type SymbioteIntrinsic =
   | 'symbiote-image'
   | 'symbiote-scroll-view'
   | 'symbiote-scroll-content'
+  // Horizontal scroll is a SEPARATE native ViewManager on Android (AndroidHorizontalScrollView),
+  // not RCTScrollView with a flag — so it needs its own intrinsic. On iOS both map back to
+  // RCTScrollView (one view; the `horizontal` prop flips its axis). See ADR 0020.
+  | 'symbiote-horizontal-scroll-view'
+  | 'symbiote-horizontal-scroll-content'
   | 'symbiote-text-input'
   | 'symbiote-text-input-multiline'
   | 'symbiote-switch'

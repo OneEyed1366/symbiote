@@ -18,20 +18,28 @@ export type { ScrollViewProps } from './scroll-view-shared'
 const INNER_FILL_STYLE = { flex: 1 }
 
 export const ScrollView: FC<ScrollViewProps> = (props) => {
-  const { outerProps, style, content, refreshControl } = prepareScrollView(props)
+  const { scrollViewIntrinsic, scrollViewBaseStyle, outerProps, style, content, refreshControl } =
+    prepareScrollView(props)
   dlog('ScrollView.ANDROID refreshControl=' + (refreshControl === undefined ? 'NONE(1child)' : 'WRAP'))
 
   if (refreshControl === undefined) {
-    return createElement('symbiote-scroll-view', { ...outerProps, style }, content)
+    // Base style (flexDirection: row for horizontal) under user style; undefined base
+    // (vertical) passes the user style through unchanged.
+    const scrollStyle = scrollViewBaseStyle ? { ...scrollViewBaseStyle, ...style } : style
+    return createElement(scrollViewIntrinsic, { ...outerProps, style: scrollStyle }, content)
   }
 
   // The style goes on the outer RefreshControl (the laid-out box); the inner scroll view
   // fills it. RN splits layout vs visual style across the two; placing the full style on
   // the wrapper plus flex:1 inside is the close-enough shape that keeps the background and
-  // sizing correct for the common case.
+  // sizing correct for the common case. The scroll view still needs its base (flexDirection)
+  // to size content along the scroll axis, so compose it under the fill style.
+  const innerStyle = scrollViewBaseStyle
+    ? { ...scrollViewBaseStyle, ...INNER_FILL_STYLE }
+    : INNER_FILL_STYLE
   const scrollView = createElement(
-    'symbiote-scroll-view',
-    { ...outerProps, style: INNER_FILL_STYLE, nestedScrollEnabled: true },
+    scrollViewIntrinsic,
+    { ...outerProps, style: innerStyle, nestedScrollEnabled: true },
     content,
   )
   return cloneElement(refreshControl, { style }, scrollView)

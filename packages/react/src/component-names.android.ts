@@ -14,6 +14,11 @@ const ANDROID_NAMES: Readonly<Record<SymbioteIntrinsic, string>> = {
   // RN's VScrollContentViewNativeComponent is `Platform.OS === 'android' ? View : …`,
   // so a vertical scroll's content is a plain RCTView on Android, not RCTScrollContentView.
   'symbiote-scroll-content': 'RCTView',
+  // Horizontal scroll on Android is its own ViewManager — RCTScrollView is vertical-only and
+  // ignores `horizontal`. RN routes it to AndroidHorizontalScrollView with a dedicated content
+  // view (HScrollViewNativeComponents.js: `Platform.OS === 'android' ? AndroidHorizontal… : …`).
+  'symbiote-horizontal-scroll-view': 'AndroidHorizontalScrollView',
+  'symbiote-horizontal-scroll-content': 'AndroidHorizontalScrollContentView',
   // Android has one text-input ViewManager for both single- and multiline.
   'symbiote-text-input': 'AndroidTextInput',
   'symbiote-text-input-multiline': 'AndroidTextInput',

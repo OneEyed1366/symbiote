@@ -39,19 +39,27 @@ const TEXT_INPUT_EVENTS: readonly string[] = [
 ]
 const MODAL_EVENTS: readonly string[] = ['show', 'dismiss', 'requestClose', 'orientationChange']
 
+// A scroll view's events are the same on both axes and both platforms — only the native
+// NAME differs (iOS RCTScrollView for both; Android RCTScrollView vertical vs
+// AndroidHorizontalScrollView horizontal). Declared once, keyed under each name below. The
+// Android horizontal name was missing, so a horizontal FlatList's onScroll never fired and
+// its windowing stalled — same failure mode as the text-input keys.
+const SCROLL_EVENTS: readonly string[] = [
+  'scroll',
+  'scrollBeginDrag',
+  'scrollEndDrag',
+  'momentumScrollBegin',
+  'momentumScrollEnd',
+  'contentSizeChange',
+]
+
 // Fabric component name -> the events it emits beyond the base set. The keys match
 // SymbioteNode.component (what createNode is called with). A component absent here
 // still gets BASE_EVENTS, so a new primitive has working press/layout for free.
 const COMPONENT_EVENTS: Readonly<Record<string, readonly string[]>> = {
   RCTImageView: ['loadStart', 'load', 'loadEnd', 'error', 'progress', 'partialLoad'],
-  RCTScrollView: [
-    'scroll',
-    'scrollBeginDrag',
-    'scrollEndDrag',
-    'momentumScrollBegin',
-    'momentumScrollEnd',
-    'contentSizeChange',
-  ],
+  RCTScrollView: SCROLL_EVENTS,
+  AndroidHorizontalScrollView: SCROLL_EVENTS,
   RCTSinglelineTextInputView: TEXT_INPUT_EVENTS,
   RCTMultilineTextInputView: TEXT_INPUT_EVENTS,
   AndroidTextInput: TEXT_INPUT_EVENTS,

@@ -7,11 +7,15 @@ import { prepareScrollView, type ScrollViewProps } from './scroll-view-shared'
 export type { ScrollViewProps } from './scroll-view-shared'
 
 export const ScrollView: FC<ScrollViewProps> = (props) => {
-  const { outerProps, style, content, refreshControl } = prepareScrollView(props)
-  const scrollProps = { ...outerProps, style }
+  const { scrollViewIntrinsic, scrollViewBaseStyle, outerProps, style, content, refreshControl } =
+    prepareScrollView(props)
+  // Base style under user style so an explicit user value wins; undefined base (vertical)
+  // passes the user style through unchanged.
+  const scrollStyle = scrollViewBaseStyle ? { ...scrollViewBaseStyle, ...style } : style
+  const scrollProps = { ...outerProps, style: scrollStyle }
 
   if (refreshControl === undefined) {
-    return createElement('symbiote-scroll-view', scrollProps, content)
+    return createElement(scrollViewIntrinsic, scrollProps, content)
   }
-  return createElement('symbiote-scroll-view', scrollProps, refreshControl, content)
+  return createElement(scrollViewIntrinsic, scrollProps, refreshControl, content)
 }

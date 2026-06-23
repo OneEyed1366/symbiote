@@ -124,11 +124,20 @@ if (content.props.flexDirection !== 'row') {
 
 const outer = allCreated.find((node) => node.viewName === 'RCTScrollView')
 if (!outer) throw new Error('no RCTScrollView was created')
-if ('padding' in outer.props || 'flexDirection' in outer.props) {
-  throw new Error(`outer node leaked content style, got ${JSON.stringify(outer.props)}`)
+// `padding` is a content-container style and must NOT leak onto the scroll view node.
+// `flexDirection`, by contrast, is now EXPECTED on the outer node — it is the scroll
+// view's own base style, asserted positively below.
+if ('padding' in outer.props) {
+  throw new Error(`outer node leaked content padding, got ${JSON.stringify(outer.props)}`)
 }
-// horizontal must reach the native scroll view as a bool — the shadow node needs it
-// to leave content width unbounded, else the row is pinned to the frame and clipped.
+// flexDirection:'row' on the scroll view NODE is what makes Yoga size the content child
+// along the scroll axis (content-width, unbounded) so the row overflows and scrolls — RN's
+// styles.baseHorizontal. Without it the content is cross-axis and clamped to the frame.
+if (outer.props.flexDirection !== 'row') {
+  throw new Error(`outer node missing baseHorizontal flexDirection:'row', got ${JSON.stringify(outer.props)}`)
+}
+// horizontal must also reach the native scroll view as a bool — on iOS RCTScrollView keys
+// its axis off this prop (Android uses the dedicated AndroidHorizontalScrollView component).
 if (outer.props.horizontal !== true) {
   throw new Error(`horizontal must reach RCTScrollView, got ${JSON.stringify(outer.props.horizontal)}`)
 }

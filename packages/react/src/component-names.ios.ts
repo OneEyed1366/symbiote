@@ -12,6 +12,10 @@ const IOS_NAMES: Readonly<Record<SymbioteIntrinsic, string>> = {
   'symbiote-image': 'RCTImageView',
   'symbiote-scroll-view': 'RCTScrollView',
   'symbiote-scroll-content': 'RCTScrollContentView',
+  // iOS uses one scroll view for both axes — horizontal is RCTScrollView with the
+  // `horizontal` prop set, so these resolve identically to the vertical pair.
+  'symbiote-horizontal-scroll-view': 'RCTScrollView',
+  'symbiote-horizontal-scroll-content': 'RCTScrollContentView',
   'symbiote-text-input': 'RCTSinglelineTextInputView',
   'symbiote-text-input-multiline': 'RCTMultilineTextInputView',
   'symbiote-switch': 'Switch',
