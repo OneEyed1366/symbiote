@@ -96,12 +96,15 @@ export type ImageCacheStatus = 'memory' | 'disk' | 'disk/memory'
 type SizeSuccess = (width: number, height: number) => void
 type SizeFailure = (error: unknown) => void
 
-// The iOS `ImageLoader` native module surface we consume. Promise-based on the
-// New Architecture (the spec returns Promises directly).
+// The `ImageLoader` native module surface we consume. Promise-based on the New
+// Architecture (the spec returns Promises directly). One name, two signatures:
+// Android's `prefetchImage` takes a second `requestId` arg (abortRequest keys off
+// it) — NativeImageLoaderAndroid.js — while iOS takes only `uri`. iOS ignores the
+// extra arg, so we always pass a requestId and stay parity-correct on both.
 interface NativeImageLoader {
   getSize(uri: string): Promise<unknown>
   getSizeWithHeaders(uri: string, headers: Record<string, string>): Promise<unknown>
-  prefetchImage(uri: string): Promise<unknown>
+  prefetchImage(uri: string, requestId: number): Promise<unknown>
   queryCache(uris: string[]): Promise<unknown>
 }
 
@@ -185,11 +188,21 @@ function getSizeWithHeaders(
   return promise
 }
 
+// Android keys an in-flight prefetch by a monotonic requestId (so abortRequest can
+// cancel it); RN's Image.android.js generates the same way. iOS ignores the arg.
+let prefetchRequestId = 0
+
 // Download a remote image into the disk cache. Resolves to whether it succeeded.
 function prefetch(uri: string): Promise<boolean> {
+  prefetchRequestId += 1
+  const requestId = prefetchRequestId
   return Promise.resolve()
-    .then(() => requireLoader('prefetch').prefetchImage(uri))
+    .then(() => requireLoader('prefetch').prefetchImage(uri, requestId))
     .then((result) => result === true)
+    .catch((error: unknown) => {
+      dlog(`Image.prefetch failed for ${uri}: ${String(error)}`)
+      throw error
+    })
 }
 
 // Narrow native's queryCache result: an object mapping each known uri to its
@@ -216,6 +229,10 @@ function queryCache(uris: string[]): Promise<Record<string, ImageCacheStatus>> {
   return Promise.resolve()
     .then(() => requireLoader('queryCache').queryCache(uris))
     .then(toCacheRecord)
+    .catch((error: unknown) => {
+      dlog(`Image.queryCache failed: ${String(error)}`)
+      throw error
+    })
 }
 
 // PURE JS: run the currently-installed source resolver (the same machinery the
