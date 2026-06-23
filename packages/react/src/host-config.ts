@@ -22,6 +22,11 @@ import {
   NoEventPriority,
 } from './reconciler-constants'
 import { toPublicInstance, type HostInstance } from './host-instance'
+// Intrinsic JSX type -> Fabric component name. The name is platform-specific, so the
+// table is Metro-split (component-names.ios/.android.ts + base); the filename selects,
+// no Platform.OS read (ADR 0020). Adding a primitive is one entry in each name table
+// plus its thin component in components.ts — no host-config logic per primitive.
+import { COMPONENT_DESCRIPTORS, type ComponentDescriptor } from './component-names'
 
 type Props = Record<string, unknown>
 
@@ -29,35 +34,8 @@ interface HostContext {
   isInsideText: boolean
 }
 
-// Intrinsic JSX type -> Fabric component. Adding a primitive is one entry here
-// plus its thin component in components.ts — no host-config logic per primitive.
-interface ComponentDescriptor {
-  component: string
-  isText: boolean
-}
-const COMPONENTS: Readonly<Record<string, ComponentDescriptor>> = {
-  'symbiote-view': { component: 'RCTView', isText: false },
-  'symbiote-text': { component: 'RCTText', isText: true },
-  'symbiote-image': { component: 'RCTImageView', isText: false },
-  'symbiote-scroll-view': { component: 'RCTScrollView', isText: false },
-  'symbiote-scroll-content': { component: 'RCTScrollContentView', isText: false },
-  'symbiote-text-input': { component: 'RCTSinglelineTextInputView', isText: false },
-  'symbiote-text-input-multiline': {
-    component: 'RCTMultilineTextInputView',
-    isText: false,
-  },
-  // Fabric component names are the codegen spec's first arg (the new-arch
-  // registered name), not the legacy paperComponentName (RCTSwitch, …).
-  'symbiote-switch': { component: 'Switch', isText: false },
-  'symbiote-activity-indicator': { component: 'ActivityIndicatorView', isText: false },
-  'symbiote-safe-area-view': { component: 'SafeAreaView', isText: false },
-  'symbiote-modal': { component: 'ModalHostView', isText: false },
-  'symbiote-refresh-control': { component: 'PullToRefreshView', isText: false },
-  'symbiote-input-accessory-view': { component: 'RCTInputAccessoryView', isText: false },
-}
-
 function descriptorFor(type: string): ComponentDescriptor {
-  const descriptor = COMPONENTS[type]
+  const descriptor = COMPONENT_DESCRIPTORS[type]
   if (descriptor !== undefined) return descriptor
   // A `symbiote-*` type with no entry is a typo in our own code — surface it.
   if (type.startsWith('symbiote-')) {
