@@ -56,6 +56,14 @@ const COLOR_PROPS: ReadonlySet<string> = new Set([
   'borderLeftColor',
   'shadowColor',
   'tintColor',
+  // TextInput color props. iOS's native input accepts a CSS string, but Android's
+  // AndroidTextInput is strict ("ColorValue: the value must be a number or Object"),
+  // so these must be processColor'd here too — same as any other color reaching Fabric.
+  'placeholderTextColor',
+  'selectionColor',
+  'cursorColor',
+  'underlineColorAndroid',
+  'selectionHandleColor',
 ])
 
 // Accepts a CSS string or an opaque PlatformColor / DynamicColorIOS object — RN's
