@@ -48,20 +48,30 @@ function descriptorFor(type: string): ComponentDescriptor {
   return { component: type, isText: false }
 }
 
+// React-reserved prop keys that must never reach Fabric. `children` is the element
+// tree (handled via appendChild). `ref`/`key` are React 19 plain props: the reconciler
+// reads `props.ref` for commitAttachRef but does NOT strip it from the props it hands a
+// host config, so `ref.current` (the public instance — a bag of methods like measure /
+// focus) would serialize into folly::dynamic and throw "not convertible to dynamic" on
+// Android. Stripping here is the host config's job, exactly as RN's own renderer does.
+function isReservedProp(key: string): boolean {
+  return key === 'children' || key === 'ref' || key === 'key'
+}
+
 function applyProps(node: SymbioteNode, props: Props): void {
   for (const [key, value] of Object.entries(props)) {
-    if (key === 'children') continue
+    if (isReservedProp(key)) continue
     routeProp(node, key, value)
   }
 }
 
 function applyUpdate(node: SymbioteNode, oldProps: Props, newProps: Props): void {
   for (const key of Object.keys(oldProps)) {
-    if (key === 'children') continue
+    if (isReservedProp(key)) continue
     if (!Object.hasOwn(newProps, key)) routeProp(node, key, undefined)
   }
   for (const [key, value] of Object.entries(newProps)) {
-    if (key === 'children') continue
+    if (isReservedProp(key)) continue
     if (value !== oldProps[key]) routeProp(node, key, value)
   }
 }
