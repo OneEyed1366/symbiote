@@ -23,6 +23,8 @@ import {
   Pressable,
   Modal,
   FlatList,
+  SectionList,
+  SafeAreaView,
   RefreshControl,
   StatusBar,
   Keyboard,
@@ -47,6 +49,8 @@ import {
   findNodeHandle,
   type HostInstance,
   type SymbioteEvent,
+  type FlatListHandle,
+  type Section,
 } from '@symbiote/react'
 // A real third-party native view, used straight from the library — no symbiote
 // wrapper. symbiote derives RNCSlider's events and prop processors from its own
@@ -698,6 +702,109 @@ function AccessibilityDemo() {
   )
 }
 
+// Verification panel for the freshly-wired feature-parity tails — five behaviors with
+// no prior canary surface: Text.onLongPress synthesis, Keyboard.dismiss (blur the
+// focused input), animated VirtualizedList scroll, sticky SectionList headers, and
+// Android setAccessibilityFocus. Each leaves a dlog seam (DEBUG=1 -> logcat) and a
+// visible effect, so a real host confirms what the headless smokes prove in JS.
+const PARITY_ROW_H = 30
+const parityRows = Array.from({ length: 30 }, (_unused, index) => ({ id: `pr-${index}`, n: index }))
+const paritySections: Section<{ id: string; label: string }>[] = [
+  { title: 'Fruit', data: [{ id: 'f1', label: 'apple' }, { id: 'f2', label: 'pear' }, { id: 'f3', label: 'plum' }, { id: 'f4', label: 'kiwi' }] },
+  { title: 'Tools', data: [{ id: 't1', label: 'hammer' }, { id: 't2', label: 'drill' }, { id: 't3', label: 'saw' }, { id: 't4', label: 'wrench' }] },
+  { title: 'Cities', data: [{ id: 'c1', label: 'porto' }, { id: 'c2', label: 'lima' }, { id: 'c3', label: 'oslo' }, { id: 'c4', label: 'cairo' }] },
+]
+
+function ParityDemo() {
+  const listRef = useRef<FlatListHandle>(null)
+  const titleRef = useRef<HostInstance>(null)
+  const [longPressMsg, setLongPressMsg] = useState('long-press or tap the row below')
+  const [dismissMsg, setDismissMsg] = useState('focus the field, then Hide keyboard')
+
+  return (
+    <View style={{ gap: 12 }}>
+      <Text ref={titleRef} style={{ color: '#41506a', fontSize: 13 }}>
+        Parity checks · longPress · dismiss · animated scroll · sticky · a11y focus
+      </Text>
+
+      {/* #10 Text.onLongPress synthesis — hold ~0.5s (suppresses tap) vs quick tap */}
+      <Text
+        onLongPress={() => setLongPressMsg('long press! (tap was suppressed)')}
+        onPress={() => setLongPressMsg('tap')}
+        style={{ color: '#cbd5e1', fontSize: 15, padding: 12, borderRadius: 10, backgroundColor: '#13243a' }}>
+        {longPressMsg}
+      </Text>
+
+      {/* #15 Keyboard.dismiss — blurs whatever input holds focus, no ref needed */}
+      <TextInput
+        placeholder="focus me…"
+        placeholderTextColor="#41506a"
+        onFocus={() => setDismissMsg('keyboard up — tap Hide keyboard')}
+        onBlur={() => setDismissMsg('blurred (keyboard down)')}
+        style={{ color: '#e2e8f0', padding: 12, borderRadius: 10, backgroundColor: '#0f1e30', borderWidth: 1, borderColor: '#2b6cb0' }}
+      />
+      <Text style={{ color: '#cbd5e1', fontSize: 13 }}>{dismissMsg}</Text>
+      <Button title="Hide keyboard" onPress={() => Keyboard.dismiss()} color="#7fb5ff" />
+
+      {/* #12 animated VirtualizedList scroll — smooth (native command) vs instant.
+          A fixed height with no wrapper: the vertical ScrollView now clips to its own
+          frame (overflow:'scroll' base, like RN), so rows stay inside the box on iOS too. */}
+      <Text style={{ color: '#41506a', fontSize: 13 }}>FlatList · animated scrollToOffset</Text>
+      <FlatList
+        ref={listRef}
+        data={parityRows}
+        keyExtractor={item => item.id}
+        getItemLayout={(_data, index) => ({ length: PARITY_ROW_H, offset: PARITY_ROW_H * index, index })}
+        style={{ height: 120, borderRadius: 10, backgroundColor: '#0f1e30' }}
+        renderItem={({ item }) => (
+          <View style={{ height: PARITY_ROW_H, justifyContent: 'center', paddingHorizontal: 12 }}>
+            <Text style={{ color: '#cbd5e1', fontSize: 14 }}>{`row ${item.n}`}</Text>
+          </View>
+        )}
+      />
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <Button title="Scroll ▼ animated" onPress={() => listRef.current?.scrollToOffset({ offset: 20 * PARITY_ROW_H, animated: true })} color="#7fb5ff" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Button title="Top · instant" onPress={() => listRef.current?.scrollToOffset({ offset: 0, animated: false })} color="#7fb5ff" />
+        </View>
+      </View>
+
+      {/* #13 sticky section headers — drag the inner list, headers pin at the top. */}
+      <Text style={{ color: '#41506a', fontSize: 13 }}>SectionList · sticky headers</Text>
+      <SectionList
+        sections={paritySections}
+        keyExtractor={item => item.id}
+        stickySectionHeadersEnabled
+        style={{ height: 160, borderRadius: 10, backgroundColor: '#0f1e30' }}
+        renderSectionHeader={({ section }) => (
+          <Text style={{ color: '#0b1622', fontSize: 13, fontWeight: 'bold', paddingVertical: 6, paddingHorizontal: 12, backgroundColor: '#7fb5ff' }}>
+            {section.title}
+          </Text>
+        )}
+        renderItem={({ item }) => (
+          <View style={{ height: PARITY_ROW_H, justifyContent: 'center', paddingHorizontal: 12 }}>
+            <Text style={{ color: '#cbd5e1', fontSize: 14 }}>{item.label}</Text>
+          </View>
+        )}
+      />
+
+      {/* #14 a11y focus — node-based sendAccessibilityEvent routes through the Fabric
+          slot on both platforms (enable TalkBack/VoiceOver to feel the focus jump) */}
+      <Button
+        title="Focus the panel title (a11y)"
+        onPress={() => {
+          if (titleRef.current !== null) {
+            AccessibilityInfo.sendAccessibilityEvent(titleRef.current, 'focus')
+          }
+        }}
+        color="#7fb5ff"
+      />
+    </View>
+  )
+}
+
 function App() {
   const [count, setCount] = useState(0)
   const [name, setName] = useState('')
@@ -782,6 +889,7 @@ function App() {
   }, [])
 
   return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#0b1622' }}>
     <ScrollView
       style={{ flex: 1, backgroundColor: '#0b1622' }}
       contentContainerStyle={{
@@ -987,6 +1095,9 @@ function App() {
       {/* Responder — drag-vs-tap + mid-gesture transfer (move-should-set / takeover) */}
       <ResponderDemo />
 
+      {/* Parity checks — longPress · Keyboard.dismiss · animated scroll · sticky · a11y focus */}
+      <ParityDemo />
+
       {/* Button opens a Modal */}
       <Button title="Open modal" onPress={() => setModalVisible(true)} color="#7fb5ff" />
 
@@ -1088,6 +1199,7 @@ function App() {
         </View>
       </Modal>
     </ScrollView>
+    </SafeAreaView>
   )
 }
 
