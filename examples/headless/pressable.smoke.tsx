@@ -125,7 +125,9 @@ Object.assign(globalThis, { nativeFabricUIManager: slot })
 // ---- helpers ------------------------------------------------------------
 
 const TOUCH_START = 'topTouchStart'
+const TOUCH_MOVE = 'topTouchMove'
 const TOUCH_END = 'topTouchEnd'
+const TOUCH_IDENTIFIER = 1
 
 function reset(): void {
   committed = []
@@ -168,6 +170,20 @@ function responderProps(): Record<string, unknown> {
 function fire(handle: unknown, type: string): void {
   if (!eventHandler) throw new Error('no event handler was registered')
   eventHandler(handle, type, {})
+}
+
+// A single-touch native event at a page coordinate — the shape shared's responder
+// negotiation and the Pressable's retention drift check both read (touches +
+// changedTouches carry pageX/pageY; the bare event also carries them for
+// readTouchPoint). The Pressable claims the responder (onStartShouldSetResponder
+// => true), so a move with coords reaches its onResponderMove.
+function fireAt(handle: unknown, type: string, x: number, y: number): void {
+  if (!eventHandler) throw new Error('no event handler was registered')
+  const touch = { pageX: x, pageY: y, identifier: TOUCH_IDENTIFIER, timestamp: 0 }
+  // topTouchEnd reports the lifted finger only in changedTouches (touches is now
+  // empty); start/move keep it in both so shared sees a live touch.
+  const touches = type === TOUCH_END ? [] : [touch]
+  eventHandler(handle, type, { pageX: x, pageY: y, touches, changedTouches: [touch] })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -336,6 +352,107 @@ installFakeTimers()
     throw new Error(
       `enabled Button must not report disabled, got ${JSON.stringify(props.accessibilityState)}`,
     )
+  }
+}
+
+// ---- case 9: pressRetentionOffset keeps the press active on a small move ----
+// A press starts; the finger drifts a SMALL amount (inside hitSlop+retention) then
+// releases on the responder. Without retention the drift would cancel the tap; with
+// pressRetentionOffset the press stays active, so onPress still fires. A large drift
+// (past the region) must, by contrast, suppress the tap and fire onPressOut early.
+
+{
+  reset()
+  let presses = 0
+  let pressOuts = 0
+  // hitSlop 0 + retention 30 → threshold 30. A 10pt move retains; a 100pt move drops.
+  mount(
+    19,
+    <Pressable
+      hitSlop={0}
+      pressRetentionOffset={30}
+      onPress={() => { presses++ }}
+      onPressOut={() => { pressOuts++ }}
+    />,
+  )
+
+  const handle = responderHandle()
+
+  // (a) small drift inside the retention region → press still fires on release.
+  fireAt(handle, TOUCH_START, 100, 100)
+  fireAt(handle, TOUCH_MOVE, 108, 106) // hypot(8,6) = 10 < 30 → retained
+  fireAt(handle, TOUCH_END, 108, 106)
+  if (presses !== 1) {
+    throw new Error(`a small move inside pressRetentionOffset must keep the press, onPress fired ${presses}`)
+  }
+  if (pressOuts !== 1) {
+    throw new Error(`onPressOut should fire exactly once on release, fired ${pressOuts}`)
+  }
+
+  // (b) large drift past the region → tap suppressed, early pressOut fired.
+  presses = 0
+  pressOuts = 0
+  fireAt(handle, TOUCH_START, 100, 100)
+  fireAt(handle, TOUCH_MOVE, 200, 100) // 100 > 30 → drifted out
+  if (pressOuts !== 1) {
+    throw new Error(`a drift past pressRetentionOffset must fire an early onPressOut, fired ${pressOuts}`)
+  }
+  fireAt(handle, TOUCH_END, 200, 100)
+  if (presses !== 0) {
+    throw new Error(`a drift past pressRetentionOffset must suppress the tap, onPress fired ${presses}`)
+  }
+}
+
+// ---- case 10: unstable_pressDelay defers the pressed state ----------------
+// With unstable_pressDelay set, pressIn (and the pressed state) must NOT activate on
+// touch-down — only after the delay elapses. A release before the delay still flushes
+// the deferred activation so the press registers (RN behavior).
+
+{
+  reset()
+  const DELAY = 120
+  let pressIns = 0
+  let presses = 0
+  mount(
+    20,
+    <Pressable
+      unstable_pressDelay={DELAY}
+      onPressIn={() => { pressIns++ }}
+      onPress={() => { presses++ }}
+    />,
+  )
+
+  const handle = responderHandle()
+
+  // (a) touch-down alone does NOT activate pressIn — it is deferred behind the timer.
+  fireAt(handle, TOUCH_START, 50, 50)
+  if (pressIns !== 0) {
+    throw new Error(`unstable_pressDelay must defer onPressIn, fired ${pressIns} before the delay`)
+  }
+  // (b) advancing past the delay fires the deferred pressIn.
+  advanceTimers(DELAY)
+  if (pressIns !== 1) {
+    throw new Error(`onPressIn should fire after unstable_pressDelay, fired ${pressIns}`)
+  }
+  fireAt(handle, TOUCH_END, 50, 50)
+  if (presses !== 1) {
+    throw new Error(`onPress should fire on release after the delay, fired ${presses}`)
+  }
+
+  // (c) a release BEFORE the delay still flushes the deferred press (RN: a quick tap
+  // under the delay registers — the activation runs synchronously on pressOut).
+  pressIns = 0
+  presses = 0
+  fireAt(handle, TOUCH_START, 50, 50)
+  if (pressIns !== 0) {
+    throw new Error(`pressIn must stay deferred until the delay, fired ${pressIns}`)
+  }
+  fireAt(handle, TOUCH_END, 50, 50) // released before advancing the timer
+  if (pressIns !== 1) {
+    throw new Error(`a release before the delay must flush the deferred pressIn, fired ${pressIns}`)
+  }
+  if (presses !== 1) {
+    throw new Error(`a quick tap under unstable_pressDelay must still fire onPress, fired ${presses}`)
   }
 }
 
