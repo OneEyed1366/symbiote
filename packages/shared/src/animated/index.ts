@@ -25,6 +25,7 @@ export { AnimatedColor, type RgbaValue, type ColorInput } from './color'
 export { Easing, type EasingFunction } from './easing'
 export {
   createNumericInterpolation,
+  createInterpolation,
   checkValidRanges,
   type InterpolationConfig,
   type ExtrapolateType,

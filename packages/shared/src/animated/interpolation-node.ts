@@ -1,11 +1,12 @@
 // AnimatedInterpolation — a graph node that maps its parent's numeric value
-// through an interpolation. Ported from RN's AnimatedInterpolation.js, numeric
-// path only (string/color deferred, ADR 0016), native config removed.
+// through an interpolation. Ported from RN's AnimatedInterpolation.js: numeric,
+// string-with-units, and color output ranges (the value graph; native config
+// removed). Platform (Native) colors stay out of scope — color.ts defers them.
 
 import { AnimatedNode, AnimatedWithChildren } from './graph'
 import {
   checkValidRanges,
-  createNumericInterpolation,
+  createInterpolation,
   type InterpolationConfig,
 } from './interpolation'
 import type { NativeNodeConfig } from './native/native-animated'
@@ -13,7 +14,7 @@ import type { NativeNodeConfig } from './native/native-animated'
 export class AnimatedInterpolation extends AnimatedWithChildren {
   private readonly parent: AnimatedNode
   private readonly config: InterpolationConfig
-  private interpolation: ((input: number) => number) | undefined
+  private interpolation: ((input: number) => number | string) | undefined
 
   constructor(parent: AnimatedNode, config: InterpolationConfig) {
     super()
@@ -23,14 +24,14 @@ export class AnimatedInterpolation extends AnimatedWithChildren {
     checkValidRanges(config.inputRange, config.outputRange)
   }
 
-  private getInterpolation(): (input: number) => number {
+  private getInterpolation(): (input: number) => number | string {
     if (this.interpolation === undefined) {
-      this.interpolation = createNumericInterpolation(this.config)
+      this.interpolation = createInterpolation(this.config)
     }
     return this.interpolation
   }
 
-  override __getValue(): number {
+  override __getValue(): number | string {
     const parentValue = this.parent.__getValue()
     if (typeof parentValue !== 'number') {
       throw new Error('Cannot interpolate an input which is not a number')

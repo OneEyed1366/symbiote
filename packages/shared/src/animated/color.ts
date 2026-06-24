@@ -37,8 +37,9 @@ function toChannel(value: Channel): AnimatedValue {
 
 // Decompose a #hex (3/4/6/8), rgb()/rgba(), or 0xRRGGBBAA number into channels.
 // undefined when unparseable (a named/platform color), so the caller falls back to
-// the default rather than throwing inside a render.
-function normalizeColor(color: string | number): RgbaValue | undefined {
+// the default rather than throwing inside a render. Exported so interpolation's
+// color path parses through the same RGBA decoder (DRY) rather than duplicating it.
+export function normalizeColor(color: string | number): RgbaValue | undefined {
   if (typeof color === 'number') {
     const c = color >>> 0
     return { r: (c >>> 24) & 255, g: (c >>> 16) & 255, b: (c >>> 8) & 255, a: (c & 255) / 255 }
