@@ -26,13 +26,17 @@ const A11Y_EVENTS: readonly string[] = [
 
 // Events every view can emit — RN's base ViewConfig. `press`/`pressIn`/`pressOut`/
 // `longPress` are synthesized from the touch stream (see events.ts); `layout` is
-// universal; the accessibility events are base too, so they reach every component.
+// universal; `focus`/`blur` are RN's bubbling focus events declared on the base View
+// (ViewPropTypes.js FocusEventProps), so any view can emit them; the accessibility
+// events are base too, so they reach every component.
 const BASE_EVENTS: readonly string[] = [
   'press',
   'pressIn',
   'pressOut',
   'longPress',
   'layout',
+  'focus',
+  'blur',
   ...A11Y_EVENTS,
 ]
 
