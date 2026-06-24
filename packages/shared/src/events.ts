@@ -64,15 +64,26 @@ const TOUCH_END = 'topTouchEnd'
 const TOUCH_CANCEL = 'topTouchCancel'
 const PRESS = 'press'
 
-// Responder protocol (PanResponder). Minimal RN model: on a touch start, walk
-// target -> root asking onStartShouldSetResponder; the first node that claims it
-// becomes the responder and receives grant/move/release. Listener names are
-// post-listenerName (onResponderMove -> 'responderMove').
-const SHOULD_SET_RESPONDER = 'startShouldSetResponder'
+// Responder protocol (PanResponder / Touchable). RN's two-phase negotiation:
+// every should-set is asked CAPTURE (root -> target) then BUBBLE (target -> root),
+// and the first node returning true wins — on a touch START *and* on every MOVE,
+// so a node can claim the responder mid-gesture. If someone already holds it, the
+// incumbent is asked onResponderTerminationRequest; a true answer (or no listener)
+// hands it over (terminate + grant), a false answer rejects the taker. Lifecycle
+// events are direct (grant/start/move/end/release/terminate/reject). Listener names
+// are post-`on` (onResponderMove -> 'responderMove').
+const START_SHOULD_SET = 'startShouldSetResponder'
+const START_SHOULD_SET_CAPTURE = 'startShouldSetResponderCapture'
+const MOVE_SHOULD_SET = 'moveShouldSetResponder'
+const MOVE_SHOULD_SET_CAPTURE = 'moveShouldSetResponderCapture'
 const RESPONDER_GRANT = 'responderGrant'
+const RESPONDER_REJECT = 'responderReject'
+const RESPONDER_START = 'responderStart'
 const RESPONDER_MOVE = 'responderMove'
+const RESPONDER_END = 'responderEnd'
 const RESPONDER_RELEASE = 'responderRelease'
 const RESPONDER_TERMINATE = 'responderTerminate'
+const RESPONDER_TERMINATION_REQUEST = 'responderTerminationRequest'
 // Synthesized alongside press so Pressable can show pressed-state feedback: both
 // fire on the node the touch STARTED on (the responder), pressOut on end/cancel.
 const PRESS_IN = 'pressIn'
@@ -106,19 +117,74 @@ function callOwnListener(
   })
 }
 
-// Walk target -> root; the first node whose onStartShouldSetResponder returns true
-// becomes the responder and is granted. Minimal model: no capture phase, no
-// move-should-set, no mid-gesture takeover (enough for a PanResponder drag).
-function negotiateResponder(target: SymbioteNode, nativeEvent: Record<string, unknown>): void {
-  let node: SymbioteNode | undefined = target
-  while (node) {
-    if (callOwnListener(node, SHOULD_SET_RESPONDER, nativeEvent) === true) {
-      currentResponder = node
-      dlog(`responder granted to ${node.component}`)
-      callOwnListener(node, RESPONDER_GRANT, nativeEvent)
-      return
+// The node chain from the touch target up to the root, target first. The single
+// allocation the two-phase walk indexes both ways (capture reads it reversed).
+function pathToRoot(target: SymbioteNode): SymbioteNode[] {
+  const path: SymbioteNode[] = []
+  for (let node: SymbioteNode | undefined = target; node; node = node.parent) path.push(node)
+  return path
+}
+
+// RN's two-phase should-set walk: CAPTURE root -> target, then BUBBLE target -> root;
+// the first node returning true wins. `skip` is excluded from both passes — on a
+// MOVE the current responder is skipped so its should-set callback never consumes the
+// gesture frame out from under its own onResponderMove (PanResponder folds geometry
+// in the should-set-capture handler, so asking the responder again would zero its move).
+function findWantsResponder(
+  path: SymbioteNode[],
+  captureName: string,
+  bubbleName: string,
+  nativeEvent: Record<string, unknown>,
+  skip: SymbioteNode | undefined,
+): SymbioteNode | undefined {
+  for (let i = path.length - 1; i >= 0; i--) {
+    if (path[i] !== skip && callOwnListener(path[i], captureName, nativeEvent) === true) {
+      return path[i]
     }
-    node = node.parent
+  }
+  for (const node of path) {
+    if (node !== skip && callOwnListener(node, bubbleName, nativeEvent) === true) return node
+  }
+  return undefined
+}
+
+// Negotiate (or re-negotiate) the responder for a touch start/move. If nobody holds
+// it, the winner is granted. If someone does, the incumbent is asked to relinquish
+// via onResponderTerminationRequest (absent listener = implicit yes); on yes it is
+// terminated and the taker granted, on no the taker is rejected.
+function negotiateResponder(
+  target: SymbioteNode,
+  phase: 'start' | 'move',
+  nativeEvent: Record<string, unknown>,
+): void {
+  const path = pathToRoot(target)
+  const wants =
+    phase === 'start'
+      ? findWantsResponder(path, START_SHOULD_SET_CAPTURE, START_SHOULD_SET, nativeEvent, undefined)
+      : findWantsResponder(path, MOVE_SHOULD_SET_CAPTURE, MOVE_SHOULD_SET, nativeEvent, currentResponder)
+  if (!wants || wants === currentResponder) return
+
+  if (currentResponder === undefined) {
+    currentResponder = wants
+    dlog(`responder granted to ${wants.component}`)
+    callOwnListener(wants, RESPONDER_GRANT, nativeEvent)
+    return
+  }
+
+  const incumbent = currentResponder
+  // A missing termination-request listener means implicit consent (RN default true);
+  // only an explicit non-true answer keeps the incumbent and rejects the taker.
+  const guarded = incumbent.listeners?.has(RESPONDER_TERMINATION_REQUEST) === true
+  const allowed =
+    !guarded || callOwnListener(incumbent, RESPONDER_TERMINATION_REQUEST, nativeEvent) === true
+  if (allowed) {
+    dlog(`responder transferred ${incumbent.component} -> ${wants.component}`)
+    callOwnListener(incumbent, RESPONDER_TERMINATE, nativeEvent)
+    currentResponder = wants
+    callOwnListener(wants, RESPONDER_GRANT, nativeEvent)
+  } else {
+    dlog(`responder takeover of ${incumbent.component} rejected`)
+    callOwnListener(wants, RESPONDER_REJECT, nativeEvent)
   }
 }
 
@@ -136,15 +202,21 @@ export function installEventHandler(): void {
         bubble(instanceHandle, PRESS_IN, nativeEvent)
         // Responder negotiation runs alongside press synthesis: a View can be both
         // a Pressable (press) and a PanResponder target (responder).
-        negotiateResponder(instanceHandle, nativeEvent)
+        negotiateResponder(instanceHandle, 'start', nativeEvent)
+        // onResponderStart is a direct event to whoever now holds the responder.
+        if (currentResponder) callOwnListener(currentResponder, RESPONDER_START, nativeEvent)
       })
       return
     }
 
     if (topLevelType === TOUCH_MOVE) {
-      // The only consumer of a move is the responder; without one, RN drops it too.
-      const responder = currentResponder
-      if (responder) runWrapped(() => callOwnListener(responder, RESPONDER_MOVE, nativeEvent))
+      runWrapped(() => {
+        // Re-negotiate first: a node can claim the responder mid-gesture via
+        // onMoveShouldSetResponder (the responder itself is skipped, see negotiate).
+        negotiateResponder(instanceHandle, 'move', nativeEvent)
+        // The only consumer of a move is the responder; without one, RN drops it too.
+        if (currentResponder) callOwnListener(currentResponder, RESPONDER_MOVE, nativeEvent)
+      })
       return
     }
 
@@ -165,7 +237,11 @@ export function installEventHandler(): void {
         } else {
           dlog(`event ${TOUCH_END} ignored (no matching start)`)
         }
-        if (responder) callOwnListener(responder, RESPONDER_RELEASE, nativeEvent)
+        // onResponderEnd precedes the final release (RN fires both on the end touch).
+        if (responder) {
+          callOwnListener(responder, RESPONDER_END, nativeEvent)
+          callOwnListener(responder, RESPONDER_RELEASE, nativeEvent)
+        }
       })
       return
     }
@@ -177,7 +253,11 @@ export function installEventHandler(): void {
       currentResponder = undefined
       runWrapped(() => {
         if (start) bubble(start, PRESS_OUT, nativeEvent)
-        if (responder) callOwnListener(responder, RESPONDER_TERMINATE, nativeEvent)
+        // A cancelled gesture ends then terminates (the responder was taken away).
+        if (responder) {
+          callOwnListener(responder, RESPONDER_END, nativeEvent)
+          callOwnListener(responder, RESPONDER_TERMINATE, nativeEvent)
+        }
       })
       return
     }
