@@ -5,6 +5,7 @@
 // them. No Platform.OS read anywhere.
 
 import type { ReactNode } from 'react'
+import type { AccessibilityProps, AriaProps } from './accessibility-props'
 import type { ViewStyle } from './styles'
 
 export type DrawerPosition = 'left' | 'right'
@@ -19,7 +20,7 @@ export interface DrawerSlideEvent {
   offset: number
 }
 
-export interface DrawerLayoutAndroidProps {
+export interface DrawerLayoutAndroidProps extends AccessibilityProps, AriaProps {
   drawerWidth?: number
   drawerPosition?: DrawerPosition
   drawerLockMode?: DrawerLockMode

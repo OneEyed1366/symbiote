@@ -10,7 +10,7 @@
 // See .docs/native-module-platform-routing.md, ADR 0012.
 
 import { dlog, getNativeModule } from '@symbiote/shared'
-import { validateContent } from './share-shared'
+import { validateContent, shareActions, SHARED_ACTION, DISMISSED_ACTION } from './share-shared'
 import type { ShareContent, ShareOptions, ShareAction, ShareStatic } from './share-shared'
 
 export type { ShareContent, ShareOptions, ShareAction } from './share-shared'
@@ -39,6 +39,7 @@ function isShareResult(value: unknown): value is { action: string } {
 }
 
 export const Share: ShareStatic = {
+  ...shareActions,
   // Open the Android share dialog for `content`. Resolves with the user's action
   // (Android always resolves sharedAction); rejects on invalid content, an unexpected
   // native result, or a missing module (explicit reject, never a hung Promise).
@@ -65,7 +66,7 @@ export const Share: ShareStatic = {
       }
       dlog(`Share.share -> android action=${result.action}`)
       return {
-        action: result.action === 'dismissedAction' ? 'dismissedAction' : 'sharedAction',
+        action: result.action === DISMISSED_ACTION ? DISMISSED_ACTION : SHARED_ACTION,
         activityType: null,
       }
     })

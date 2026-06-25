@@ -36,6 +36,7 @@ import {
   type SymbioteNode,
 } from '@symbiote/shared'
 import { View } from './components'
+import { resolveAccessibilityProps } from './accessibility-props'
 import type { ViewStyle } from './styles'
 import type {
   DrawerLayoutAndroidHandle,
@@ -203,10 +204,12 @@ export const DrawerLayoutAndroid = forwardRef<
 
   // Child order matches RN exactly: content FIRST, navigation SECOND
   // (android render emits {childrenWrapper}{drawerViewWrapper}).
+  // Fold aria-*/role into accessibility* here: the drawer renders a raw host node
+  // (not the View FC), so unlike View-backed components nothing else resolves them.
   return createElement(
     DRAWER_VIEW_NAME,
     {
-      ...passthrough,
+      ...resolveAccessibilityProps(passthrough),
       ref: node,
       drawerWidth,
       drawerPosition: drawerPosition ?? DEFAULT_DRAWER_POSITION,

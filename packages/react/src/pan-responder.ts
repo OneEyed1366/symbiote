@@ -79,6 +79,25 @@ interface TouchPoint {
   timestamp: number
 }
 
+// One slot of the touch-history bank shared synthesizes onto nativeEvent.touchHistory.
+// Mirrors RN's TouchRecord (ResponderTouchHistoryStore); PanResponder reads each touch's
+// own previous->current delta from here so multitouch dx/vx counts only moved touches.
+interface TouchRecord {
+  touchActive: boolean
+  currentPageX: number
+  currentPageY: number
+  currentTimeStamp: number
+  previousPageX: number
+  previousPageY: number
+}
+
+interface TouchHistory {
+  touchBank: TouchRecord[]
+  numberActiveTouches: number
+  indexOfSingleActiveTouch: number
+  mostRecentTimeStamp: number
+}
+
 const SINGLE_TOUCH_COUNT = 1
 // onShouldBlockNativeResponder defaults to true (RN: block native by default).
 const DEFAULT_BLOCK_NATIVE_RESPONDER = true
@@ -140,6 +159,141 @@ function mostRecentTimestamp(touches: TouchPoint[]): number {
   return latest
 }
 
+// #region touchHistory (RN-faithful multitouch geometry)
+// shared attaches a touch-history bank onto nativeEvent (matching RN's
+// ResponderEventPlugin). When present, the gesture math runs through RN's
+// TouchHistoryMath instead of the all-touch centroid — so dx/vx counts only the touches
+// that moved this frame, via each touch's own previous->current delta. Headless callers
+// that invoke the handlers directly (no shared, no store) carry no touchHistory and fall
+// back to the centroid path below, preserving single-touch behavior.
+
+function isTouchRecord(value: unknown): value is TouchRecord {
+  return (
+    isRecord(value) &&
+    typeof value.touchActive === 'boolean' &&
+    typeof value.currentPageX === 'number' &&
+    typeof value.currentPageY === 'number' &&
+    typeof value.currentTimeStamp === 'number' &&
+    typeof value.previousPageX === 'number' &&
+    typeof value.previousPageY === 'number'
+  )
+}
+
+function isTouchHistory(value: unknown): value is TouchHistory {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.touchBank) &&
+    typeof value.numberActiveTouches === 'number' &&
+    typeof value.indexOfSingleActiveTouch === 'number' &&
+    typeof value.mostRecentTimeStamp === 'number'
+  )
+}
+
+function touchHistoryOf(event: SymbioteEvent): TouchHistory | undefined {
+  const raw = event.nativeEvent.touchHistory
+  return isTouchHistory(raw) ? raw : undefined
+}
+
+// Ported from RN Interaction/TouchHistoryMath.js:centroidDimension (lines 30-85). Mean
+// of one coordinate over the touches that moved after `touchesChangedAfter`, taking each
+// touch's current or previous position. The single-active-touch fast path uses a strict
+// `>`; the multi-touch scan uses `>=` — faithfully preserved from RN.
+function centroidDimension(
+  touchHistory: TouchHistory,
+  touchesChangedAfter: number,
+  isXAxis: boolean,
+  ofCurrent: boolean,
+): number {
+  const { touchBank } = touchHistory
+  let total = 0
+  let count = 0
+
+  const single =
+    touchHistory.numberActiveTouches === SINGLE_TOUCH_COUNT
+      ? touchBank[touchHistory.indexOfSingleActiveTouch]
+      : undefined
+
+  if (isTouchRecord(single)) {
+    if (single.touchActive && single.currentTimeStamp > touchesChangedAfter) {
+      total += dimensionOf(single, isXAxis, ofCurrent)
+      count = 1
+    }
+  } else {
+    for (const record of touchBank) {
+      if (
+        isTouchRecord(record) &&
+        record.touchActive &&
+        record.currentTimeStamp >= touchesChangedAfter
+      ) {
+        total += dimensionOf(record, isXAxis, ofCurrent)
+        count++
+      }
+    }
+  }
+  return count > 0 ? total / count : NO_CENTROID
+}
+
+const NO_CENTROID = -1
+
+function dimensionOf(record: TouchRecord, isXAxis: boolean, ofCurrent: boolean): number {
+  if (ofCurrent) return isXAxis ? record.currentPageX : record.currentPageY
+  return isXAxis ? record.previousPageX : record.previousPageY
+}
+
+function currentCentroidXOfChanged(touchHistory: TouchHistory, after: number): number {
+  return centroidDimension(touchHistory, after, true, true)
+}
+function currentCentroidYOfChanged(touchHistory: TouchHistory, after: number): number {
+  return centroidDimension(touchHistory, after, false, true)
+}
+function previousCentroidXOfChanged(touchHistory: TouchHistory, after: number): number {
+  return centroidDimension(touchHistory, after, true, false)
+}
+function previousCentroidYOfChanged(touchHistory: TouchHistory, after: number): number {
+  return centroidDimension(touchHistory, after, false, false)
+}
+function currentCentroidXAll(touchHistory: TouchHistory): number {
+  return centroidDimension(touchHistory, 0, true, true)
+}
+function currentCentroidYAll(touchHistory: TouchHistory): number {
+  return centroidDimension(touchHistory, 0, false, true)
+}
+
+// RN PanResponder._updateGestureStateOnMove (Interaction/PanResponder.js lines 330-366):
+// accumulate the centroid change of touches that moved after `_accountsForMovesUpTo`,
+// rather than tracking the absolute centroid of all touches. This is what makes a
+// stopped finger in a multi-finger drag stop contributing to dx.
+function updateGestureStateFromHistory(
+  gestureState: PanResponderGestureState,
+  touchHistory: TouchHistory,
+): void {
+  gestureState.numberActiveTouches = touchHistory.numberActiveTouches
+  const movedAfter = gestureState._accountsForMovesUpTo
+  gestureState.moveX = currentCentroidXOfChanged(touchHistory, movedAfter)
+  gestureState.moveY = currentCentroidYOfChanged(touchHistory, movedAfter)
+
+  const prevX = previousCentroidXOfChanged(touchHistory, movedAfter)
+  const x = currentCentroidXOfChanged(touchHistory, movedAfter)
+  const prevY = previousCentroidYOfChanged(touchHistory, movedAfter)
+  const y = currentCentroidYOfChanged(touchHistory, movedAfter)
+  const nextDx = gestureState.dx + (x - prevX)
+  const nextDy = gestureState.dy + (y - prevY)
+
+  const dt = touchHistory.mostRecentTimeStamp - gestureState._accountsForMovesUpTo
+  if (dt > 0) {
+    gestureState.vx = (nextDx - gestureState.dx) / dt
+    gestureState.vy = (nextDy - gestureState.dy) / dt
+  } else {
+    gestureState.vx = 0
+    gestureState.vy = 0
+  }
+
+  gestureState.dx = nextDx
+  gestureState.dy = nextDy
+  gestureState._accountsForMovesUpTo = touchHistory.mostRecentTimeStamp
+}
+// #endregion
+
 function initializeGestureState(gestureState: PanResponderGestureState): void {
   gestureState.moveX = 0
   gestureState.moveY = 0
@@ -153,14 +307,28 @@ function initializeGestureState(gestureState: PanResponderGestureState): void {
   gestureState._accountsForMovesUpTo = 0
 }
 
-// Advance the gesture for a move frame: move{X,Y} become the current centroid,
-// d{x,y} accumulate the delta from the grant centroid, and v{x,y} are that
-// frame's delta over the time elapsed since the last accounted frame. Guards
-// dt === 0 so a frame with no time gap reports zero velocity instead of NaN.
+// The timestamp this frame advances to: the touch-history clock when shared attached a
+// store, else the most recent of the live touches (headless direct-call path).
+function frameTimestampOf(event: SymbioteEvent, touches: TouchPoint[]): number {
+  return touchHistoryOf(event)?.mostRecentTimeStamp ?? mostRecentTimestamp(touches)
+}
+
+// Advance the gesture for a move frame. With a touch-history store (the device / shared
+// path) this defers to RN's accumulate-per-moved-touch math; without one it falls back to
+// the all-touch centroid delta — correct for the single dragging finger the headless
+// pan-responder smoke exercises. Guards dt === 0 so a zero-gap frame reports zero
+// velocity instead of NaN.
 function updateGestureStateOnMove(
   gestureState: PanResponderGestureState,
+  event: SymbioteEvent,
   touches: TouchPoint[],
 ): void {
+  const touchHistory = touchHistoryOf(event)
+  if (touchHistory !== undefined) {
+    updateGestureStateFromHistory(gestureState, touchHistory)
+    return
+  }
+
   const currentX = centroidX(touches)
   const currentY = centroidY(touches)
   const frameTimestamp = mostRecentTimestamp(touches)
@@ -223,7 +391,8 @@ const PanResponder = {
         if (touches.length === SINGLE_TOUCH_COUNT) {
           initializeGestureState(gestureState)
         }
-        gestureState.numberActiveTouches = touches.length
+        gestureState.numberActiveTouches =
+          touchHistoryOf(event)?.numberActiveTouches ?? touches.length
         return config.onStartShouldSetPanResponderCapture === undefined
           ? false
           : config.onStartShouldSetPanResponderCapture(event, gestureState)
@@ -234,10 +403,10 @@ const PanResponder = {
         // Skip a duplicate dispatch of the same frame: when two touches change at
         // once the responder system fires twice, but the geometry was already
         // folded in on the first call.
-        if (gestureState._accountsForMovesUpTo === mostRecentTimestamp(touches)) {
+        if (gestureState._accountsForMovesUpTo === frameTimestampOf(event, touches)) {
           return false
         }
-        updateGestureStateOnMove(gestureState, touches)
+        updateGestureStateOnMove(gestureState, event, touches)
         return config.onMoveShouldSetPanResponderCapture === undefined
           ? false
           : config.onMoveShouldSetPanResponderCapture(event, gestureState)
@@ -246,14 +415,16 @@ const PanResponder = {
       onResponderGrant(event: SymbioteEvent): boolean {
         dlog('PanResponder grant')
         const touches = readTouches(event)
-        gestureState.x0 = centroidX(touches)
-        gestureState.y0 = centroidY(touches)
+        const touchHistory = touchHistoryOf(event)
+        // x0/y0 is the non-cumulative centroid at grant time (RN: currentCentroid).
+        gestureState.x0 = touchHistory ? currentCentroidXAll(touchHistory) : centroidX(touches)
+        gestureState.y0 = touchHistory ? currentCentroidYAll(touchHistory) : centroidY(touches)
         gestureState.dx = 0
         gestureState.dy = 0
         // The grant frame is already accounted for, so the first move's velocity
         // is measured from here, not from time 0.
-        gestureState._accountsForMovesUpTo = mostRecentTimestamp(touches)
-        gestureState.numberActiveTouches = touches.length
+        gestureState._accountsForMovesUpTo = frameTimestampOf(event, touches)
+        gestureState.numberActiveTouches = touchHistory?.numberActiveTouches ?? touches.length
         config.onPanResponderGrant?.(event, gestureState)
         return config.onShouldBlockNativeResponder === undefined
           ? DEFAULT_BLOCK_NATIVE_RESPONDER
@@ -265,22 +436,24 @@ const PanResponder = {
       },
 
       onResponderStart(event: SymbioteEvent): void {
-        gestureState.numberActiveTouches = readTouches(event).length
+        gestureState.numberActiveTouches =
+          touchHistoryOf(event)?.numberActiveTouches ?? readTouches(event).length
         config.onPanResponderStart?.(event, gestureState)
       },
 
       onResponderMove(event: SymbioteEvent): void {
         const touches = readTouches(event)
         // Same duplicate-frame guard as the capture path.
-        if (gestureState._accountsForMovesUpTo === mostRecentTimestamp(touches)) {
+        if (gestureState._accountsForMovesUpTo === frameTimestampOf(event, touches)) {
           return
         }
-        updateGestureStateOnMove(gestureState, touches)
+        updateGestureStateOnMove(gestureState, event, touches)
         config.onPanResponderMove?.(event, gestureState)
       },
 
       onResponderEnd(event: SymbioteEvent): void {
-        gestureState.numberActiveTouches = readTouches(event).length
+        gestureState.numberActiveTouches =
+          touchHistoryOf(event)?.numberActiveTouches ?? readTouches(event).length
         config.onPanResponderEnd?.(event, gestureState)
       },
 

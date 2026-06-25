@@ -33,6 +33,63 @@ export type TransformProp =
   | { skewX: string }
   | { skewY: string }
   | { perspective: number }
+  // A pre-baked 4x4 column-major affine matrix (16 numbers) or 3x3 (9). Fabric
+  // consumes it as-is — flattenStyle copies the array through untouched, no parse.
+  | { matrix: number[] }
+
+// New-Architecture box shadow (StyleSheetTypes BoxShadowValue:816). Either a CSS
+// `box-shadow` string or an array of shadow objects; Fabric's C++ parses both, so
+// these reach native as raw style props (no JS-side processColor on the nested color).
+export interface BoxShadowValue {
+  offsetX: number | string
+  offsetY: number | string
+  color?: ColorValue
+  blurRadius?: number | string
+  spreadDistance?: number | string
+  inset?: boolean
+}
+
+// `filter`'s drop-shadow primitive (StyleSheetTypes DropShadowValue:721).
+export interface DropShadowValue {
+  offsetX: number | string
+  offsetY: number | string
+  standardDeviation?: number | string
+  color?: ColorValue
+}
+
+// One CSS filter function (StyleSheetTypes FilterFunction:709) — each entry names
+// exactly one filter, mirroring the single-key-object shape of TransformProp.
+export type FilterFunction =
+  | { brightness: number | string }
+  | { blur: number | string }
+  | { contrast: number | string }
+  | { grayscale: number | string }
+  | { hueRotate: number | string }
+  | { invert: number | string }
+  | { opacity: number | string }
+  | { saturate: number | string }
+  | { sepia: number | string }
+  | { dropShadow: DropShadowValue | string }
+
+// CSS mix-blend-mode keywords (StyleSheetTypes ____BlendMode_Internal:825).
+export type BlendMode =
+  | 'normal'
+  | 'multiply'
+  | 'screen'
+  | 'overlay'
+  | 'darken'
+  | 'lighten'
+  | 'color-dodge'
+  | 'color-burn'
+  | 'hard-light'
+  | 'soft-light'
+  | 'difference'
+  | 'exclusion'
+  | 'hue'
+  | 'saturation'
+  | 'color'
+  | 'luminosity'
+  | 'plus-lighter'
 
 export interface ViewStyle {
   // Box dimensions
@@ -55,6 +112,8 @@ export interface ViewStyle {
   alignSelf?: 'auto' | FlexAlign
   alignContent?: FlexJustify | 'stretch'
   justifyContent?: FlexJustify
+  // Yoga layout direction. 'inherit' takes the parent's; ltr/rtl force it.
+  direction?: 'inherit' | 'ltr' | 'rtl'
   gap?: number | string
   rowGap?: number | string
   columnGap?: number | string
@@ -97,6 +156,14 @@ export interface ViewStyle {
   borderTopRightRadius?: number | string
   borderBottomLeftRadius?: number | string
   borderBottomRightRadius?: number | string
+  // Logical (writing-direction-relative) corner radii — resolve to physical
+  // corners per `direction`. RTL flips start/end.
+  borderStartStartRadius?: number | string
+  borderStartEndRadius?: number | string
+  borderEndStartRadius?: number | string
+  borderEndEndRadius?: number | string
+  // iOS 13+ continuous ("squircle") vs circular corner contour.
+  borderCurve?: 'circular' | 'continuous'
 
   // Borders — width per edge
   borderWidth?: number
@@ -133,6 +200,17 @@ export interface ViewStyle {
 
   // Transform
   transform?: TransformProp[]
+  // The point a transform scales/rotates about (StyleSheetTypes:94 in _TransformStyle).
+  // CSS string (`'30% 80% 15px'`) or a [x, y, z] tuple; the z element must be a number.
+  transformOrigin?: [string | number, string | number, string | number] | string
+
+  // New-Architecture visual props (StyleSheetTypes ____ViewStyle_InternalBase:887).
+  // All three are pass-through style keys: flattenStyle copies the array/object/string
+  // value untouched and fabricProps hoists it, so Fabric's C++ does the parsing — no
+  // ViewConfig validAttributes entry and no JS-side color processing are needed.
+  boxShadow?: BoxShadowValue[] | string
+  filter?: FilterFunction[] | string
+  mixBlendMode?: BlendMode
 }
 
 export interface TextStyle extends ViewStyle {
@@ -158,5 +236,13 @@ export interface TextStyle extends ViewStyle {
   textAlignVertical?: 'auto' | 'top' | 'bottom' | 'center'
   textTransform?: 'none' | 'capitalize' | 'uppercase' | 'lowercase'
   textDecorationLine?: 'none' | 'underline' | 'line-through' | 'underline line-through'
+  // A color prop: needs processColor before Fabric. See SHARED CHANGES NEEDED —
+  // the type is declared here, the COLOR_PROPS wiring is a shared change.
+  textDecorationColor?: ColorValue
+  textDecorationStyle?: 'solid' | 'double' | 'dotted' | 'dashed'
+  // OpenType feature selectors, e.g. ['tabular-nums', 'oldstyle-nums'].
+  fontVariant?: string[]
+  // Per-text override of the layout writing direction.
+  writingDirection?: 'auto' | 'ltr' | 'rtl'
   includeFontPadding?: boolean
 }

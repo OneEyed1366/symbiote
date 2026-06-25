@@ -9,7 +9,7 @@
 // simulator — a failure here is in JS, not native.
 
 import { useState, type ReactElement } from 'react'
-import { mount } from '@symbiote/react'
+import { Keyboard, mount } from '@symbiote/react'
 import { TextInput } from '../../packages/react/src/text-input'
 
 // ---- fake Fabric slot ---------------------------------------------------
@@ -166,6 +166,130 @@ mount(13, <Forced />)
   }
   if (setText.args[1] !== 'AB') {
     throw new Error(`setTextAndSelection pushed ${JSON.stringify(setText.args[1])}, expected "AB"`)
+  }
+}
+
+// ---- case 5: Keyboard.dismiss blurs the currently-focused input ----------
+// Focusing an input registers it as the app-wide focused input (TextInputState);
+// Keyboard.dismiss then blurs it via the native `blur` view command, with no ref.
+
+reset()
+mount(14, <TextInput value="focus me" />)
+
+{
+  const node = inputNode(SINGLELINE)
+  if (!eventHandler) throw new Error('no event handler was registered')
+  // Native reports focus -> TextInput records this node as the focused one.
+  eventHandler(node.instanceHandle, 'topFocus', {})
+  Keyboard.dismiss()
+  const blur = commands.find((c) => c.name === 'blur')
+  if (!blur) {
+    throw new Error('Keyboard.dismiss should blur the focused input via a blur command')
+  }
+  // A second dismiss has nothing focused -> must be a no-op (no new blur command).
+  commands.length = 0
+  Keyboard.dismiss()
+  if (commands.some((c) => c.name === 'blur')) {
+    throw new Error('Keyboard.dismiss must be a no-op when nothing holds focus')
+  }
+}
+
+// ---- case 6: modern W3C aliases fold to their legacy native props --------
+// RN translates inputMode/enterKeyHint/readOnly/selectionColor in JS before they reach the
+// native input; symbiote must do the same and must not leak the raw aliases to Fabric.
+
+reset()
+mount(15, <TextInput inputMode="numeric" enterKeyHint="done" readOnly selectionColor="#ff0000" />)
+
+{
+  const node = inputNode(SINGLELINE)
+  if (node.props.keyboardType !== 'number-pad') {
+    throw new Error(`inputMode="numeric" should fold to keyboardType "number-pad", got ${JSON.stringify(node.props.keyboardType)}`)
+  }
+  if (node.props.returnKeyType !== 'done') {
+    throw new Error(`enterKeyHint="done" should fold to returnKeyType "done", got ${JSON.stringify(node.props.returnKeyType)}`)
+  }
+  if (node.props.editable !== false) {
+    throw new Error(`readOnly should fold to editable:false, got ${JSON.stringify(node.props.editable)}`)
+  }
+  if (node.props.cursorColor !== '#ff0000') {
+    throw new Error(`selectionColor should default cursorColor, got ${JSON.stringify(node.props.cursorColor)}`)
+  }
+  for (const raw of ['inputMode', 'enterKeyHint', 'readOnly']) {
+    if (raw in node.props) {
+      throw new Error(`raw alias "${raw}" must not reach Fabric, found ${JSON.stringify(node.props[raw])}`)
+    }
+  }
+}
+
+// ---- case 7: autoComplete folds + showSoftInputOnFocus derivation --------
+// RN folds the W3C autoComplete token to the per-platform native prop
+// (Android `autoComplete`, iOS `textContentType`) and derives showSoftInputOnFocus
+// from inputMode. Symbiote folds platform-agnostically, so both native props appear.
+
+reset()
+mount(16, <TextInput autoComplete="email" inputMode="text" />)
+
+{
+  const node = inputNode(SINGLELINE)
+  // 'email' maps to Android 'email' and iOS textContentType 'emailAddress'.
+  if (node.props.autoComplete !== 'email') {
+    throw new Error(`autoComplete="email" should fold to Android "email", got ${JSON.stringify(node.props.autoComplete)}`)
+  }
+  if (node.props.textContentType !== 'emailAddress') {
+    throw new Error(`autoComplete="email" should fold to textContentType "emailAddress", got ${JSON.stringify(node.props.textContentType)}`)
+  }
+  // inputMode="text" (!= 'none') -> showSoftInputOnFocus true.
+  if (node.props.showSoftInputOnFocus !== true) {
+    throw new Error(`inputMode="text" should derive showSoftInputOnFocus:true, got ${JSON.stringify(node.props.showSoftInputOnFocus)}`)
+  }
+  // The raw W3C token must not also leak as some other key beyond the folded ones.
+}
+
+// inputMode="none" hides the soft keyboard (showSoftInputOnFocus:false).
+reset()
+mount(17, <TextInput inputMode="none" />)
+{
+  const node = inputNode(SINGLELINE)
+  if (node.props.showSoftInputOnFocus !== false) {
+    throw new Error(`inputMode="none" should derive showSoftInputOnFocus:false, got ${JSON.stringify(node.props.showSoftInputOnFocus)}`)
+  }
+}
+
+// An unmapped autoComplete token passes through to Android verbatim, with no iOS type.
+reset()
+mount(18, <TextInput autoComplete="cc-name" />)
+{
+  const node = inputNode(SINGLELINE)
+  if (node.props.autoComplete !== 'cc-name') {
+    throw new Error(`unmapped autoComplete should pass through, got ${JSON.stringify(node.props.autoComplete)}`)
+  }
+  // 'cc-name' has an iOS textContentType but no Android map entry -> Android keeps the token.
+  if (node.props.textContentType !== 'creditCardName') {
+    throw new Error(`autoComplete="cc-name" should fold to textContentType "creditCardName", got ${JSON.stringify(node.props.textContentType)}`)
+  }
+}
+
+// ---- case 8: underlineColorAndroid defaults to 'transparent' -------------
+// RN hides the Material default EditText underline by defaulting
+// underlineColorAndroid to 'transparent' (TextInput.js:908) and forwarding it.
+// Symbiote must do the same when the prop is absent, and respect an explicit value.
+
+reset()
+mount(19, <TextInput value="x" />)
+{
+  const node = inputNode(SINGLELINE)
+  if (node.props.underlineColorAndroid !== 'transparent') {
+    throw new Error(`underlineColorAndroid should default to "transparent", got ${JSON.stringify(node.props.underlineColorAndroid)}`)
+  }
+}
+
+reset()
+mount(20, <TextInput value="x" underlineColorAndroid="#00ff00" />)
+{
+  const node = inputNode(SINGLELINE)
+  if (node.props.underlineColorAndroid !== '#00ff00') {
+    throw new Error(`explicit underlineColorAndroid should win, got ${JSON.stringify(node.props.underlineColorAndroid)}`)
   }
 }
 

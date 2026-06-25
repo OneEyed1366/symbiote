@@ -15,20 +15,45 @@ import {
   generateNativeNodeTag,
   nativeAnimated,
   type NativeNodeConfig,
+  type PlatformConfig,
 } from './native/native-animated'
 
-export type ValueListener = (state: { value: number }) => void
+// Most nodes emit a scalar; a composite node (AnimatedColor) emits its rasterized
+// string (an rgba() value). The payload is the union so one listener map serves
+// both — scalar nodes only ever pass a number.
+export type ValueListener = (state: { value: number | string }) => void
 
 let nextListenerId = 1
 
+// Depth of the currently-active withSuspendedCallbacks blocks. While > 0, a
+// composite setter (AnimatedColor.setValue) is driving several channels in a row;
+// each channel's own flushValue is suppressed so the bound leaf commits ONCE — at
+// the single flushValue the composite issues after the block — instead of once per
+// channel. RN tolerates the per-channel flushes and relies on a downstream commit-
+// coalescing layer; symbiote has none here, so it coalesces at the source.
+let flushSuspendDepth = 0
+
 export class AnimatedNode {
   private readonly listeners = new Map<string, ValueListener>()
+
+  // While > 0, this node's own __callListeners is a no-op. A composite setter
+  // (AnimatedColor.setValue) that drives several channels in a row would otherwise
+  // fire this node's listeners once per channel, each with an intermediate value
+  // that never logically existed. The setter wraps the channel writes in
+  // _withSuspendedCallbacks, then fires once with the final value. Ported from RN's
+  // AnimatedColor._suspendCallbacks.
+  private suspendCallbacks = 0
 
   // Native-driver state (ADR 0017). Off until a useNativeDriver animation marks
   // the graph native; `nativeTag` is the node's identity in the native module,
   // allocated lazily on first reference (which also creates the native node).
   protected isNative = false
   private nativeTag: number | undefined
+  // RN's AnimatedNode._platformConfig (AnimatedNode.js:34): the platform tuning bag
+  // a useNativeDriver animation hands down via __makeNative, merged into this node's
+  // native config at creation (__getNativeTag). Optional — undefined when no caller
+  // supplied one, matching today's behavior.
+  private platformConfig: PlatformConfig | undefined
 
   __attach(): void {}
 
@@ -51,9 +76,12 @@ export class AnimatedNode {
   //      only READS child tags (also creating them), never connects, so creation is
   //      side-effect-free w.r.t. edges and createAnimatedNode may precede its refs.
   //   2. CONNECT every edge — only once both endpoints are guaranteed created.
-  __makeNative(): void {
+  __makeNative(platformConfig?: PlatformConfig): void {
     if (this.isNative) return
     this.isNative = true
+    // RN stores the platform bag before minting the tag (AnimatedNode.js:80) so it
+    // is already present when __getNativeTag folds it into the create config.
+    if (platformConfig !== undefined) this.platformConfig = platformConfig
     this.__getNativeTag() // phase 1: create self (config may create referenced children)
     this.__connectNativeChildren() // phase 2: wire edges
   }
@@ -68,7 +96,13 @@ export class AnimatedNode {
   __getNativeTag(): number {
     if (this.nativeTag === undefined) {
       this.nativeTag = generateNativeNodeTag()
-      nativeAnimated.createAnimatedNode(this.nativeTag, this.__getNativeConfig())
+      // RN merges _platformConfig into the config after __getNativeConfig returns
+      // (AnimatedNode.js:146-148) rather than in each node's config method.
+      const config =
+        this.platformConfig === undefined
+          ? this.__getNativeConfig()
+          : { ...this.__getNativeConfig(), platformConfig: this.platformConfig }
+      nativeAnimated.createAnimatedNode(this.nativeTag, config)
     }
     return this.nativeTag
   }
@@ -116,11 +150,26 @@ export class AnimatedNode {
     return this.listeners.size > 0
   }
 
-  __callListeners(value: number): void {
+  __callListeners(value: number | string): void {
+    if (this.suspendCallbacks > 0) return
     const event = { value }
     this.listeners.forEach((listener) => {
       listener(event)
     })
+  }
+
+  // Run `fn` with this node's listener fires AND every flushValue suspended,
+  // restoring the prior depth even if `fn` throws. The composite setter pairs this
+  // with one explicit flush + one listener fire after the block.
+  protected withSuspendedCallbacks(fn: () => void): void {
+    this.suspendCallbacks++
+    flushSuspendDepth++
+    try {
+      fn()
+    } finally {
+      this.suspendCallbacks--
+      flushSuspendDepth--
+    }
   }
 }
 
@@ -168,7 +217,7 @@ export class AnimatedWithChildren extends AnimatedNode {
     return this.children
   }
 
-  override __callListeners(value: number): void {
+  override __callListeners(value: number | string): void {
     super.__callListeners(value)
     // A native-driven node's children are updated natively; don't also walk them
     // here (their values aren't tracked in JS while native owns the animation).
@@ -194,8 +243,11 @@ function leafUpdate(node: AnimatedNode): (() => void) | undefined {
 }
 
 // Top-down walk to the leaves, then re-pull each leaf (deduped by node identity,
-// so a diamond in the graph still updates a leaf once).
+// so a diamond in the graph still updates a leaf once). Suppressed inside a
+// withSuspendedCallbacks block: the composite setter issues the one flush that
+// actually rebuilds the leaves after all its channel writes land.
 export function flushValue(rootNode: AnimatedNode): void {
+  if (flushSuspendDepth > 0) return
   const leaves = new Map<AnimatedNode, () => void>()
   function collect(node: AnimatedNode): void {
     const update = leafUpdate(node)

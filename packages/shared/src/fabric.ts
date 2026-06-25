@@ -70,6 +70,10 @@ export interface FabricSlot {
   registerEventHandler(handler: FabricEventHandler): void
   // Imperative view commands (e.g. TextInput setTextAndSelection, focus, blur).
   dispatchCommand(node: FabricNode, commandName: string, args: readonly unknown[]): void
+  // Emit an accessibility event (focus/click/…) at a node's CURRENT Fabric handle.
+  // RN's Fabric binding passes the public-instance handle straight here; the C++ side
+  // maps the string eventType to the platform's accessibility-event kind.
+  sendAccessibilityEvent(node: FabricNode, eventType: string): void
   // Imperative measurement, against a node's CURRENT (committed) Fabric handle.
   measure(node: FabricNode, callback: MeasureOnSuccess): void
   measureInWindow(node: FabricNode, callback: MeasureInWindowOnSuccess): void
@@ -116,6 +120,9 @@ export function getSlot(): FabricSlot {
   const { completeRoot } = host
   const { registerEventHandler } = host
   const { dispatchCommand } = host
+  // Optional on some hosts — read it off the live binding and feature-detect below so an
+  // older slot without it degrades to a logged no-op instead of throwing.
+  const { sendAccessibilityEvent } = host
   const { measure } = host
   const { measureInWindow } = host
   const { measureLayout } = host
@@ -134,6 +141,13 @@ export function getSlot(): FabricSlot {
     registerEventHandler: (handler) => registerEventHandler(handler),
     dispatchCommand: (node, commandName, args) =>
       dispatchCommand(node, commandName, args),
+    sendAccessibilityEvent: (node, eventType) => {
+      if (typeof sendAccessibilityEvent !== 'function') {
+        dlog(`sendAccessibilityEvent("${eventType}") -> host lacks the method (no-op)`)
+        return
+      }
+      sendAccessibilityEvent(node, eventType)
+    },
     measure: (node, callback) => measure(node, callback),
     measureInWindow: (node, callback) => measureInWindow(node, callback),
     measureLayout: (node, relativeToNode, onFail, onSuccess) =>

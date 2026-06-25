@@ -136,6 +136,11 @@ if ('padding' in outer.props) {
 if (outer.props.flexDirection !== 'row') {
   throw new Error(`outer node missing baseHorizontal flexDirection:'row', got ${JSON.stringify(outer.props)}`)
 }
+// overflow:'scroll' clips content to the frame — RN's base style on both axes. Without it
+// iOS Fabric doesn't clip and a fixed-size scroll view bleeds over its siblings.
+if (outer.props.overflow !== 'scroll') {
+  throw new Error(`outer node missing base overflow:'scroll', got ${JSON.stringify(outer.props)}`)
+}
 // horizontal must also reach the native scroll view as a bool — on iOS RCTScrollView keys
 // its axis off this prop (Android uses the dedicated AndroidHorizontalScrollView component).
 if (outer.props.horizontal !== true) {
@@ -152,6 +157,27 @@ eventHandler(outer.instanceHandle, 'topScroll', payload)
 if (!scrolled) throw new Error('onScroll did not fire')
 if (scrolled !== payload) {
   throw new Error(`onScroll got wrong payload: ${JSON.stringify(scrolled)}`)
+}
+
+// ---- vertical ScrollView carries the clip base too -----------------------
+// Regression guard for the iOS bleed: a vertical scroll view used to get NO base style,
+// so overflow was never set and iOS didn't clip. It must now match RN's baseVertical
+// (overflow:'scroll' + flexDirection:'column').
+
+allCreated.length = 0
+committed = []
+mount(12, <ScrollView style={{ height: 120 }}><View /></ScrollView>)
+const vertical = allCreated.find((node) => node.viewName === 'RCTScrollView')
+if (!vertical) throw new Error('no vertical RCTScrollView was created')
+if (vertical.props.overflow !== 'scroll') {
+  throw new Error(`vertical scroll view missing base overflow:'scroll', got ${JSON.stringify(vertical.props)}`)
+}
+if (vertical.props.flexDirection !== 'column') {
+  throw new Error(`vertical scroll view missing baseVertical flexDirection:'column', got ${JSON.stringify(vertical.props)}`)
+}
+// A user style still wins over the base — the explicit height must survive the merge.
+if (vertical.props.height !== 120) {
+  throw new Error(`user height must survive the base merge, got ${JSON.stringify(vertical.props.height)}`)
 }
 
 console.log('scroll-view.smoke OK')

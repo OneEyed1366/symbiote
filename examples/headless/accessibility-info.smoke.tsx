@@ -7,7 +7,57 @@
 // that remove() stops it and pings the module's removeListeners counter. A failure
 // here is in JS.
 
+import { type ReactElement } from 'react'
+import { mount, View } from '@symbiote/react'
 import { AccessibilityInfo } from '../../packages/react/src/accessibility-info'
+
+// ---- fake Fabric slot: records sendAccessibilityEvent(node, eventType) ----
+// iOS now routes non-'click' accessibility events through the Fabric slot (RN's Fabric
+// path), so case 6 needs a slot + a committed host ref, not just the native module.
+
+interface FakeNode {
+  tag: number
+  viewName: string
+  props: Record<string, unknown>
+  children: FakeNode[]
+}
+
+interface AccessibilityCall {
+  node: FakeNode
+  eventType: string
+}
+
+const a11yEvents: AccessibilityCall[] = []
+const slot = {
+  createNode: (
+    tag: number,
+    viewName: string,
+    _rootTag: number,
+    props: Record<string, unknown>,
+  ): FakeNode => ({ tag, viewName, props, children: [] }),
+  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+    ...node,
+    props: { ...node.props, ...newProps },
+  }),
+  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildrenAndProps: (
+    node: FakeNode,
+    newProps: Record<string, unknown>,
+  ): FakeNode => ({ ...node, props: { ...node.props, ...newProps }, children: [] }),
+  createChildSet: (): FakeNode[] => [],
+  appendChild: (parent: FakeNode, child: FakeNode): FakeNode => {
+    parent.children.push(child)
+    return parent
+  },
+  appendChildToSet: (_childSet: FakeNode[], _child: FakeNode): void => {},
+  completeRoot: (): void => {},
+  registerEventHandler: (): void => {},
+  dispatchCommand: (): void => {},
+  sendAccessibilityEvent: (node: FakeNode, eventType: string): void => {
+    a11yEvents.push({ node, eventType })
+  },
+}
+Object.assign(globalThis, { nativeFabricUIManager: slot })
 
 // ---- fake native-module + device-hub globals ----------------------------
 
@@ -15,6 +65,8 @@ let a11yAdded = 0
 let a11yRemoved = 0
 const screenReaderState = true
 const reduceMotionState = false
+let announced: string | undefined
+let focusedTag: number | undefined
 const fakeAccessibilityInfo = {
   getCurrentVoiceOverState: (onSuccess: (enabled: boolean) => void): void => {
     onSuccess(screenReaderState)
@@ -25,8 +77,27 @@ const fakeAccessibilityInfo = {
   getCurrentBoldTextState: (onSuccess: (enabled: boolean) => void): void => {
     onSuccess(false)
   },
-  announceForAccessibility: (): void => {},
-  setAccessibilityFocus: (): void => {},
+  getCurrentGrayscaleState: (onSuccess: (enabled: boolean) => void): void => {
+    onSuccess(true)
+  },
+  getCurrentInvertColorsState: (onSuccess: (enabled: boolean) => void): void => {
+    onSuccess(false)
+  },
+  getCurrentReduceTransparencyState: (onSuccess: (enabled: boolean) => void): void => {
+    onSuccess(true)
+  },
+  getCurrentDarkerSystemColorsState: (onSuccess: (enabled: boolean) => void): void => {
+    onSuccess(true)
+  },
+  getCurrentPrefersCrossFadeTransitionsState: (onSuccess: (enabled: boolean) => void): void => {
+    onSuccess(false)
+  },
+  announceForAccessibility: (announcement: string): void => {
+    announced = announcement
+  },
+  setAccessibilityFocus: (reactTag: number): void => {
+    focusedTag = reactTag
+  },
   addListener: (): void => {
     a11yAdded += 1
   },
@@ -97,6 +168,87 @@ function isType<T>(value: unknown): value is T {
   }
   deviceHub.emit('screenReaderChanged', true)
   if (received !== undefined) throw new Error('a removed listener must not fire')
+}
+
+// ---- case 3: the expanded iOS getters resolve to the module's values ------
+
+{
+  const grayscale = await AccessibilityInfo.isGrayscaleEnabled()
+  if (grayscale !== true) throw new Error(`isGrayscaleEnabled should be true, got ${String(grayscale)}`)
+
+  const invert = await AccessibilityInfo.isInvertColorsEnabled()
+  if (invert !== false) throw new Error(`isInvertColorsEnabled should be false, got ${String(invert)}`)
+
+  const transparency = await AccessibilityInfo.isReduceTransparencyEnabled()
+  if (transparency !== true) {
+    throw new Error(`isReduceTransparencyEnabled should be true, got ${String(transparency)}`)
+  }
+
+  // Android-only queries resolve false on the iOS build (no throw, RN parity).
+  const highContrast = await AccessibilityInfo.isHighTextContrastEnabled()
+  if (highContrast !== false) throw new Error('isHighTextContrastEnabled should be false on iOS')
+
+  const service = await AccessibilityInfo.isAccessibilityServiceEnabled()
+  if (service !== false) throw new Error('isAccessibilityServiceEnabled should be false on iOS')
+
+  // The newer iOS getters resolve to their module's values (optional methods, present here).
+  const darker = await AccessibilityInfo.isDarkerSystemColorsEnabled()
+  if (darker !== true) throw new Error(`isDarkerSystemColorsEnabled should be true, got ${String(darker)}`)
+
+  const crossFade = await AccessibilityInfo.prefersCrossFadeTransitions()
+  if (crossFade !== false) throw new Error(`prefersCrossFadeTransitions should be false, got ${String(crossFade)}`)
+}
+
+// ---- case 4: announce + focus drive the native module --------------------
+
+{
+  AccessibilityInfo.announceForAccessibility('hello')
+  // Capture into a fresh local: a `!== 'hello'` throw-guard would otherwise narrow
+  // `announced` to the literal 'hello', making the later 'queued' check a no-overlap
+  // type error (TS can't see the fake module mutate `announced` between the calls).
+  const firstAnnounce: string | undefined = announced
+  if (firstAnnounce !== 'hello') throw new Error(`announceForAccessibility should reach native, got ${String(firstAnnounce)}`)
+
+  // No options-aware method on the fake -> falls back to the plain announce.
+  AccessibilityInfo.announceForAccessibilityWithOptions('queued', { queue: true, priority: 'high' })
+  const secondAnnounce: string | undefined = announced
+  if (secondAnnounce !== 'queued') throw new Error('announceForAccessibilityWithOptions should fall back to announce')
+
+  AccessibilityInfo.setAccessibilityFocus(42)
+  if (focusedTag !== 42) throw new Error(`setAccessibilityFocus should reach native, got ${String(focusedTag)}`)
+}
+
+// ---- case 5: getRecommendedTimeoutMillis returns the original on iOS ------
+
+{
+  const timeout = await AccessibilityInfo.getRecommendedTimeoutMillis(3000)
+  if (timeout !== 3000) throw new Error(`getRecommendedTimeoutMillis should resolve the original, got ${String(timeout)}`)
+}
+
+// ---- case 6: sendAccessibilityEvent routes a host ref through the Fabric slot ----
+
+{
+  // Mount a View and capture its host ref — the public-instance handle RN's Fabric
+  // sendAccessibilityEvent expects. iOS routes every non-'click' event through the slot.
+  let box: unknown
+  function App(): ReactElement {
+    return <View ref={(instance) => { box = instance }} style={{ width: 10, height: 10 }} />
+  }
+  mount(11, <App />)
+  if (box == null) throw new Error('host ref handed back nothing')
+
+  AccessibilityInfo.sendAccessibilityEvent(box, 'focus')
+  const focus = a11yEvents[a11yEvents.length - 1]
+  if (!focus || focus.eventType !== 'focus') {
+    throw new Error(`sendAccessibilityEvent('focus') should route 'focus' through the slot, got ${JSON.stringify(focus)}`)
+  }
+
+  // RN early-returns 'click' on iOS (VoiceOver has no click producer) -> nothing reaches the slot.
+  const before = a11yEvents.length
+  AccessibilityInfo.sendAccessibilityEvent(box, 'click')
+  if (a11yEvents.length !== before) {
+    throw new Error("sendAccessibilityEvent('click') must be a no-op on iOS (RN parity)")
+  }
 }
 
 console.log('accessibility-info.smoke OK')

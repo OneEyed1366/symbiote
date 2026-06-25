@@ -14,9 +14,31 @@
 
 import { isRegisteredEvent } from './registry'
 
-// Events every view can emit — RN's base ViewConfig. `press`/`pressIn`/`pressOut`
-// are synthesized from the touch stream (see events.ts); `layout` is universal.
-const BASE_EVENTS: readonly string[] = ['press', 'pressIn', 'pressOut', 'layout']
+// Accessibility events from RN's base ViewConfig — every view can emit them.
+// accessibilityAction fires on iOS + Android; the other three are iOS-only and inert
+// on Android (no native producer), exactly like `scrollToTop` below.
+const A11Y_EVENTS: readonly string[] = [
+  'accessibilityAction',
+  'accessibilityTap',
+  'magicTap',
+  'accessibilityEscape',
+]
+
+// Events every view can emit — RN's base ViewConfig. `press`/`pressIn`/`pressOut`/
+// `longPress` are synthesized from the touch stream (see events.ts); `layout` is
+// universal; `focus`/`blur` are RN's bubbling focus events declared on the base View
+// (ViewPropTypes.js FocusEventProps), so any view can emit them; the accessibility
+// events are base too, so they reach every component.
+const BASE_EVENTS: readonly string[] = [
+  'press',
+  'pressIn',
+  'pressOut',
+  'longPress',
+  'layout',
+  'focus',
+  'blur',
+  ...A11Y_EVENTS,
+]
 
 // An event set is platform-invariant — a text input emits `change` on iOS and Android
 // alike; only the native component NAME differs (iOS RCTSinglelineTextInputView vs
@@ -51,7 +73,13 @@ const SCROLL_EVENTS: readonly string[] = [
   'momentumScrollBegin',
   'momentumScrollEnd',
   'contentSizeChange',
+  // iOS-only: emitted when the user taps the status bar to scroll to top. Inert on
+  // Android (no native producer), so keying it here is harmless cross-platform.
+  'scrollToTop',
 ]
+
+// Text emits a glyph-layout event (onTextLayout) beyond the base press/layout set.
+const TEXT_EVENTS: readonly string[] = ['textLayout']
 
 // Fabric component name -> the events it emits beyond the base set. The keys match
 // SymbioteNode.component (what createNode is called with). A component absent here
@@ -63,6 +91,7 @@ const COMPONENT_EVENTS: Readonly<Record<string, readonly string[]>> = {
   RCTSinglelineTextInputView: TEXT_INPUT_EVENTS,
   RCTMultilineTextInputView: TEXT_INPUT_EVENTS,
   AndroidTextInput: TEXT_INPUT_EVENTS,
+  RCTText: TEXT_EVENTS,
   Switch: ['change'],
   AndroidSwitch: ['change'],
   ModalHostView: MODAL_EVENTS,

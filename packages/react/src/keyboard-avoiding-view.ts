@@ -16,12 +16,17 @@ import {
 import { dlog, type SymbioteEvent } from '@symbiote/shared'
 import { View, type ViewProps } from './components'
 import { Keyboard, KEYBOARD_EVENT } from './keyboard'
+import type { AccessibilityProps, AriaProps } from './accessibility-props'
 import type { ViewStyle } from './styles'
 
 export type KeyboardAvoidingBehavior = 'height' | 'position' | 'padding'
 
-export interface KeyboardAvoidingViewProps {
+export interface KeyboardAvoidingViewProps extends AccessibilityProps, AriaProps {
   behavior?: KeyboardAvoidingBehavior
+  // When false, the view passes through untouched — no inset is applied in any
+  // behavior mode. RN gates every inset/height computation on `enabled ?? true`
+  // (KeyboardAvoidingView.js); default true.
+  enabled?: boolean
   // Distance from the top of the screen to this view; subtracted from the inset
   // so a view that doesn't start at y=0 still clears the keyboard exactly.
   keyboardVerticalOffset?: number
@@ -73,11 +78,16 @@ function computeInset(
 export const KeyboardAvoidingView: FC<KeyboardAvoidingViewProps> = (props) => {
   const {
     behavior,
+    enabled = true,
     keyboardVerticalOffset = DEFAULT_VERTICAL_OFFSET,
     contentContainerStyle,
     style,
     children,
     onLayout,
+    // The wrapper is the View FC, which runs resolveAccessibilityProps itself, so
+    // the raw aria/role + accessibility* props pass through untouched here and fold
+    // there once.
+    ...accessibilityRest
   } = props
 
   const [inset, setInset] = useState(0)
@@ -117,19 +127,27 @@ export const KeyboardAvoidingView: FC<KeyboardAvoidingViewProps> = (props) => {
     onLayout?.(event)
   }
 
+  // When disabled the inset is forced to 0, so every behavior mode renders the view
+  // untouched (RN gates each bottomHeight/height computation on `enabled ?? true`).
+  const effectiveInset = enabled ? inset : 0
+
   // 'position' nests the content in an inner View pushed up by `bottom: inset`;
   // the others adjust the wrapper directly. 'height' shrinks the wrapper from its
   // initial measured height (only while the keyboard is up, matching RN).
   if (behavior === 'position') {
-    const innerStyle: ViewStyle = { ...contentContainerStyle, bottom: inset }
+    const innerStyle: ViewStyle = { ...contentContainerStyle, bottom: effectiveInset }
     return renderWrapper(style, createElement(View, { style: innerStyle }, children))
   }
 
   let wrapperStyle: ViewStyle | undefined = style
   if (behavior === 'padding') {
-    wrapperStyle = { ...style, paddingBottom: inset }
-  } else if (behavior === 'height' && inset > 0 && initialHeightRef.current !== undefined) {
-    wrapperStyle = { ...style, height: initialHeightRef.current - inset, flex: 0 }
+    wrapperStyle = { ...style, paddingBottom: effectiveInset }
+  } else if (
+    behavior === 'height' &&
+    effectiveInset > 0 &&
+    initialHeightRef.current !== undefined
+  ) {
+    wrapperStyle = { ...style, height: initialHeightRef.current - effectiveInset, flex: 0 }
   }
 
   return renderWrapper(wrapperStyle, children)
@@ -140,6 +158,7 @@ export const KeyboardAvoidingView: FC<KeyboardAvoidingViewProps> = (props) => {
   // onLayout reaches the host without editing View's public type.
   function renderWrapper(wrapStyle: ViewStyle | undefined, content: ReactNode): ReactElement {
     const wrapperProps: ViewProps & { onLayout: (event: SymbioteEvent) => void } = {
+      ...accessibilityRest,
       style: wrapStyle,
       onLayout: handleLayout,
       children: content,

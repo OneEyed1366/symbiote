@@ -43,6 +43,7 @@ export {
   setColorProcessor,
   processColor,
   dispatchViewCommand,
+  sendAccessibilityEvent,
   setNativeProps,
   getNativeTag,
   getNativeNode,
@@ -53,6 +54,16 @@ export {
 } from './commit'
 export { PlatformColor, DynamicColorIOS, isOpaqueColorValue } from './platform-color'
 export type { ColorValue, OpaqueColorValue, DynamicColorIOSTuple } from './platform-color'
+// CSS-style processors (boxShadow/filter): RN parses these in JS before native because
+// enableNativeCSSParsing() defaults to false. Exported so an adapter / test can reuse them.
+export { processBoxShadow } from './process-box-shadow'
+export type { ParsedBoxShadow } from './process-box-shadow'
+export { processFilter } from './process-filter'
+export type { ParsedFilter, ParsedDropShadow } from './process-filter'
+export { processTransformOrigin } from './process-transform-origin'
+export { processTransform } from './process-transform'
+export { processAspectRatio } from './process-aspect-ratio'
+export { processFontVariant } from './process-font-variant'
 export { flattenStyle } from './style'
 export { StyleSheet, computeHairlineWidth } from './style-sheet'
 export { Platform } from './platform'
@@ -95,6 +106,9 @@ export {
   modulo,
   diffClamp,
   event,
+  forkEvent,
+  unforkEvent,
+  attachNativeEvent,
   flushValue,
   Easing,
   createNumericInterpolation,
@@ -119,7 +133,9 @@ export type {
   RgbaValue,
   ColorInput,
   EventConfig,
+  EventListener,
   AnimatedEventHandler,
+  NativeEventAttachment,
   ValueListener,
   EasingFunction,
   InterpolationConfig,
@@ -136,6 +152,7 @@ export type {
   NativeNodeConfig,
   NativeAnimationConfig,
   NativeEventMapping,
+  PlatformConfig,
 } from './animated'
 
 export { getSlot } from './fabric'

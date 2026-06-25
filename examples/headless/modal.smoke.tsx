@@ -256,13 +256,54 @@ mount(26, (
   }
 }
 
-// ---- case 8: onDismiss fires on the visible->hidden transition -----------
-// RN keeps the modal mounted through its exit animation and fires onDismiss as
-// isRendered flips false. Here the realistic flow: a native onRequestClose makes
-// the parent set visible=false, and onDismiss is delivered on that transition.
+// ---- case 7b: platform props forward as NAMED host props ----------------
+// supportedOrientations/hardwareAccelerated/statusBarTranslucent/
+// navigationBarTranslucent/allowSwipeDismissal are named-forwarded on the host
+// (Modal.js ~336-350), not left to ride ...passthrough raw.
 
 reset()
-let dismissed = false
+mount(28, (
+  <Modal
+    visible
+    supportedOrientations={['portrait', 'landscape']}
+    hardwareAccelerated
+    statusBarTranslucent
+    navigationBarTranslucent
+    allowSwipeDismissal
+    onRequestClose={() => {}}
+  >
+    <View />
+  </Modal>
+))
+
+{
+  const props = modalNode().props
+  if (JSON.stringify(props.supportedOrientations) !== JSON.stringify(['portrait', 'landscape'])) {
+    throw new Error(`supportedOrientations should forward, got ${JSON.stringify(props.supportedOrientations)}`)
+  }
+  if (props.hardwareAccelerated !== true) {
+    throw new Error(`hardwareAccelerated should forward, got ${JSON.stringify(props.hardwareAccelerated)}`)
+  }
+  if (props.statusBarTranslucent !== true) {
+    throw new Error(`statusBarTranslucent should forward, got ${JSON.stringify(props.statusBarTranslucent)}`)
+  }
+  if (props.navigationBarTranslucent !== true) {
+    throw new Error(`navigationBarTranslucent should forward, got ${JSON.stringify(props.navigationBarTranslucent)}`)
+  }
+  if (props.allowSwipeDismissal !== true) {
+    throw new Error(`allowSwipeDismissal should forward, got ${JSON.stringify(props.allowSwipeDismissal)}`)
+  }
+}
+
+// ---- case 8: onDismiss is the native topDismiss event, NOT a JS simulation ---
+// On Fabric, onDismiss is a real native DirectEvent (topDismiss -> 'dismiss',
+// routed by MODAL_EVENTS). RN never simulates it in JS: hiding the modal only
+// drops the isRendered keep-alive that holds the node mounted long enough for the
+// native event to arrive. So the visible->hidden transition must NOT itself call
+// onDismiss (the old crutch double-fired: once from the effect, once natively).
+
+reset()
+let dismissCount = 0
 
 function DismissCase(): ReactElement {
   const [visible, setVisible] = useState(true)
@@ -270,7 +311,7 @@ function DismissCase(): ReactElement {
     <Modal
       visible={visible}
       onRequestClose={() => setVisible(false)}
-      onDismiss={() => { dismissed = true }}
+      onDismiss={() => { dismissCount += 1 }}
     >
       <View />
     </Modal>
@@ -279,15 +320,22 @@ function DismissCase(): ReactElement {
 
 mount(27, <DismissCase />)
 
-if (dismissed) {
+if (dismissCount !== 0) {
   throw new Error('onDismiss fired before the modal was hidden')
 }
-// Drive the native dismissal: topRequestClose on the host -> parent sets
-// visible=false -> the visible->hidden transition delivers onDismiss.
+// Drive the native close: topRequestClose -> parent sets visible=false. The
+// keep-alive holds the node mounted, but NO onDismiss fires from JS on this
+// transition (the corrected contract — RN does not simulate onDismiss).
 eventHandler(modalNode().instanceHandle, 'topRequestClose', {})
+if (dismissCount !== 0) {
+  throw new Error(`hiding the modal must not itself call onDismiss, got ${dismissCount} call(s)`)
+}
 
-if (!dismissed) {
-  throw new Error('onDismiss did not fire on the visible->hidden transition')
+// The single source: the native exit animation completes and Fabric emits
+// topDismiss on the still-mounted host node -> onDismiss fires exactly once.
+eventHandler(modalNode().instanceHandle, 'topDismiss', {})
+if (dismissCount !== 1) {
+  throw new Error(`native topDismiss must deliver onDismiss exactly once, got ${dismissCount} call(s)`)
 }
 
 console.log('modal.smoke OK')

@@ -5,9 +5,9 @@
 // colors and platform (Native) colors are deferred (they need RN's full
 // normalizeColor / processColorObject, which live outside shared).
 
-import { AnimatedWithChildren } from './graph'
+import { AnimatedWithChildren, flushValue } from './graph'
 import { AnimatedValue } from './value'
-import type { NativeNodeConfig } from './native/native-animated'
+import type { NativeNodeConfig, PlatformConfig } from './native/native-animated'
 
 export interface RgbaValue {
   r: number
@@ -37,8 +37,9 @@ function toChannel(value: Channel): AnimatedValue {
 
 // Decompose a #hex (3/4/6/8), rgb()/rgba(), or 0xRRGGBBAA number into channels.
 // undefined when unparseable (a named/platform color), so the caller falls back to
-// the default rather than throwing inside a render.
-function normalizeColor(color: string | number): RgbaValue | undefined {
+// the default rather than throwing inside a render. Exported so interpolation's
+// color path parses through the same RGBA decoder (DRY) rather than duplicating it.
+export function normalizeColor(color: string | number): RgbaValue | undefined {
   if (typeof color === 'number') {
     const c = color >>> 0
     return { r: (c >>> 24) & 255, g: (c >>> 16) & 255, b: (c >>> 8) & 255, a: (c & 255) / 255 }
@@ -111,14 +112,29 @@ export class AnimatedColor extends AnimatedWithChildren {
     return `rgba(${r}, ${g}, ${b}, ${a})`
   }
 
+  // Each per-channel setValue/setOffset flushes bound props and walks the graph
+  // up to this color node's listeners. Driving four channels in a row would
+  // otherwise commit the bound view four times and fire color listeners four
+  // times, each with an intermediate rgba() that never logically existed. So we
+  // suspend this node's listeners across all four writes, then do ONE flush and
+  // ONE listener fire with the final composed color (RN's _withSuspendedCallbacks
+  // pattern). flushValue dedupes by leaf identity, so a single flush rebuilds
+  // every bound prop once even though four channels changed.
   setValue(value: RgbaValue | string | number): void {
     const rgba = typeof value === 'object' ? value : normalizeColor(value) ?? DEFAULT_COLOR
-    this.r.setValue(rgba.r)
-    this.g.setValue(rgba.g)
-    this.b.setValue(rgba.b)
-    this.a.setValue(rgba.a)
+    this.withSuspendedCallbacks(() => {
+      this.r.setValue(rgba.r)
+      this.g.setValue(rgba.g)
+      this.b.setValue(rgba.b)
+      this.a.setValue(rgba.a)
+    })
+    flushValue(this)
+    this.__callListeners(this.__getValue())
   }
 
+  // setOffset / flattenOffset / extractOffset do NOT flush or fire listeners in
+  // symbiote's per-channel AnimatedValue (offset writes are silent), so there is
+  // no 4×-fire to suspend here — matching RN, where only setValue suspends.
   setOffset(offset: RgbaValue): void {
     this.r.setOffset(offset.r)
     this.g.setOffset(offset.g)
@@ -148,6 +164,15 @@ export class AnimatedColor extends AnimatedWithChildren {
     callback?.(this.__getValue())
   }
 
+  // A color listener wants the composed rgba() string, not the bare channel number
+  // the child-walk arrives with. So we ignore the incoming value and re-pull
+  // __getValue(). super.__callListeners honors the suspend counter, so during
+  // setValue's four channel writes this is a no-op and the only fire is the
+  // explicit final one below.
+  override __callListeners(_value: number | string): void {
+    super.__callListeners(this.__getValue())
+  }
+
   override __attach(): void {
     this.r.__addChild(this)
     this.g.__addChild(this)
@@ -164,12 +189,12 @@ export class AnimatedColor extends AnimatedWithChildren {
     super.__detach()
   }
 
-  override __makeNative(): void {
-    this.r.__makeNative()
-    this.g.__makeNative()
-    this.b.__makeNative()
-    this.a.__makeNative()
-    super.__makeNative()
+  override __makeNative(platformConfig?: PlatformConfig): void {
+    this.r.__makeNative(platformConfig)
+    this.g.__makeNative(platformConfig)
+    this.b.__makeNative(platformConfig)
+    this.a.__makeNative(platformConfig)
+    super.__makeNative(platformConfig)
   }
 
   override __getNativeConfig(): NativeNodeConfig {

@@ -147,11 +147,14 @@ if (refresh.props.refreshing !== false) {
   )
 }
 
-// `enabled` is Android-only. RN's iOS RefreshControl strips it before spreading
-// to PullToRefreshView, so it must NOT reach the node even when passed in.
-if ('enabled' in refresh.props) {
+// `enabled` is an Android-only native prop (AndroidSwipeRefreshLayout). Symbiote forwards
+// it via `...nativeProps` like the other Android-only props (colors/size); RN's Android
+// branch (RefreshControl.js:174) keeps `enabled`, only its iOS branch strips it. Stripping
+// it in symbiote made `<RefreshControl enabled={false} />` unable to disable Android
+// pull-to-refresh — so it must now reach the node.
+if (refresh.props.enabled !== true) {
   throw new Error(
-    `enabled is Android-only and must not reach PullToRefreshView, got ${JSON.stringify(refresh.props)}`,
+    `enabled must forward to native (Android-only), got ${JSON.stringify(refresh.props)}`,
   )
 }
 

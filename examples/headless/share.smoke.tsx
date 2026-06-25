@@ -62,6 +62,21 @@ function isType<T>(value: unknown): value is T {
 // ---- the smoke ----------------------------------------------------------
 
 async function main(): Promise<void> {
+  // === action constants — both builds expose them, backing the documented
+  // `result.action === Share.dismissedAction` pattern (RN Share.js ~173/179) ===
+  if (IosShare.dismissedAction !== 'dismissedAction') {
+    throw new Error(`iOS Share.dismissedAction should be 'dismissedAction', got ${String(IosShare.dismissedAction)}`)
+  }
+  if (IosShare.sharedAction !== 'sharedAction') {
+    throw new Error(`iOS Share.sharedAction should be 'sharedAction', got ${String(IosShare.sharedAction)}`)
+  }
+  if (AndroidShare.dismissedAction !== 'dismissedAction') {
+    throw new Error(`Android Share.dismissedAction should be 'dismissedAction', got ${String(AndroidShare.dismissedAction)}`)
+  }
+  if (AndroidShare.sharedAction !== 'sharedAction') {
+    throw new Error(`Android Share.sharedAction should be 'sharedAction', got ${String(AndroidShare.sharedAction)}`)
+  }
+
   // === iOS build — routes to ActionSheetManager ===
 
   // Completed share -> resolves to { action: 'sharedAction', activityType }.

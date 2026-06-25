@@ -23,6 +23,9 @@ import {
   Pressable,
   Modal,
   FlatList,
+  SectionList,
+  KeyboardAvoidingView,
+  SafeAreaView,
   RefreshControl,
   StatusBar,
   Keyboard,
@@ -38,6 +41,7 @@ import {
   Linking,
   Vibration,
   Share,
+  AccessibilityInfo,
   PanResponder,
   I18nManager,
   Settings,
@@ -45,6 +49,9 @@ import {
   DynamicColorIOS,
   findNodeHandle,
   type HostInstance,
+  type SymbioteEvent,
+  type FlatListHandle,
+  type Section,
 } from '@symbiote/react'
 // A real third-party native view, used straight from the library — no symbiote
 // wrapper. symbiote derives RNCSlider's events and prop processors from its own
@@ -535,6 +542,276 @@ function PlatformColorDemo() {
   )
 }
 
+// Responder — the gesture capabilities the rewrite unlocked, shown so the grabbed
+// element is the one that moves. Each chip is its OWN responder: it grabs on touch
+// start and drags ITSELF (onResponderMove translates that chip). Drag a chip past a
+// threshold and the surrounding strip STEALS the gesture — its onMoveShouldSetResponder
+// fires once the finger has travelled far enough, the chip yields (onResponder-
+// TerminationRequest -> terminate, so it snaps back) and the strip pans the whole row.
+// A small drag moves the digit; a big drag hands off to the strip — move-should-set and
+// transfer, each visible (and the separate "transfer" line lights on the hand-off).
+// DEBUG logcat shows "responder transferred ... -> ..." at that moment.
+const RESPONDER_CHIPS = [0, 1, 2, 3, 4]
+// Horizontal travel (in the touch's page units — px on Android, pt on iOS, so the feel
+// differs a little per platform) after which the strip steals the gesture from the chip.
+const RESPONDER_STEAL_DX = 64
+
+function firstTouchX(event: SymbioteEvent): number {
+  const touches = event.nativeEvent.touches
+  if (!Array.isArray(touches) || touches.length === 0) return 0
+  const first: unknown = touches[0]
+  if (typeof first === 'object' && first !== null && 'pageX' in first) {
+    const pageX = first.pageX
+    return typeof pageX === 'number' ? pageX : 0
+  }
+  return 0
+}
+
+function ResponderDemo() {
+  const [activeChip, setActiveChip] = useState<number | null>(null)
+  const [chipDx, setChipDx] = useState(0)
+  const [rowDx, setRowDx] = useState(0)
+  const [status, setStatus] = useState('tap a chip · drag it to move · drag far → strip steals it')
+  const [transfer, setTransfer] = useState('')
+  const startX = useRef(0)
+  const panStartX = useRef(0)
+  const grabbed = useRef<number | null>(null)
+
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={{ color: '#41506a', fontSize: 13 }}>
+        Responder · drag a chip vs hand-off to the strip
+      </Text>
+      <Text style={{ color: '#cbd5e1', fontSize: 14 }}>{status}</Text>
+      {/* the separate transfer indicator — lit only when the strip steals the gesture */}
+      <Text style={{ color: transfer ? '#f6ad55' : '#41506a', fontSize: 13 }}>
+        {transfer || 'transfer: —'}
+      </Text>
+      <View
+        // Claims the gesture only once the finger has travelled past the threshold,
+        // stealing it from whichever chip currently holds it — the transfer path.
+        onMoveShouldSetResponder={(event) =>
+          grabbed.current !== null &&
+          Math.abs(firstTouchX(event) - startX.current) > RESPONDER_STEAL_DX
+        }
+        onResponderGrant={(event) => {
+          setTransfer(`↯ strip stole the gesture from chip ${grabbed.current ?? '?'}`)
+          setActiveChip(null)
+          setChipDx(0)
+          panStartX.current = firstTouchX(event)
+          setStatus('strip panning')
+        }}
+        onResponderMove={(event) => setRowDx(firstTouchX(event) - panStartX.current)}
+        onResponderRelease={() => { setRowDx(0); setStatus('strip released') }}
+        onResponderTerminate={() => setRowDx(0)}
+        style={{ padding: 12, borderRadius: 12, backgroundColor: '#13243a' }}>
+        <View style={{ flexDirection: 'row', gap: 8, transform: [{ translateX: rowDx }] }}>
+          {RESPONDER_CHIPS.map((index) => (
+            <View
+              key={index}
+              testID={`resp-chip-${index}`}
+              // Grabs on start and drags itself; yields to the strip past the threshold.
+              onStartShouldSetResponder={() => true}
+              onResponderGrant={(event) => {
+                startX.current = firstTouchX(event)
+                grabbed.current = index
+                setActiveChip(index)
+                setChipDx(0)
+                setRowDx(0)
+                setTransfer('')
+                setStatus(`chip ${index} grabbed`)
+              }}
+              onResponderMove={(event) => {
+                const dx = firstTouchX(event) - startX.current
+                setChipDx(dx)
+                setStatus(`chip ${index} moving · dx=${Math.round(dx)}`)
+              }}
+              onResponderTerminationRequest={() => true}
+              onResponderTerminate={() => { setChipDx(0); setActiveChip(null) }}
+              onResponderRelease={() => { setChipDx(0); setActiveChip(null); setStatus(`chip ${index} released`) }}
+              style={{
+                width: 56,
+                height: 48,
+                borderRadius: 8,
+                backgroundColor: '#2b6cb0',
+                borderWidth: 2,
+                borderColor: activeChip === index ? '#7fb5ff' : 'transparent',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transform: [{ translateX: activeChip === index ? chipDx : 0 }],
+              }}>
+              <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: 'bold' }}>{index}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
+  )
+}
+
+// Accessibility — the props reach native unchanged (accessibilityLabel -> Android
+// content-desc / iOS accessibilityLabel; accessibilityState -> checked/selected/enabled),
+// the web aria-*/role aliases FOLD to accessibility* in our wrapper (raw aria-* must
+// never reach native), and AccessibilityInfo reads device state + drives announce.
+// Verify on Android with `uiautomator dump` (content-desc / selected / enabled) and
+// logcat for the announce + module-resolution dlogs; on iOS via Accessibility Inspector.
+function AccessibilityDemo() {
+  const [screenReader, setScreenReader] = useState('querying…')
+
+  useEffect(() => {
+    // A non-throwing getter proves the native module name resolved (Android
+    // 'AccessibilityInfo' / iOS 'AccessibilityManager'); a reject means wrong name.
+    AccessibilityInfo.isScreenReaderEnabled()
+      .then(enabled => setScreenReader(enabled ? 'on' : 'off'))
+      .catch(() => setScreenReader('unavailable'))
+    AccessibilityInfo.announceForAccessibility('symbiote accessibility online')
+  }, [])
+
+  return (
+    <View style={{ gap: 12 }}>
+      <Text style={{ color: '#41506a', fontSize: 13 }}>
+        Accessibility · props → native · aria/role transform · AccessibilityInfo
+      </Text>
+      {/* getter readout — 'off' (no screen reader) proves the module resolved */}
+      <Text style={{ color: '#cbd5e1', fontSize: 14 }}>{`screen reader: ${screenReader}`}</Text>
+      {/* canonical accessibility* — content-desc 'a11y-canonical-label' + role=header */}
+      <View
+        accessible
+        accessibilityRole="header"
+        accessibilityLabel="a11y-canonical-label"
+        style={{ padding: 12, borderRadius: 10, backgroundColor: '#13243a' }}>
+        <Text style={{ color: '#cbd5e1', fontSize: 14 }}>canonical label + role=header</Text>
+      </View>
+      {/* web aria and role aliases — MUST fold: content-desc should be
+          'a11y-aria-label', a raw aria-label attribute must not reach the native node */}
+      <View
+        accessible
+        role="button"
+        aria-label="a11y-aria-label"
+        style={{ padding: 12, borderRadius: 10, backgroundColor: '#13243a' }}>
+        <Text style={{ color: '#cbd5e1', fontSize: 14 }}>aria-label + role=button</Text>
+      </View>
+      {/* accessibilityState — uiautomator shows enabled=false / selected=true */}
+      <View
+        accessible
+        accessibilityLabel="a11y-state"
+        accessibilityState={{ disabled: true, selected: true }}
+        style={{ padding: 12, borderRadius: 10, backgroundColor: '#13243a' }}>
+        <Text style={{ color: '#cbd5e1', fontSize: 14 }}>state: disabled + selected</Text>
+      </View>
+    </View>
+  )
+}
+
+// Verification panel for the freshly-wired feature-parity tails — five behaviors with
+// no prior canary surface: Text.onLongPress synthesis, Keyboard.dismiss (blur the
+// focused input), animated VirtualizedList scroll, sticky SectionList headers, and
+// Android setAccessibilityFocus. Each leaves a dlog seam (DEBUG=1 -> logcat) and a
+// visible effect, so a real host confirms what the headless smokes prove in JS.
+const PARITY_ROW_H = 30
+const parityRows = Array.from({ length: 30 }, (_unused, index) => ({ id: `pr-${index}`, n: index }))
+// Tall sections (taller than the list viewport) so the sticky cross-talk is visible: as
+// you scroll, the next section header should reach the top and PUSH the pinned one off.
+const sectionData = (prefix: string, label: string): { id: string; label: string }[] =>
+  Array.from({ length: 8 }, (_unused, index) => ({ id: `${prefix}${index}`, label: `${label} ${index}` }))
+const paritySections: Section<{ id: string; label: string }>[] = [
+  { title: 'Fruit', data: sectionData('f', 'apple') },
+  { title: 'Tools', data: sectionData('t', 'hammer') },
+  { title: 'Cities', data: sectionData('c', 'porto') },
+]
+
+function ParityDemo() {
+  const listRef = useRef<FlatListHandle>(null)
+  const titleRef = useRef<HostInstance>(null)
+  const [longPressMsg, setLongPressMsg] = useState('long-press or tap the row below')
+  const [dismissMsg, setDismissMsg] = useState('focus the field, then Hide keyboard')
+
+  return (
+    <View style={{ gap: 12 }}>
+      <Text ref={titleRef} style={{ color: '#41506a', fontSize: 13 }}>
+        Parity checks · longPress · dismiss · animated scroll · sticky · a11y focus
+      </Text>
+
+      {/* #10 Text.onLongPress synthesis — hold ~0.5s (suppresses tap) vs quick tap */}
+      <Text
+        onLongPress={() => setLongPressMsg('long press! (tap was suppressed)')}
+        onPress={() => setLongPressMsg('tap')}
+        style={{ color: '#cbd5e1', fontSize: 15, padding: 12, borderRadius: 10, backgroundColor: '#13243a' }}>
+        {longPressMsg}
+      </Text>
+
+      {/* #15 Keyboard.dismiss — blurs whatever input holds focus, no ref needed */}
+      <TextInput
+        placeholder="focus me…"
+        placeholderTextColor="#41506a"
+        onFocus={() => setDismissMsg('keyboard up — tap Hide keyboard')}
+        onBlur={() => setDismissMsg('blurred (keyboard down)')}
+        style={{ color: '#e2e8f0', padding: 12, borderRadius: 10, backgroundColor: '#0f1e30', borderWidth: 1, borderColor: '#2b6cb0' }}
+      />
+      <Text style={{ color: '#cbd5e1', fontSize: 13 }}>{dismissMsg}</Text>
+      <Button title="Hide keyboard" onPress={() => Keyboard.dismiss()} color="#7fb5ff" />
+
+      {/* #12 animated VirtualizedList scroll — smooth (native command) vs instant.
+          A fixed height with no wrapper: the vertical ScrollView now clips to its own
+          frame (overflow:'scroll' base, like RN), so rows stay inside the box on iOS too. */}
+      <Text style={{ color: '#41506a', fontSize: 13 }}>FlatList · animated scrollToOffset</Text>
+      <FlatList
+        ref={listRef}
+        data={parityRows}
+        keyExtractor={item => item.id}
+        getItemLayout={(_data, index) => ({ length: PARITY_ROW_H, offset: PARITY_ROW_H * index, index })}
+        style={{ height: 120, borderRadius: 10, backgroundColor: '#0f1e30' }}
+        renderItem={({ item }) => (
+          <View style={{ height: PARITY_ROW_H, justifyContent: 'center', paddingHorizontal: 12 }}>
+            <Text style={{ color: '#cbd5e1', fontSize: 14 }}>{`row ${item.n}`}</Text>
+          </View>
+        )}
+      />
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <Button title="Scroll ▼ animated" onPress={() => listRef.current?.scrollToOffset({ offset: 20 * PARITY_ROW_H, animated: true })} color="#7fb5ff" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Button title="Top · instant" onPress={() => listRef.current?.scrollToOffset({ offset: 0, animated: false })} color="#7fb5ff" />
+        </View>
+      </View>
+
+      {/* #13 sticky section headers — drag the inner list: each header pins at the top.
+          Cross-talk check: as the NEXT header reaches the top it should PUSH the pinned
+          one off (nextHeaderLayoutY not yet wired — watch push vs overlap). */}
+      <Text style={{ color: '#41506a', fontSize: 13 }}>SectionList · sticky (scroll: next header should push prev off)</Text>
+      <SectionList
+        sections={paritySections}
+        keyExtractor={item => item.id}
+        stickySectionHeadersEnabled
+        style={{ height: 200, borderRadius: 10, backgroundColor: '#0f1e30' }}
+        renderSectionHeader={({ section }) => (
+          <Text style={{ color: '#0b1622', fontSize: 13, fontWeight: 'bold', paddingVertical: 6, paddingHorizontal: 12, backgroundColor: '#7fb5ff' }}>
+            {section.title}
+          </Text>
+        )}
+        renderItem={({ item }) => (
+          <View style={{ height: PARITY_ROW_H, justifyContent: 'center', paddingHorizontal: 12 }}>
+            <Text style={{ color: '#cbd5e1', fontSize: 14 }}>{item.label}</Text>
+          </View>
+        )}
+      />
+
+      {/* #14 a11y focus — node-based sendAccessibilityEvent routes through the Fabric
+          slot on both platforms (enable TalkBack/VoiceOver to feel the focus jump) */}
+      <Button
+        title="Focus the panel title (a11y)"
+        onPress={() => {
+          if (titleRef.current !== null) {
+            AccessibilityInfo.sendAccessibilityEvent(titleRef.current, 'focus')
+          }
+        }}
+        color="#7fb5ff"
+      />
+    </View>
+  )
+}
+
 function App() {
   const [count, setCount] = useState(0)
   const [name, setName] = useState('')
@@ -546,6 +823,20 @@ function App() {
   const [keyboardHeight, setKeyboardHeight] = useState(0)
   const [statusBarHidden, setStatusBarHidden] = useState(false)
   const [darkStatusBar, setDarkStatusBar] = useState(false)
+  // #6 Android-only StatusBar window flags — the blank-risk pair (device-verify-pending).
+  const [statusBarRed, setStatusBarRed] = useState(false)
+  const [statusBarTranslucent, setStatusBarTranslucent] = useState(false)
+
+  // Feature-parity device checks — state for the cluster before the final logo.
+  const [retentionMove, setRetentionMove] = useState({ dx: 0, dy: 0 })
+  const [mvcpItems, setMvcpItems] = useState(() =>
+    Array.from({ length: 20 }, (_value, index) => ({ id: `row-${index}`, label: `item ${index}` })),
+  )
+  const mvcpHead = useRef(0)
+  // native-driver scroll value: Animated.event attaches it on the UI thread, so the
+  // header opacity/translateY are driven without a JS frame per scroll tick.
+  const parityScrollY = useRef(new Animated.Value(0)).current
+  const [kavEnabled, setKavEnabled] = useState(true)
 
   // Tier B runtime modules, read live: the hooks pull from Dimensions/Appearance,
   // appState tracks foreground/background through AppState's device events.
@@ -619,6 +910,7 @@ function App() {
   }, [])
 
   return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#0b1622' }}>
     <ScrollView
       style={{ flex: 1, backgroundColor: '#0b1622' }}
       contentContainerStyle={{
@@ -685,6 +977,35 @@ function App() {
           />
         </View>
       </View>
+      {/* #6 Android-only window flags — the blank-risk pair. PASS: the top strip turns
+          red / goes translucent and the app STAYS rendered. FAIL: the surface blanks
+          (white screen) — watch logcat for stopSurface / "reactInstance is null". */}
+      {Platform.OS === 'android' && (
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            <Button
+              title={statusBarRed ? 'BG default' : 'BG red'}
+              onPress={() => {
+                const next = !statusBarRed
+                setStatusBarRed(next)
+                StatusBar.setBackgroundColor(next ? '#ff0000' : '#101a2c', true)
+              }}
+              color="#7fb5ff"
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button
+              title={statusBarTranslucent ? 'Opaque' : 'Translucent'}
+              onPress={() => {
+                const next = !statusBarTranslucent
+                setStatusBarTranslucent(next)
+                StatusBar.setTranslucent(next)
+              }}
+              color="#7fb5ff"
+            />
+          </View>
+        </View>
+      )}
       {/* JS->native imperative modules — tap to fire the real native UI / haptics.
           Each working button proves its module name resolved on the bridgeless host. */}
       <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -818,6 +1139,15 @@ function App() {
       {/* PlatformColor / DynamicColorIOS — native semantic + appearance-aware colors */}
       <PlatformColorDemo />
 
+      {/* Accessibility — a11y props to native, aria/role transform, AccessibilityInfo */}
+      <AccessibilityDemo />
+
+      {/* Responder — drag-vs-tap + mid-gesture transfer (move-should-set / takeover) */}
+      <ResponderDemo />
+
+      {/* Parity checks — longPress · Keyboard.dismiss · animated scroll · sticky · a11y focus */}
+      <ParityDemo />
+
       {/* Button opens a Modal */}
       <Button title="Open modal" onPress={() => setModalVisible(true)} color="#7fb5ff" />
 
@@ -869,6 +1199,214 @@ function App() {
         )}
       />
 
+      {/* ===== feature-parity device checks ===== */}
+
+      {/* Press-retention measured rect. PASS: press, then drag DOWN ~100px — the panel
+          STAYS highlighted (inside the measured rect + 80px bottom retention). Drag UP
+          off the top — highlight drops. Proves measured-rect retention replaced the old
+          symmetric-radius approximation. The dx/dy readout tracks the move offset. */}
+      <Pressable
+        hitSlop={{ top: 0, bottom: 40, left: 0, right: 0 }}
+        pressRetentionOffset={{ top: 0, bottom: 80, left: 0, right: 0 }}
+        onPressMove={event =>
+          setRetentionMove({
+            dx: Math.round(event.nativeEvent.locationX),
+            dy: Math.round(event.nativeEvent.locationY),
+          })
+        }
+        style={({ pressed }) => ({
+          height: 64,
+          borderRadius: 14,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: pressed ? '#2b6cb0' : '#13243a',
+        })}>
+        <Text style={{ color: '#cbd5e1', fontSize: 14 }}>
+          {`drag me · dx ${retentionMove.dx} · dy ${retentionMove.dy}`}
+        </Text>
+      </Pressable>
+
+      {/* maintainVisibleContentPosition. PASS: scroll down a bit, tap Prepend — the rows
+          you are looking at DO NOT jump; new items appear above without shifting the
+          viewport. FAIL: the list jumps to the top. */}
+      <Text style={{ color: '#41506a', fontSize: 13 }}>MVCP · prepend without jump</Text>
+      <FlatList
+        data={mvcpItems}
+        keyExtractor={item => item.id}
+        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+        style={{ height: 160, borderRadius: 12, backgroundColor: '#0f1e30' }}
+        renderItem={({ item }) => (
+          <View style={{ paddingVertical: 10, paddingHorizontal: 14 }}>
+            <Text style={{ color: '#cbd5e1', fontSize: 15 }}>{item.label}</Text>
+          </View>
+        )}
+      />
+      <Button
+        title="Prepend 5"
+        color="#7fb5ff"
+        onPress={() => {
+          mvcpHead.current -= 5
+          const head = mvcpHead.current
+          const prepended = Array.from({ length: 5 }, (_value, index) => {
+            const n = head + index
+            return { id: `row-${n}`, label: `item ${n}` }
+          })
+          setMvcpItems(items => [...prepended, ...items])
+        }}
+      />
+
+      {/* Animated.ScrollView scroll-driven header (native driver). PASS: drag INSIDE the
+          box below (not the page) — the bright bar above SMOOTHLY fades to near-invisible
+          and lifts, on the UI thread (no jank, no per-frame JS). Proves Animated.ScrollView
+          + Animated.event native attach. */}
+      <Animated.View
+        style={{
+          backgroundColor: '#2b6cb0',
+          borderRadius: 12,
+          paddingVertical: 12,
+          alignItems: 'center',
+          opacity: parityScrollY.interpolate({
+            inputRange: [0, 120],
+            outputRange: [1, 0.12],
+            extrapolate: 'clamp',
+          }),
+          transform: [
+            {
+              translateY: parityScrollY.interpolate({
+                inputRange: [0, 120],
+                outputRange: [0, -16],
+                extrapolate: 'clamp',
+              }),
+            },
+          ],
+        }}>
+        <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: 'bold' }}>
+          HEADER — fades as you scroll ↓
+        </Text>
+      </Animated.View>
+      <Animated.ScrollView
+        style={{ height: 160, borderRadius: 12, backgroundColor: '#0f1e30' }}
+        scrollEventThrottle={16}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: parityScrollY } } }],
+          { useNativeDriver: true },
+        )}>
+        {Array.from({ length: 6 }, (_value, index) => (
+          <View key={index} style={{ height: 80, justifyContent: 'center', paddingHorizontal: 14 }}>
+            <Text style={{ color: '#cbd5e1', fontSize: 15 }}>{`scroll me · row ${index}`}</Text>
+          </View>
+        ))}
+      </Animated.ScrollView>
+      <Text style={{ color: '#41506a', fontSize: 12, textAlign: 'center' }}>
+        ↑ drag inside the box — the bar above reacts
+      </Text>
+
+      {/* Modern style props reaching Fabric's C++ parser. Each is an A/B so the effect
+          is unmistakable on the dark theme. */}
+      {/* boxShadow — a BLUE glow (a black shadow is invisible on the near-black bg).
+          PASS: a soft blue halo bleeds out around the panel. */}
+      <View
+        style={{
+          height: 64,
+          borderRadius: 12,
+          backgroundColor: '#13243a',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0px 0px 22px 3px rgba(127,181,255,0.85)',
+        }}>
+        <Text style={{ color: '#cbd5e1', fontSize: 13 }}>boxShadow · blue glow</Text>
+      </View>
+      {/* filter — same base colour both sides; the right one is darkened by
+          brightness(0.5). PASS: the right panel is clearly darker than the left. */}
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        <View
+          style={{
+            flex: 1,
+            height: 64,
+            borderRadius: 12,
+            backgroundColor: '#2b6cb0',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+          <Text style={{ color: '#ffffff', fontSize: 13 }}>no filter</Text>
+        </View>
+        <View
+          style={{
+            flex: 1,
+            height: 64,
+            borderRadius: 12,
+            backgroundColor: '#2b6cb0',
+            alignItems: 'center',
+            justifyContent: 'center',
+            filter: [{ brightness: 0.5 }],
+          }}>
+          <Text style={{ color: '#ffffff', fontSize: 13 }}>brightness 0.5</Text>
+        </View>
+      </View>
+      {/* transformOrigin — the panel rotates around its TOP-LEFT corner, not its centre.
+          PASS: the left edge stays put while the bottom-right swings down. */}
+      <View
+        style={{
+          height: 64,
+          borderRadius: 12,
+          backgroundColor: '#2b6cb0',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transformOrigin: 'top left',
+          transform: [{ rotate: '4deg' }],
+        }}>
+        <Text style={{ color: '#ffffff', fontSize: 13 }}>transformOrigin · top-left</Text>
+      </View>
+
+      {/* Image web aliases. PASS: the logo loads via the web-alias fold (src→source uri,
+          width/height→style); a screen reader reads "React logo" (alt→accessibilityLabel). */}
+      <Image
+        src="https://reactnative.dev/img/tiny_logo.png"
+        alt="React logo"
+        width={48}
+        height={48}
+        style={{ borderRadius: 8, alignSelf: 'center' }}
+      />
+
+      {/* KeyboardAvoidingView enabled toggle. PASS: with enabled ON, focusing the field
+          lifts it above the keyboard AND the keyboard is the email layout (proves
+          autoComplete/inputMode fold); with enabled OFF the keyboard covers the field. */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: 4,
+        }}>
+        <Text style={{ color: '#cbd5e1', fontSize: 16 }}>avoid keyboard</Text>
+        <Switch
+          value={kavEnabled}
+          onValueChange={setKavEnabled}
+          trackColor={{ false: '#334155', true: '#2b6cb0' }}
+        />
+      </View>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        enabled={kavEnabled}>
+        <TextInput
+          autoComplete="email"
+          inputMode="email"
+          enterKeyHint="done"
+          placeholder="email — focus me near the bottom…"
+          placeholderTextColor="#41506a"
+          style={{
+            height: 44,
+            borderRadius: 10,
+            borderWidth: 1,
+            borderColor: '#2b6cb0',
+            paddingHorizontal: 14,
+            color: '#ffffff',
+            fontSize: 18,
+            backgroundColor: '#0f1e30',
+          }}
+        />
+      </KeyboardAvoidingView>
+
       <Image
         source={{ uri: 'https://reactnative.dev/img/tiny_logo.png' }}
         style={{ width: 64, height: 64, borderRadius: 12, alignSelf: 'center' }}
@@ -919,6 +1457,7 @@ function App() {
         </View>
       </Modal>
     </ScrollView>
+    </SafeAreaView>
   )
 }
 

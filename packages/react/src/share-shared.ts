@@ -23,15 +23,37 @@ export interface ShareOptions {
   anchor?: number
 }
 
-// RN's ShareAction — the resolved shape.
+// RN's Share action constants (RN Share.js ~173/179). These back the documented
+// `result.action === Share.dismissedAction` pattern. True statically-known literals,
+// so CONSTANT_CASE; the public fields (Share.sharedAction / Share.dismissedAction) are
+// lowerCamel, assigned from these below.
+export const SHARED_ACTION = 'sharedAction'
+export const DISMISSED_ACTION = 'dismissedAction'
+
+// RN's ShareAction — the resolved shape. The action literals must agree with the
+// constants above.
 export interface ShareAction {
-  action: 'sharedAction' | 'dismissedAction'
+  action: typeof SHARED_ACTION | typeof DISMISSED_ACTION
   activityType?: string | null
 }
 
-// What every platform's Share exposes to app code.
+// What every platform's Share exposes to app code, including the action constants both
+// platform builds spread onto their Share object (so app code can compare against
+// Share.dismissedAction / Share.sharedAction).
 export interface ShareStatic {
   share(content: ShareContent, options?: ShareOptions): Promise<ShareAction>
+  sharedAction: typeof SHARED_ACTION
+  dismissedAction: typeof DISMISSED_ACTION
+}
+
+// The constant fields every platform's Share exposes — spread onto the platform Share
+// object so both builds carry them identically.
+export const shareActions: {
+  sharedAction: typeof SHARED_ACTION
+  dismissedAction: typeof DISMISSED_ACTION
+} = {
+  sharedAction: SHARED_ACTION,
+  dismissedAction: DISMISSED_ACTION,
 }
 
 // RN's invariant — return an Error (caller rejects rather than throws) so a bad call

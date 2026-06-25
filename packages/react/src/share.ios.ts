@@ -7,7 +7,7 @@
 
 import { dlog, getNativeModule } from '@symbiote/shared'
 import type { ShareActionSheetIOSOptions, ShareActionSheetError } from './action-sheet-ios'
-import { validateContent } from './share-shared'
+import { validateContent, shareActions, SHARED_ACTION, DISMISSED_ACTION } from './share-shared'
 import type { ShareContent, ShareOptions, ShareAction, ShareStatic } from './share-shared'
 
 export type { ShareContent, ShareOptions, ShareAction } from './share-shared'
@@ -25,6 +25,7 @@ interface ShareActionSheetManager {
 }
 
 export const Share: ShareStatic = {
+  ...shareActions,
   // Open the iOS share sheet for `content`. Resolves with the user's action
   // (sharedAction / dismissedAction); rejects on invalid content, a native failure,
   // or a missing module (explicit reject rather than a Promise that never settles).
@@ -58,8 +59,8 @@ export const Share: ShareStatic = {
           dlog(`Share.share -> success completed=${completed}`)
           resolve(
             completed
-              ? { action: 'sharedAction', activityType: activityType ?? null }
-              : { action: 'dismissedAction', activityType: null },
+              ? { action: SHARED_ACTION, activityType: activityType ?? null }
+              : { action: DISMISSED_ACTION, activityType: null },
           )
         },
       )

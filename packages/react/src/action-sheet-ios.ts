@@ -25,7 +25,10 @@ export interface ActionSheetIOSOptions {
   title?: string
   message?: string
   options: string[]
+  // Both forms are accepted from app code: the legacy single index (normalized away
+  // before the native call) and the explicit array RN's native side actually consumes.
   destructiveButtonIndex?: number | number[]
+  destructiveButtonIndices?: number[]
   cancelButtonIndex?: number
   anchor?: number
   // Colors are NOT processed here (see file header) — passed through as given.
@@ -84,8 +87,20 @@ export const ActionSheetIOS = {
       dlog(`ActionSheetIOS: "${ACTION_SHEET_MANAGER}" unresolved — no-op`)
       return
     }
-    // Options pass straight through (colors not processed here — see file header).
-    manager.showActionSheetWithOptions(options, (buttonIndex) => {
+    // Normalize the single-index legacy form to the array RN's native side expects
+    // (RN ActionSheetIOS.js ~95-101): a `destructiveButtonIndex: number` becomes
+    // `destructiveButtonIndices: [number]`; an existing array passes through. Without
+    // this the destructive row isn't highlighted on a real iOS host. Colors are still
+    // not processed here (see file header).
+    const { destructiveButtonIndex, ...remainingOptions } = options
+    let destructiveButtonIndices = options.destructiveButtonIndices
+    if (Array.isArray(destructiveButtonIndex)) {
+      destructiveButtonIndices = destructiveButtonIndex
+    } else if (typeof destructiveButtonIndex === 'number') {
+      destructiveButtonIndices = [destructiveButtonIndex]
+    }
+    const nativeOptions: ActionSheetIOSOptions = { ...remainingOptions, destructiveButtonIndices }
+    manager.showActionSheetWithOptions(nativeOptions, (buttonIndex) => {
       dlog(`ActionSheetIOS callback buttonIndex=${buttonIndex}`)
       callback(buttonIndex)
     })

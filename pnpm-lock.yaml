@@ -28,6 +28,12 @@ importers:
         specifier: ^4.19.2
         version: 4.22.4
 
+  packages/android:
+    dependencies:
+      react-native:
+        specifier: '>=0.86'
+        version: 0.86.0(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.7)
+
   packages/react:
     dependencies:
       '@symbiote/shared':

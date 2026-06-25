@@ -7,6 +7,7 @@
 
 import { createElement, type FC } from 'react'
 import { dlog, getNativeModule, type SymbioteEvent } from '@symbiote/shared'
+import { resolveAccessibilityProps, type AccessibilityProps, type AriaProps } from './accessibility-props'
 import type { ViewStyle } from './styles'
 
 type ImageEventHandler = (event: SymbioteEvent) => void
@@ -24,13 +25,61 @@ export interface ImageSource {
 // opaque asset id (the number `require('./x.png')` returns) the resolver expands.
 export type ImageSourceProp = ImageSource | ImageSource[] | number
 
-export interface ImageProps {
-  source: ImageSourceProp
+// iOS resizable-image cap insets: the unscaled border kept fixed while the
+// center stretches (a 9-patch on iOS). Forwarded as-is; native understands it.
+export interface ImageCapInsets {
+  top: number
+  left: number
+  bottom: number
+  right: number
+}
+
+// Android decode strategy: 'auto' lets RN pick, 'resize' downsamples at decode
+// (cheaper memory), 'scale' decodes full then scales, 'none' disables resizing
+// (ImageProps.js:116).
+export type ResizeMethod = 'auto' | 'resize' | 'scale' | 'none'
+
+export interface ImageProps extends AccessibilityProps, AriaProps {
+  // `source` is optional because the W3C aliases (`src` / `srcSet`) can supply it
+  // instead; the fold in the component resolves exactly one of them to native.
+  source?: ImageSourceProp
   defaultSource?: ImageSourceProp
+  // Android-only: shown while the main source loads. Mutually exclusive with
+  // defaultSource (RN warns if both are set). Resolved like any asset source.
+  loadingIndicatorSource?: ImageSourceProp
   style?: ViewStyle
   resizeMode?: ResizeMode
+  // Android decode-time scaling strategy.
+  resizeMethod?: ResizeMethod
   tintColor?: string
   blurRadius?: number
+  // iOS: cap insets for a resizable (stretchable-center) image.
+  capInsets?: ImageCapInsets
+  // Android: cross-fade duration in ms when the image appears.
+  fadeDuration?: number
+  // Android: stream the image in as it downloads rather than waiting for the full
+  // file (ImageProps.js:90). Forwarded as-is; inert on iOS.
+  progressiveRenderingEnabled?: boolean
+
+  // --- W3C HTML-style aliases (ImageProps.js ~166-202) ---
+  // A single remote URI, folded into `source` (ImageProps.js:src). Mutually
+  // exclusive with `source` in practice — the fold prefers src/srcSet.
+  src?: string
+  // A comma-separated `uri 2x, uri 3x` descriptor list, expanded into a scaled
+  // `source` array (mirrors getImageSourcesFromImageProps' srcSet parsing).
+  srcSet?: string
+  // Accessibility text — folds to accessibilityLabel and marks the image accessible
+  // (Image.ios.js/Image.android.js: alt -> accessibilityLabel + accessible).
+  alt?: string
+  // Layout dp shorthands folded into style (ImageProps.js:195,202).
+  width?: number
+  height?: number
+  // CORS mode; 'use-credentials' adds the credentials header to the source
+  // (ImageSourceUtils.js getImageSourcesFromImageProps).
+  crossOrigin?: 'anonymous' | 'use-credentials'
+  // Referrer policy, forwarded as a source header (ImageSourceUtils.js).
+  referrerPolicy?: string
+
   onLoadStart?: ImageEventHandler
   onLoad?: ImageEventHandler
   onLoadEnd?: ImageEventHandler
@@ -56,23 +105,137 @@ function normalizeSource(source: ImageSourceProp): unknown[] {
   return sources
 }
 
+// The HTTP headers the W3C aliases (crossOrigin / referrerPolicy) contribute to
+// every folded source, mirroring ImageSourceUtils.js getImageSourcesFromImageProps:
+// 'use-credentials' adds the credentials header; referrerPolicy adds Referrer-Policy.
+function headersFromAliases(props: ImageProps): Record<string, string> {
+  const headers: Record<string, string> = {}
+  if (props.crossOrigin === 'use-credentials') {
+    headers['Access-Control-Allow-Credentials'] = 'true'
+  }
+  if (props.referrerPolicy !== undefined) {
+    headers['Referrer-Policy'] = props.referrerPolicy
+  }
+  return headers
+}
+
+// Expand a `srcSet` descriptor list into scaled sources, falling back to `src` for
+// the 1x slot when srcSet omits it. Direct port of getImageSourcesFromImageProps'
+// srcSet branch (ImageSourceUtils.js:48). Invalid scale tokens are skipped, matching
+// RN's parse-and-warn behavior.
+function expandSrcSet(srcSet: string, props: ImageProps, headers: Record<string, string>): ImageSource[] {
+  const sources: ImageSource[] = []
+  let useSrcForDefaultScale = true
+  for (const entry of srcSet.split(', ')) {
+    const [uri, xScale = '1x'] = entry.split(' ')
+    if (!xScale.endsWith('x')) {
+      dlog(`Image srcSet: unsupported scale token "${xScale}", skipping`)
+      continue
+    }
+    const scale = parseInt(xScale.slice(0, -1), 10)
+    if (Number.isNaN(scale)) continue
+    if (scale === 1) useSrcForDefaultScale = false
+    sources.push({ uri, scale, width: props.width, height: props.height, ...{ headers } })
+  }
+  if (useSrcForDefaultScale && props.src !== undefined) {
+    sources.push({ uri: props.src, scale: 1, width: props.width, height: props.height, ...{ headers } })
+  }
+  if (sources.length === 0) dlog('Image srcSet: produced no valid sources')
+  return sources
+}
+
+// Resolve the native `source` array from whichever of source / src / srcSet the
+// caller provided. Mirrors ImageSourceUtils.js getImageSourcesFromImageProps:
+// srcSet wins, then src, then a header-decorated source, then the plain source.
+// Always returns the array shape native expects (the same contract normalizeSource
+// guarantees), so the component never sends a bare object.
+function resolveSourceArray(props: ImageProps): unknown[] {
+  const headers = headersFromAliases(props)
+  if (props.srcSet !== undefined) {
+    return expandSrcSet(props.srcSet, props, headers)
+  }
+  if (props.src !== undefined) {
+    return [{ uri: props.src, width: props.width, height: props.height, ...{ headers } }]
+  }
+  if (props.source === undefined) {
+    dlog('Image: no source / src / srcSet provided')
+    return []
+  }
+  const sources = normalizeSource(props.source)
+  // A header-decorated single object source gets the headers merged in, per RN's
+  // `source.uri && headers` branch; the array/number shapes pass through untouched.
+  if (Object.keys(headers).length > 0 && sources.length === 1) {
+    const [only] = sources
+    if (typeof only === 'object' && only !== null && typeof Reflect.get(only, 'uri') === 'string') {
+      return [{ ...only, headers }]
+    }
+  }
+  return sources
+}
+
 function readStyleString(style: ViewStyle | undefined, key: 'resizeMode' | 'tintColor'): string | undefined {
   if (style === undefined) return undefined
   const value = Object.hasOwn(style, key) ? Reflect.get(style, key) : undefined
   return typeof value === 'string' ? value : undefined
 }
 
-const ImageComponent: FC<ImageProps> = (props) => {
-  const { source, defaultSource, style, resizeMode, tintColor, ...rest } = props
+// Resolve an asset source and read its single uri. RN forwards the Android
+// loading indicator as a bare uri string (`loadingIndicatorSrc`), not the
+// array shape the main source uses, so we resolve and pluck the uri.
+function readSourceUri(source: ImageSourceProp): string | undefined {
+  const [resolved] = normalizeSource(source)
+  if (typeof resolved === 'object' && resolved !== null) {
+    const uri = Reflect.get(resolved, 'uri')
+    if (typeof uri === 'string') return uri
+  }
+  return undefined
+}
+
+const ImageComponent: FC<ImageProps> = (rawProps) => {
+  // Image is its own host element (not a View wrapper), so it folds aria/role here.
+  const props = resolveAccessibilityProps(rawProps)
+  // The W3C aliases are folded below and must NOT reach Fabric raw, so they are
+  // pulled out of `rest` (native reads only the canonical props/source/style).
+  const {
+    source,
+    defaultSource,
+    loadingIndicatorSource,
+    style,
+    resizeMode,
+    tintColor,
+    src: _src,
+    srcSet: _srcSet,
+    alt,
+    width,
+    height,
+    crossOrigin: _crossOrigin,
+    referrerPolicy: _referrerPolicy,
+    ...rest
+  } = props
+
+  // `width` / `height` aliases fold into style (ImageProps.js:195,202); explicit
+  // style keys win, matching RN's `{width, height}, ...style` ordering.
+  const foldedStyle =
+    width === undefined && height === undefined ? style : { width, height, ...style }
 
   const mapped: Record<string, unknown> = {
     ...rest,
-    style,
-    source: normalizeSource(source),
+    style: foldedStyle,
+    source: resolveSourceArray(props),
     resizeMode: resizeMode ?? readStyleString(style, 'resizeMode'),
     tintColor: tintColor ?? readStyleString(style, 'tintColor'),
   }
+  // `alt` is the accessibility text: it sets accessibilityLabel and marks the image
+  // accessible (Image.ios.js / Image.android.js: alt -> accessibilityLabel + accessible).
+  // An explicit accessibilityLabel still wins.
+  if (alt !== undefined) {
+    if (mapped.accessibilityLabel === undefined) mapped.accessibilityLabel = alt
+    mapped.accessible = true
+  }
   if (defaultSource !== undefined) mapped.defaultSource = normalizeSource(defaultSource)
+  if (loadingIndicatorSource !== undefined) {
+    mapped.loadingIndicatorSrc = readSourceUri(loadingIndicatorSource)
+  }
 
   return createElement('symbiote-image', mapped)
 }
@@ -101,10 +264,14 @@ type SizeFailure = (error: unknown) => void
 // Android's `prefetchImage` takes a second `requestId` arg (abortRequest keys off
 // it) — NativeImageLoaderAndroid.js — while iOS takes only `uri`. iOS ignores the
 // extra arg, so we always pass a requestId and stay parity-correct on both.
+// `abortRequest` cancels an in-flight prefetch keyed by its requestId. It is on
+// the Android spec only (NativeImageLoaderAndroid.js); iOS's ImageLoader has no
+// such method, so the call is best-effort and silently no-ops where unsupported.
 interface NativeImageLoader {
   getSize(uri: string): Promise<unknown>
   getSizeWithHeaders(uri: string, headers: Record<string, string>): Promise<unknown>
   prefetchImage(uri: string, requestId: number): Promise<unknown>
+  abortRequest?(requestId: number): void
   queryCache(uris: string[]): Promise<unknown>
 }
 
@@ -193,9 +360,12 @@ function getSizeWithHeaders(
 let prefetchRequestId = 0
 
 // Download a remote image into the disk cache. Resolves to whether it succeeded.
-function prefetch(uri: string): Promise<boolean> {
+// `callback` receives the requestId (RN's Image.android.js shape) so the caller
+// can later pass it to abortPrefetch.
+function prefetch(uri: string, callback?: (requestId: number) => void): Promise<boolean> {
   prefetchRequestId += 1
   const requestId = prefetchRequestId
+  if (typeof callback === 'function') callback(requestId)
   return Promise.resolve()
     .then(() => requireLoader('prefetch').prefetchImage(uri, requestId))
     .then((result) => result === true)
@@ -203,6 +373,18 @@ function prefetch(uri: string): Promise<boolean> {
       dlog(`Image.prefetch failed for ${uri}: ${String(error)}`)
       throw error
     })
+}
+
+// Cancel an in-flight prefetch by the requestId prefetch handed back. Android
+// only (mirrors Image.android.js -> NativeImageLoaderAndroid.abortRequest); a
+// missing abortRequest (iOS, headless) is a no-op rather than a throw.
+function abortPrefetch(requestId: number): void {
+  const loader = getImageLoader()
+  if (loader === null || typeof loader.abortRequest !== 'function') {
+    dlog(`Image.abortPrefetch(${requestId}): no abortRequest on this host, ignoring`)
+    return
+  }
+  loader.abortRequest(requestId)
 }
 
 // Narrow native's queryCache result: an object mapping each known uri to its
@@ -247,6 +429,7 @@ interface ImageStatics {
   getSize: typeof getSize
   getSizeWithHeaders: typeof getSizeWithHeaders
   prefetch: typeof prefetch
+  abortPrefetch: typeof abortPrefetch
   queryCache: typeof queryCache
   resolveAssetSource: typeof resolveAssetSource
 }
@@ -259,6 +442,7 @@ export const Image: ImageWithStatics = Object.assign(ImageComponent, {
   getSize,
   getSizeWithHeaders,
   prefetch,
+  abortPrefetch,
   queryCache,
   resolveAssetSource,
 })

@@ -14,6 +14,8 @@ import { ActionSheetIOS } from '../../packages/react/src/action-sheet-ios'
 interface CapturedOptions {
   options: string[]
   cancelButtonIndex?: number
+  destructiveButtonIndex?: number | number[]
+  destructiveButtonIndices?: number[]
 }
 
 let captured: CapturedOptions | null = null
@@ -41,7 +43,7 @@ Object.assign(globalThis, {
 let chosen = -1
 
 ActionSheetIOS.showActionSheetWithOptions(
-  { options: ['A', 'B', 'Cancel'], cancelButtonIndex: 2 },
+  { options: ['A', 'B', 'Cancel'], cancelButtonIndex: 2, destructiveButtonIndex: 1 },
   (idx) => {
     chosen = idx
   },
@@ -60,6 +62,17 @@ if (opts.length !== 3 || opts[0] !== 'A' || opts[1] !== 'B' || opts[2] !== 'Canc
 }
 if (captured.cancelButtonIndex !== 2) {
   throw new Error(`cancelButtonIndex did not pass through: ${JSON.stringify(captured)}`)
+}
+
+// A single destructiveButtonIndex must be normalized to destructiveButtonIndices: [n]
+// before the native call (RN ActionSheetIOS.js ~95-101) — otherwise the destructive row
+// isn't highlighted on a real iOS host.
+if (captured.destructiveButtonIndex !== undefined) {
+  throw new Error(`destructiveButtonIndex should be normalized away, got ${JSON.stringify(captured.destructiveButtonIndex)}`)
+}
+const indices = captured.destructiveButtonIndices
+if (indices === undefined || indices.length !== 1 || indices[0] !== 1) {
+  throw new Error(`destructiveButtonIndex: 1 should normalize to destructiveButtonIndices: [1], got ${JSON.stringify(indices)}`)
 }
 
 // The callback must deliver the chosen index back to JS.

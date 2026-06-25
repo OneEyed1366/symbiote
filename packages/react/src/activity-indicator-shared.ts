@@ -12,6 +12,7 @@
 
 import { createElement, type FC } from 'react'
 import { dlog, type SymbioteEvent } from '@symbiote/shared'
+import { resolveAccessibilityProps, type AccessibilityProps, type AriaProps } from './accessibility-props'
 import type { ViewStyle } from './styles'
 
 type ActivityIndicatorSize = 'small' | 'large' | number
@@ -26,17 +27,15 @@ const CONTAINER_STYLE: ViewStyle = {
   justifyContent: 'center',
 }
 
-export interface ActivityIndicatorProps {
+export interface ActivityIndicatorProps extends AccessibilityProps, AriaProps {
   animating?: boolean
   color?: string
   size?: ActivityIndicatorSize
   hidesWhenStopped?: boolean
   style?: ViewStyle
   // Standard ViewProps. RN spreads `...props` onto the centering wrapper View, so
-  // these land on the wrapper, not the spinner.
+  // these (and the inherited accessibility surface) land on the wrapper, not the spinner.
   testID?: string
-  accessibilityLabel?: string
-  accessible?: boolean
   onLayout?: (event: SymbioteEvent) => void
 }
 
@@ -66,17 +65,19 @@ function resolveSize(size: ActivityIndicatorSize): NativeSize {
 export function createActivityIndicator(
   platform: ActivityIndicatorPlatform,
 ): FC<ActivityIndicatorProps> {
-  return (props) => {
+  return (rawProps) => {
+    // The wrapper is a raw symbiote-view, not the View FC, so it never runs
+    // resolveAccessibilityProps itself — fold aria/role here, then forward the
+    // resolved accessibility* surface onto the wrapper via `...accessibilityRest`.
+    const props = resolveAccessibilityProps(rawProps)
     const {
       animating = true,
       color,
       hidesWhenStopped = true,
       size = 'small',
       style,
-      testID,
-      accessibilityLabel,
-      accessible,
       onLayout,
+      ...accessibilityRest
     } = props
 
     const { sizeStyle, sizeProp } = resolveSize(size)
@@ -100,10 +101,10 @@ export function createActivityIndicator(
 
     dlog('ActivityIndicator -> RCTView(spinner)')
 
-    const wrapperProps: Record<string, unknown> = { style: { ...CONTAINER_STYLE, ...style } }
-    if (testID !== undefined) wrapperProps.testID = testID
-    if (accessibilityLabel !== undefined) wrapperProps.accessibilityLabel = accessibilityLabel
-    if (accessible !== undefined) wrapperProps.accessible = accessible
+    const wrapperProps: Record<string, unknown> = {
+      ...accessibilityRest,
+      style: { ...CONTAINER_STYLE, ...style },
+    }
     if (onLayout !== undefined) wrapperProps.onLayout = onLayout
 
     return createElement(

@@ -20,11 +20,22 @@ export {
   modulo,
   diffClamp,
 } from './operators'
-export { AnimatedEvent, event, type EventConfig, type AnimatedEventHandler } from './event'
+export {
+  AnimatedEvent,
+  event,
+  forkEvent,
+  unforkEvent,
+  attachNativeEvent,
+  type EventConfig,
+  type EventListener,
+  type AnimatedEventHandler,
+  type NativeEventAttachment,
+} from './event'
 export { AnimatedColor, type RgbaValue, type ColorInput } from './color'
 export { Easing, type EasingFunction } from './easing'
 export {
   createNumericInterpolation,
+  createInterpolation,
   checkValidRanges,
   type InterpolationConfig,
   type ExtrapolateType,
@@ -58,4 +69,5 @@ export {
   type NativeNodeConfig,
   type NativeAnimationConfig,
   type NativeEventMapping,
+  type PlatformConfig,
 } from './native/native-animated'
