@@ -20,7 +20,7 @@
 
 import { createElement, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import type { FC } from 'react'
-import { dispatchViewCommand, dlog, type SymbioteEvent, type SymbioteNode } from '@symbiote/shared'
+import { dispatchViewCommand, dlog, Platform, type SymbioteEvent, type SymbioteNode } from '@symbiote/shared'
 import { resolveAccessibilityProps, type AccessibilityProps, type AriaProps } from './accessibility-props'
 import type { ViewStyle } from './styles'
 
@@ -102,22 +102,40 @@ export const Switch: FC<SwitchProps> = (rawProps) => {
       dlog(`Switch snap-back no-op reported=${String(reported)} value=${fabricValue}`)
       return
     }
-    dlog(`Switch setValue snap-back reported=${String(reported)} value=${fabricValue}`)
-    dispatchViewCommand(node, 'setValue', [fabricValue])
+    // Switch.js:221-225 — the snap-back command name is platform-specific:
+    // Android dispatches setNativeValue, iOS dispatches setValue.
+    const snapBackCommand = Platform.OS === 'android' ? 'setNativeValue' : 'setValue'
+    dlog(`Switch ${snapBackCommand} snap-back reported=${String(reported)} value=${fabricValue}`)
+    dispatchViewCommand(node, snapBackCommand, [fabricValue])
   }, [fabricValue, lastNativeReport])
+
+  // Track-color prop names are platform-specific (Switch.js:229-281). iOS's native
+  // component takes onTintColor (ON-track) / tintColor (OFF-track); Android's takes
+  // trackColorForTrue / trackColorForFalse plus trackTintColor — the color for the
+  // CURRENT value, which RN computes as `value === true ? true : false`. We branch on
+  // Platform.OS exactly as RN's Switch.js does (this is a shared file, not a
+  // .ios/.android split). thumbTintColor (the grip) rides both branches. These color
+  // props reach Fabric as ordinary props: the shared ViewConfig declares Switch's only
+  // event as `change`, so they are not event names and routeProp sends them through
+  // setProp rather than treating them as listeners.
+  const trackColorProps =
+    Platform.OS === 'android'
+      ? {
+          trackColorForFalse: trackColor?.false,
+          trackColorForTrue: trackColor?.true,
+          trackTintColor: fabricValue ? trackColor?.true : trackColor?.false,
+        }
+      : {
+          onTintColor: trackColor?.true,
+          tintColor: trackColor?.false,
+        }
 
   return createElement('symbiote-switch', {
     ...rest,
     ref,
     value: fabricValue,
     disabled,
-    // Canonical iOS native prop names (SwitchNativeComponent.js): onTintColor is the
-    // ON-track color, tintColor the OFF-track, thumbTintColor the grip. onTintColor
-    // reaches Fabric as an ordinary prop: the shared ViewConfig declares Switch's
-    // only event as `change`, so `tintColor` is not an event name and routeProp
-    // sends it through setProp rather than treating it as a listener.
-    onTintColor: trackColor?.true,
-    tintColor: trackColor?.false,
+    ...trackColorProps,
     thumbTintColor: thumbColor,
     style: foldIosBackground(style, ios_backgroundColor),
     onChange: handleChange,
