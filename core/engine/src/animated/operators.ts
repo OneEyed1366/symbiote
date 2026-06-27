@@ -12,9 +12,9 @@
 import { AnimatedNode, AnimatedWithChildren } from './graph'
 import { AnimatedValue } from './value'
 import { AnimatedInterpolation } from './interpolation-node'
-import type { InterpolationConfig } from './interpolation'
+import type { IInterpolationConfig } from './interpolation'
 import { dlog } from '../debug'
-import type { NativeNodeConfig, PlatformConfig } from './native/native-animated'
+import type { INativeNodeConfig, IPlatformConfig } from './native/native-animated'
 
 // Wrap a bare number in an AnimatedValue so every input is a graph node.
 function toNode(input: AnimatedNode | number): AnimatedNode {
@@ -43,7 +43,7 @@ export class AnimatedAddition extends AnimatedWithChildren {
     return numericValue(this.a) + numericValue(this.b)
   }
 
-  interpolate(config: InterpolationConfig): AnimatedInterpolation {
+  interpolate(config: IInterpolationConfig): AnimatedInterpolation {
     return new AnimatedInterpolation(this, config)
   }
 
@@ -59,13 +59,13 @@ export class AnimatedAddition extends AnimatedWithChildren {
     super.__detach()
   }
 
-  override __makeNative(platformConfig?: PlatformConfig): void {
+  override __makeNative(platformConfig?: IPlatformConfig): void {
     this.a.__makeNative(platformConfig)
     this.b.__makeNative(platformConfig)
     super.__makeNative(platformConfig)
   }
 
-  override __getNativeConfig(): NativeNodeConfig {
+  override __getNativeConfig(): INativeNodeConfig {
     return { type: 'addition', input: [this.a.__getNativeTag(), this.b.__getNativeTag()] }
   }
 }
@@ -84,7 +84,7 @@ export class AnimatedSubtraction extends AnimatedWithChildren {
     return numericValue(this.a) - numericValue(this.b)
   }
 
-  interpolate(config: InterpolationConfig): AnimatedInterpolation {
+  interpolate(config: IInterpolationConfig): AnimatedInterpolation {
     return new AnimatedInterpolation(this, config)
   }
 
@@ -100,13 +100,13 @@ export class AnimatedSubtraction extends AnimatedWithChildren {
     super.__detach()
   }
 
-  override __makeNative(platformConfig?: PlatformConfig): void {
+  override __makeNative(platformConfig?: IPlatformConfig): void {
     this.a.__makeNative(platformConfig)
     this.b.__makeNative(platformConfig)
     super.__makeNative(platformConfig)
   }
 
-  override __getNativeConfig(): NativeNodeConfig {
+  override __getNativeConfig(): INativeNodeConfig {
     return { type: 'subtraction', input: [this.a.__getNativeTag(), this.b.__getNativeTag()] }
   }
 }
@@ -125,7 +125,7 @@ export class AnimatedMultiplication extends AnimatedWithChildren {
     return numericValue(this.a) * numericValue(this.b)
   }
 
-  interpolate(config: InterpolationConfig): AnimatedInterpolation {
+  interpolate(config: IInterpolationConfig): AnimatedInterpolation {
     return new AnimatedInterpolation(this, config)
   }
 
@@ -141,13 +141,13 @@ export class AnimatedMultiplication extends AnimatedWithChildren {
     super.__detach()
   }
 
-  override __makeNative(platformConfig?: PlatformConfig): void {
+  override __makeNative(platformConfig?: IPlatformConfig): void {
     this.a.__makeNative(platformConfig)
     this.b.__makeNative(platformConfig)
     super.__makeNative(platformConfig)
   }
 
-  override __getNativeConfig(): NativeNodeConfig {
+  override __getNativeConfig(): INativeNodeConfig {
     return { type: 'multiplication', input: [this.a.__getNativeTag(), this.b.__getNativeTag()] }
   }
 }
@@ -181,7 +181,7 @@ export class AnimatedDivision extends AnimatedWithChildren {
     return a / b
   }
 
-  interpolate(config: InterpolationConfig): AnimatedInterpolation {
+  interpolate(config: IInterpolationConfig): AnimatedInterpolation {
     return new AnimatedInterpolation(this, config)
   }
 
@@ -197,13 +197,13 @@ export class AnimatedDivision extends AnimatedWithChildren {
     super.__detach()
   }
 
-  override __makeNative(platformConfig?: PlatformConfig): void {
+  override __makeNative(platformConfig?: IPlatformConfig): void {
     this.a.__makeNative(platformConfig)
     this.b.__makeNative(platformConfig)
     super.__makeNative(platformConfig)
   }
 
-  override __getNativeConfig(): NativeNodeConfig {
+  override __getNativeConfig(): INativeNodeConfig {
     return { type: 'division', input: [this.a.__getNativeTag(), this.b.__getNativeTag()] }
   }
 }
@@ -225,7 +225,7 @@ export class AnimatedModulo extends AnimatedWithChildren {
     return ((a % this.modulus) + this.modulus) % this.modulus
   }
 
-  interpolate(config: InterpolationConfig): AnimatedInterpolation {
+  interpolate(config: IInterpolationConfig): AnimatedInterpolation {
     return new AnimatedInterpolation(this, config)
   }
 
@@ -239,12 +239,12 @@ export class AnimatedModulo extends AnimatedWithChildren {
     super.__detach()
   }
 
-  override __makeNative(platformConfig?: PlatformConfig): void {
+  override __makeNative(platformConfig?: IPlatformConfig): void {
     this.a.__makeNative(platformConfig)
     super.__makeNative(platformConfig)
   }
 
-  override __getNativeConfig(): NativeNodeConfig {
+  override __getNativeConfig(): INativeNodeConfig {
     return { type: 'modulus', input: this.a.__getNativeTag(), modulus: this.modulus }
   }
 }
@@ -276,7 +276,7 @@ export class AnimatedDiffClamp extends AnimatedWithChildren {
     return this.value
   }
 
-  interpolate(config: InterpolationConfig): AnimatedInterpolation {
+  interpolate(config: IInterpolationConfig): AnimatedInterpolation {
     return new AnimatedInterpolation(this, config)
   }
 
@@ -290,12 +290,12 @@ export class AnimatedDiffClamp extends AnimatedWithChildren {
     super.__detach()
   }
 
-  override __makeNative(platformConfig?: PlatformConfig): void {
+  override __makeNative(platformConfig?: IPlatformConfig): void {
     this.a.__makeNative(platformConfig)
     super.__makeNative(platformConfig)
   }
 
-  override __getNativeConfig(): NativeNodeConfig {
+  override __getNativeConfig(): INativeNodeConfig {
     return { type: 'diffclamp', input: this.a.__getNativeTag(), min: this.min, max: this.max }
   }
 }

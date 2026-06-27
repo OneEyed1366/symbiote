@@ -32,11 +32,11 @@ function emitDevice(eventType: string, payload: unknown): void {
 
 // ---- fake NativeAnimatedTurboModule (records calls) ----------------------
 
-interface NativeCall {
+interface INativeCall {
   method: string
   args: unknown[]
 }
-const nativeCalls: NativeCall[] = []
+const nativeCalls: INativeCall[] = []
 
 function record(method: string): (...args: unknown[]) => void {
   return (...args: unknown[]) => {
@@ -72,11 +72,11 @@ Object.assign(globalThis, {
 
 // ---- fake Fabric slot ----------------------------------------------------
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
@@ -87,32 +87,32 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
+  ): IFakeNode {
     return { tag, viewName, props, children: [], instanceHandle }
   },
-  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+  cloneNodeWithNewProps: (node: IFakeNode, newProps: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: newProps,
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     newProps: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props: newProps, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild(parent: FakeNode, child: FakeNode): FakeNode {
+  ): IFakeNode => ({ ...node, props: newProps, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild(parent: IFakeNode, child: IFakeNode): IFakeNode {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet(childSet: FakeNode[], child: FakeNode): void {
+  appendChildToSet(childSet: IFakeNode[], child: IFakeNode): void {
     childSet.push(child)
   },
-  completeRoot(_rootTag: number, _childSet: FakeNode[]): void {},
+  completeRoot(_rootTag: number, _childSet: IFakeNode[]): void {},
   registerEventHandler(): void {},
 }
 Object.assign(globalThis, { nativeFabricUIManager: slot })
 
-function callsOf(method: string): NativeCall[] {
+function callsOf(method: string): INativeCall[] {
   return nativeCalls.filter((call) => call.method === method)
 }
 

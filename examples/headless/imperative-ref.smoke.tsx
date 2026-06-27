@@ -9,39 +9,39 @@
 import { type ReactElement } from 'react'
 import { mount, View, findNodeHandle } from '@symbiote/react'
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
 }
 
-let committed: FakeNode[] = []
+let committed: IFakeNode[] = []
 const slot = {
   createNode: (
     tag: number,
     viewName: string,
     _rootTag: number,
     props: Record<string, unknown>,
-  ): FakeNode => ({ tag, viewName, props, children: [] }),
-  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+  ): IFakeNode => ({ tag, viewName, props, children: [] }),
+  cloneNodeWithNewProps: (node: IFakeNode, newProps: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: { ...node.props, ...newProps },
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     newProps: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props: { ...node.props, ...newProps }, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild: (parent: FakeNode, child: FakeNode): FakeNode => {
+  ): IFakeNode => ({ ...node, props: { ...node.props, ...newProps }, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild: (parent: IFakeNode, child: IFakeNode): IFakeNode => {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet: (childSet: FakeNode[], child: FakeNode): void => {
+  appendChildToSet: (childSet: IFakeNode[], child: IFakeNode): void => {
     childSet.push(child)
   },
-  completeRoot: (_rootTag: number, childSet: FakeNode[]): void => {
+  completeRoot: (_rootTag: number, childSet: IFakeNode[]): void => {
     committed = childSet
   },
   registerEventHandler: (): void => {},
@@ -50,16 +50,16 @@ const slot = {
   // measured. measure -> (x,y,w,h,pageX,pageY); measureInWindow -> (x,y,w,h);
   // measureLayout(to, from, onFail, onSuccess) -> onSuccess(left,top,w,h).
   measure: (
-    node: FakeNode,
+    node: IFakeNode,
     cb: (x: number, y: number, w: number, h: number, px: number, py: number) => void,
   ): void => cb(1, 2, 100, 50, 11, 22),
   measureInWindow: (
-    node: FakeNode,
+    node: IFakeNode,
     cb: (x: number, y: number, w: number, h: number) => void,
   ): void => cb(11, 22, 100, 50),
   measureLayout: (
-    to: FakeNode,
-    from: FakeNode,
+    to: IFakeNode,
+    from: IFakeNode,
     _onFail: () => void,
     onSuccess: (left: number, top: number, w: number, h: number) => void,
   ): void => onSuccess(from.tag, 6, 100, 50),
@@ -132,7 +132,7 @@ if (findNodeHandle(null) !== null) throw new Error('findNodeHandle(null) must be
 // A PARTIAL style override must MERGE onto the box's declarative style (RN
 // semantics), not replace it — opacity is added while width/height survive.
 method(box, 'setNativeProps')({ style: { opacity: 0.25 } })
-function find(node: FakeNode, viewName: string, predicate: (n: FakeNode) => boolean): FakeNode | undefined {
+function find(node: IFakeNode, viewName: string, predicate: (n: IFakeNode) => boolean): IFakeNode | undefined {
   if (node.viewName === viewName && predicate(node)) return node
   for (const child of node.children) {
     const hit = find(child, viewName, predicate)

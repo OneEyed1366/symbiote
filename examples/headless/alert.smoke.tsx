@@ -20,17 +20,17 @@ import { Alert as AndroidAlert } from '../../adapters/react/src/alert.android'
 
 // ---- fake AlertManager native module (iOS) ------------------------------
 
-interface CapturedArgs {
+interface ICapturedArgs {
   title: string
   message?: string
   buttons: Array<Record<number, string>>
   type?: string
 }
 
-let captured: CapturedArgs | null = null
+let captured: ICapturedArgs | null = null
 
 const fakeAlertManager = {
-  alertWithArgs(args: CapturedArgs, callback: (id: number, value: string) => void): void {
+  alertWithArgs(args: ICapturedArgs, callback: (id: number, value: string) => void): void {
     captured = args
     // Simulate the user tapping the SECOND button (index 1). Native reports its id.
     callback(1, '')
@@ -41,7 +41,7 @@ const fakeAlertManager = {
 // getConstants() returns the button-key constants RN documents; showAlert records the
 // config and immediately fires onAction with the POSITIVE button key (a tap on it).
 
-interface DialogConfig {
+interface IDialogConfig {
   title: string
   message: string
   cancelable: boolean
@@ -58,14 +58,14 @@ const ANDROID_CONSTANTS = {
   buttonNeutral: -3,
 }
 
-let capturedConfig: DialogConfig | null = null
+let capturedConfig: IDialogConfig | null = null
 
 const fakeDialogManagerAndroid = {
   getConstants(): typeof ANDROID_CONSTANTS {
     return ANDROID_CONSTANTS
   },
   showAlert(
-    config: DialogConfig,
+    config: IDialogConfig,
     _onError: (error: string) => void,
     onAction: (action: string, buttonKey?: number) => void,
   ): void {

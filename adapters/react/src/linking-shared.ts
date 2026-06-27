@@ -12,8 +12,8 @@ import {
   installDeviceEventHub,
   NativeEventEmitter,
   getNativeModule,
-  type EventEmitterModule,
-  type EventSubscription,
+  type IEventEmitterModule,
+  type IEventSubscription,
   dlog,
 } from '@symbiote/engine'
 
@@ -21,12 +21,12 @@ import {
 const URL_EVENT = 'url'
 
 // The payload native delivers with the `url` event.
-export interface UrlEvent {
+export interface IUrlEvent {
   url: string
 }
 
 // One Android intent extra, mirroring RN's sendIntent extras entry.
-export interface IntentExtra {
+export interface IIntentExtra {
   key: string
   value: string | number | boolean
 }
@@ -34,37 +34,37 @@ export interface IntentExtra {
 // The linking native module typed as the interface we vouch for — the four imperative
 // URL methods plus the observe-counters, and the Android-only `sendIntent` (absent on
 // iOS's LinkingManager, hence optional). The single point that accepts the native shape.
-export interface NativeLinkingModule extends EventEmitterModule {
+export interface INativeLinkingModule extends IEventEmitterModule {
   getInitialURL(): Promise<string | null>
   canOpenURL(url: string): Promise<boolean>
   openURL(url: string): Promise<void>
   openSettings(): Promise<void>
-  sendIntent?(action: string, extras?: IntentExtra[]): Promise<void>
+  sendIntent?(action: string, extras?: IIntentExtra[]): Promise<void>
   addListener(eventName: string): void
   removeListeners(count: number): void
 }
 
 // What every platform's Linking exposes to app code.
-export interface LinkingStatic {
+export interface ILinkingStatic {
   addEventListener(
     eventType: typeof URL_EVENT,
-    listener: (event: UrlEvent) => void,
-  ): EventSubscription
+    listener: (event: IUrlEvent) => void,
+  ): IEventSubscription
   openURL(url: string): Promise<void>
   canOpenURL(url: string): Promise<boolean>
   getInitialURL(): Promise<string | null>
   openSettings(): Promise<void>
-  sendIntent(action: string, extras?: IntentExtra[]): Promise<void>
+  sendIntent(action: string, extras?: IIntentExtra[]): Promise<void>
 }
 
 // The two things a platform file supplies: the native module name, and how `sendIntent`
 // behaves (Android launches an intent; iOS has no counterpart and rejects 'Unsupported').
-export interface LinkingPlatform {
+export interface ILinkingPlatform {
   moduleName: string
   sendIntent(
-    module: NativeLinkingModule | null,
+    module: INativeLinkingModule | null,
     action: string,
-    extras?: IntentExtra[],
+    extras?: IIntentExtra[],
   ): Promise<void>
 }
 
@@ -75,8 +75,8 @@ function validateUrl(url: string): void {
   }
 }
 
-// Narrow the native event payload to UrlEvent at the trust boundary, no `as`.
-function toUrlEvent(payload: unknown): UrlEvent {
+// Narrow the native event payload to IUrlEvent at the trust boundary, no `as`.
+function toUrlEvent(payload: unknown): IUrlEvent {
   if (typeof payload === 'object' && payload !== null && 'url' in payload) {
     const { url } = payload
     if (typeof url === 'string') return { url }
@@ -88,13 +88,13 @@ function toUrlEvent(payload: unknown): UrlEvent {
 // Build a platform's Linking from its module name + sendIntent strategy. Each call owns
 // its own lazy module/emitter cache, so importing both platform builds in a smoke keeps
 // them independent. On a real host only one platform file is ever bundled.
-export function createLinking(platform: LinkingPlatform): LinkingStatic {
-  let linkingModule: NativeLinkingModule | null | undefined
+export function createLinking(platform: ILinkingPlatform): ILinkingStatic {
+  let linkingModule: INativeLinkingModule | null | undefined
   let emitter: NativeEventEmitter | undefined
 
-  function getModule(): NativeLinkingModule | null {
+  function getModule(): INativeLinkingModule | null {
     if (linkingModule === undefined) {
-      linkingModule = getNativeModule<NativeLinkingModule>(platform.moduleName)
+      linkingModule = getNativeModule<INativeLinkingModule>(platform.moduleName)
       dlog(
         `Linking: ${platform.moduleName} module ${linkingModule ? 'resolved' : 'NOT resolved (null)'}`,
       )

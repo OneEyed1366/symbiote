@@ -5,15 +5,15 @@
 // position/velocity/time (getInternalState) so retargeting mid-flight stays
 // continuous. The native-config export is dropped.
 
-import type { Animation, EndCallback } from '../animation'
+import type { IAnimation, IEndCallback } from '../animation'
 import type { AnimatedValue } from '../value'
 import { dlog } from '../../debug'
-import type { NativeAnimationConfig } from '../native/native-animated'
-import { BaseAnimation, type AnimationConfig } from './base'
-import { cancelFrame, clearTimer, requestFrame, setTimer, type TimerHandle } from './raf'
+import type { INativeAnimationConfig } from '../native/native-animated'
+import { BaseAnimation, type IAnimationConfig } from './base'
+import { cancelFrame, clearTimer, requestFrame, setTimer, type ITimerHandle } from './raf'
 import { fromBouncinessAndSpeed, fromOrigamiTensionAndFriction } from './spring-config'
 
-export interface SpringAnimationConfig extends AnimationConfig {
+export interface ISpringAnimationConfig extends IAnimationConfig {
   toValue: number
   overshootClamping?: boolean
   restDisplacementThreshold?: number
@@ -29,13 +29,13 @@ export interface SpringAnimationConfig extends AnimationConfig {
   delay?: number
 }
 
-interface SpringInternalState {
+interface ISpringInternalState {
   lastPosition: number
   lastVelocity: number
   lastTime: number
 }
 
-function resolveStiffnessDampingMass(config: SpringAnimationConfig): {
+function resolveStiffnessDampingMass(config: ISpringAnimationConfig): {
   stiffness: number
   damping: number
   mass: number
@@ -72,9 +72,9 @@ export class SpringAnimation extends BaseAnimation {
   private frameTime = 0
   private onUpdate: (value: number) => void = () => {}
   private animationFrame: number | null = null
-  private timeout: TimerHandle | null = null
+  private timeout: ITimerHandle | null = null
 
-  constructor(config: SpringAnimationConfig) {
+  constructor(config: ISpringAnimationConfig) {
     super(config)
     this.overshootClamping = config.overshootClamping ?? false
     this.restDisplacementThreshold = config.restDisplacementThreshold ?? 0.001
@@ -93,7 +93,7 @@ export class SpringAnimation extends BaseAnimation {
     this.mass = resolved.mass
   }
 
-  getInternalState(): SpringInternalState {
+  getInternalState(): ISpringInternalState {
     return {
       lastPosition: this.lastPosition,
       lastVelocity: this.lastVelocity,
@@ -102,7 +102,7 @@ export class SpringAnimation extends BaseAnimation {
   }
 
   // Native: hand the oscillator parameters to native (QuartzCore CASpringAnimation).
-  protected override getNativeAnimationConfig(): NativeAnimationConfig {
+  protected override getNativeAnimationConfig(): INativeAnimationConfig {
     return {
       type: 'spring',
       stiffness: this.stiffness,
@@ -122,8 +122,8 @@ export class SpringAnimation extends BaseAnimation {
   override start(
     fromValue: number,
     onUpdate: (value: number) => void,
-    onEnd: EndCallback,
-    previousAnimation: Animation | null,
+    onEnd: IEndCallback,
+    previousAnimation: IAnimation | null,
     animatedValue: AnimatedValue,
   ): void {
     this.begin(onEnd)

@@ -9,53 +9,53 @@ import {
   installDeviceEventHub,
   NativeEventEmitter,
   getNativeModule,
-  type EventEmitterModule,
-  type EventSubscription,
+  type IEventEmitterModule,
+  type IEventSubscription,
   dlog,
 } from '@symbiote/engine'
 
 // The native module name RN registers the appearance module under — confirmed from
-// its spec (specs_DEPRECATED/modules/NativeAppearance.js, `TurboModuleRegistry.get('Appearance')`).
+// its spec (specs_DEPRECATED/modules/INativeAppearance.js, `TurboModuleRegistry.get('Appearance')`).
 const APPEARANCE_MODULE = 'Appearance'
 
 // The device event native emits when the system color scheme changes. RN's
-// NativeAppearance spec / Appearance.js.
+// INativeAppearance spec / Appearance.js.
 const APPEARANCE_CHANGED_EVENT = 'appearanceChanged'
 
 // The resolved color scheme. `setColorScheme` also accepts 'unspecified' (reset to
 // the system value); a read only ever yields a concrete scheme or null.
-export type ColorSchemeName = 'light' | 'dark'
-export type ColorSchemePreference = ColorSchemeName | 'unspecified'
+export type IColorSchemeName = 'light' | 'dark'
+export type IColorSchemePreference = IColorSchemeName | 'unspecified'
 
 // The Appearance native module. `getColorScheme`/`setColorScheme` plus the
 // observe-counters (so native starts/stops watching as JS subscribes).
-interface NativeAppearance extends EventEmitterModule {
-  getColorScheme(): ColorSchemeName | null
-  setColorScheme(colorScheme: ColorSchemePreference): void
+interface INativeAppearance extends IEventEmitterModule {
+  getColorScheme(): IColorSchemeName | null
+  setColorScheme(colorScheme: IColorSchemePreference): void
   addListener(eventType: string): void
   removeListeners(count: number): void
 }
 
 // The change-event payload native delivers.
-interface AppearancePreferences {
-  colorScheme: ColorSchemeName | null
+interface IAppearancePreferences {
+  colorScheme: IColorSchemeName | null
 }
 
-function isAppearancePreferences(value: unknown): value is AppearancePreferences {
+function isAppearancePreferences(value: unknown): value is IAppearancePreferences {
   return typeof value === 'object' && value !== null && 'colorScheme' in value
 }
 
 // Lazily resolved so importing this module has no native side effect: a headless
 // run without a fake __turboModuleProxy still loads it; resolution happens on the
 // first use. `null` when the module isn't linked.
-let appearanceModule: NativeAppearance | null | undefined
+let appearanceModule: INativeAppearance | null | undefined
 let emitter: NativeEventEmitter | undefined
 // Cached scheme, kept fresh by the change listener — mirrors RN's `state.appearance`.
-let cachedScheme: ColorSchemeName | null | undefined
+let cachedScheme: IColorSchemeName | null | undefined
 
-function getModule(): NativeAppearance | null {
+function getModule(): INativeAppearance | null {
   if (appearanceModule === undefined) {
-    appearanceModule = getNativeModule<NativeAppearance>(APPEARANCE_MODULE)
+    appearanceModule = getNativeModule<INativeAppearance>(APPEARANCE_MODULE)
     dlog(`Appearance: module ${appearanceModule ? 'resolved' : 'NOT resolved (null)'}`)
   }
   return appearanceModule
@@ -82,7 +82,7 @@ function getEmitter(): NativeEventEmitter {
 export const Appearance = {
   // The current color scheme, or null when no module is linked / the device is in
   // 'unspecified'. Never throws — a missing module reads as null.
-  getColorScheme(): ColorSchemeName | null {
+  getColorScheme(): IColorSchemeName | null {
     const module = getModule()
     if (module === null) return null
     // Ensure the change listener is wired so the cache stays fresh after this read.
@@ -93,7 +93,7 @@ export const Appearance = {
 
   // Override the color scheme (or 'unspecified' to follow the system). No-op when
   // the module isn't linked.
-  setColorScheme(colorScheme: ColorSchemePreference): void {
+  setColorScheme(colorScheme: IColorSchemePreference): void {
     const module = getModule()
     if (module === null) {
       dlog('Appearance.setColorScheme -> no module (no-op)')
@@ -106,8 +106,8 @@ export const Appearance = {
 
   // Subscribe to color-scheme changes. The listener receives `{ colorScheme }`.
   addChangeListener(
-    listener: (preferences: AppearancePreferences) => void,
-  ): EventSubscription {
+    listener: (preferences: IAppearancePreferences) => void,
+  ): IEventSubscription {
     dlog('Appearance.addChangeListener')
     return getEmitter().addListener(APPEARANCE_CHANGED_EVENT, (payload) => {
       if (!isAppearancePreferences(payload)) return

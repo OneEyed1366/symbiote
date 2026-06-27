@@ -3,14 +3,14 @@
 // decays exponentially toward a resting value. Ends when consecutive frames
 // move less than 0.1.
 
-import type { Animation, EndCallback } from '../animation'
+import type { IAnimation, IEndCallback } from '../animation'
 import type { AnimatedValue } from '../value'
 import { dlog } from '../../debug'
-import type { NativeAnimationConfig } from '../native/native-animated'
-import { BaseAnimation, type AnimationConfig } from './base'
+import type { INativeAnimationConfig } from '../native/native-animated'
+import { BaseAnimation, type IAnimationConfig } from './base'
 import { cancelFrame, requestFrame } from './raf'
 
-export interface DecayAnimationConfig extends AnimationConfig {
+export interface IDecayAnimationConfig extends IAnimationConfig {
   velocity: number
   deceleration?: number
 }
@@ -24,13 +24,13 @@ export class DecayAnimation extends BaseAnimation {
   private onUpdate: (value: number) => void = () => {}
   private animationFrame: number | null = null
 
-  constructor(config: DecayAnimationConfig) {
+  constructor(config: IDecayAnimationConfig) {
     super(config)
     this.deceleration = config.deceleration ?? 0.998
     this.velocity = config.velocity
   }
 
-  protected override getNativeAnimationConfig(): NativeAnimationConfig {
+  protected override getNativeAnimationConfig(): INativeAnimationConfig {
     return {
       type: 'decay',
       deceleration: this.deceleration,
@@ -44,8 +44,8 @@ export class DecayAnimation extends BaseAnimation {
   override start(
     fromValue: number,
     onUpdate: (value: number) => void,
-    onEnd: EndCallback,
-    _previousAnimation: Animation | null,
+    onEnd: IEndCallback,
+    _previousAnimation: IAnimation | null,
     animatedValue: AnimatedValue,
   ): void {
     this.begin(onEnd)

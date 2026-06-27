@@ -10,18 +10,18 @@
 // then re-importing with a fresh module registry. To keep it simple here we run
 // the absent path first (fresh import), then the present path with the fake.
 
-interface NativeCall {
+interface INativeCall {
   method: string
   args: unknown[]
 }
-const nativeCalls: NativeCall[] = []
+const nativeCalls: INativeCall[] = []
 function record(method: string, ret: unknown): (...args: unknown[]) => Promise<unknown> {
   return (...args: unknown[]) => {
     nativeCalls.push({ method, args })
     return Promise.resolve(ret)
   }
 }
-function callsOf(method: string): NativeCall[] {
+function callsOf(method: string): INativeCall[] {
   return nativeCalls.filter((call) => call.method === method)
 }
 

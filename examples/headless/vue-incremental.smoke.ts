@@ -9,43 +9,43 @@ import { defineComponent, h, ref } from '@vue/runtime-core'
 import { mount } from '../../adapters/vue/src/index'
 import { View, Text } from '../../adapters/vue/src/components'
 
-interface FakeNode {
+interface IFakeNode {
   id: number
   kind: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
 }
 
 let counters = { createNode: 0, cloneProps: 0, cloneChildren: 0, completeRoot: 0 }
 let nextId = 1
 
-function fnode(kind: string, props: Record<string, unknown>, children: FakeNode[]): FakeNode {
+function fnode(kind: string, props: Record<string, unknown>, children: IFakeNode[]): IFakeNode {
   return { id: nextId++, kind, props, children }
 }
 
 const slot = {
-  createNode(_tag: number, viewName: string, _rootTag: number, props: Record<string, unknown>): FakeNode {
+  createNode(_tag: number, viewName: string, _rootTag: number, props: Record<string, unknown>): IFakeNode {
     counters.createNode += 1
     return fnode(viewName, props, [])
   },
-  cloneNodeWithNewProps(n: FakeNode, newProps: Record<string, unknown>): FakeNode {
+  cloneNodeWithNewProps(n: IFakeNode, newProps: Record<string, unknown>): IFakeNode {
     counters.cloneProps += 1
     return fnode(n.kind, newProps, n.children)
   },
-  cloneNodeWithNewChildren(n: FakeNode): FakeNode {
+  cloneNodeWithNewChildren(n: IFakeNode): IFakeNode {
     counters.cloneChildren += 1
     return fnode(n.kind, n.props, [])
   },
-  cloneNodeWithNewChildrenAndProps(n: FakeNode, newProps: Record<string, unknown>): FakeNode {
+  cloneNodeWithNewChildrenAndProps(n: IFakeNode, newProps: Record<string, unknown>): IFakeNode {
     counters.cloneChildren += 1
     return fnode(n.kind, newProps, [])
   },
-  createChildSet: (): FakeNode[] => [],
-  appendChild(parent: FakeNode, child: FakeNode): FakeNode {
+  createChildSet: (): IFakeNode[] => [],
+  appendChild(parent: IFakeNode, child: IFakeNode): IFakeNode {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet(set: FakeNode[], child: FakeNode): void {
+  appendChildToSet(set: IFakeNode[], child: IFakeNode): void {
     set.push(child)
   },
   completeRoot(): void {

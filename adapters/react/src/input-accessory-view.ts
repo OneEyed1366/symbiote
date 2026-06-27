@@ -6,18 +6,18 @@
 
 import { createElement, type FC, type ReactNode } from 'react'
 import { dlog } from '@symbiote/engine'
-import { resolveAccessibilityProps, type AccessibilityProps, type AriaProps } from './accessibility-props'
-import type { ViewStyle } from './styles'
+import { resolveAccessibilityProps, type IAccessibilityProps, type IAriaProps } from '@symbiote/components'
+import type { IStyleProp, IViewStyle } from './styles'
 
-export interface InputAccessoryViewProps extends AccessibilityProps, AriaProps {
+export interface IInputAccessoryViewProps extends IAccessibilityProps, IAriaProps {
   // The id a TextInput's inputAccessoryViewID points at to dock above its keyboard.
   nativeID?: string
   backgroundColor?: string
-  style?: ViewStyle
+  style?: IStyleProp<IViewStyle>
   children?: ReactNode
 }
 
-export const InputAccessoryView: FC<InputAccessoryViewProps> = (rawProps) => {
+export const InputAccessoryView: FC<IInputAccessoryViewProps> = (rawProps) => {
   // Owns its host element (symbiote-input-accessory-view), so it folds aria/role
   // here; the resolved accessibility* surface rides the node via `...accessibilityRest`.
   const props = resolveAccessibilityProps(rawProps)

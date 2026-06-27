@@ -12,42 +12,42 @@
 
 import { dlog } from '../../debug'
 import { getNativeModule } from '../../native-modules'
-import { NativeEventEmitter, type EventSubscription } from '../../native-events'
+import { NativeEventEmitter, type IEventSubscription } from '../../native-events'
 
 // Opaque per-platform tuning bag forwarded into a native node/animation config,
 // mirroring RN's AnimatedPlatformConfig.js (`export type PlatformConfig = {}`).
 // Stock RN keeps it empty today; it is the seam a future native driver reads
 // platform-specific knobs from. Forwarded verbatim — never inspected here.
-export type PlatformConfig = Record<string, unknown>
+export type IPlatformConfig = Record<string, unknown>
 
 // An animated-node config (`{type:'value'|'interpolation'|'style'|'transform'|'props', …}`)
 // and an animation config (`{type:'frames'|'spring'|'decay', …}`) cross into native as
 // plain JSON. They are open by design — each node/driver fills its own shape.
-export interface NativeNodeConfig {
+export interface INativeNodeConfig {
   readonly type: string
   readonly [key: string]: unknown
 }
-export interface NativeAnimationConfig {
+export interface INativeAnimationConfig {
   readonly type: string
   readonly [key: string]: unknown
 }
-export interface NativeEventMapping {
+export interface INativeEventMapping {
   readonly nativeEventPath: readonly string[]
   readonly animatedValueTag: number
 }
 
-export interface NativeEndResult {
+export interface INativeEndResult {
   finished: boolean
   value?: number
   offset?: number
 }
-export type NativeEndCallback = (result: NativeEndResult) => void
+export type INativeEndCallback = (result: INativeEndResult) => void
 
 // The TurboModule method surface we use (iOS, no Android single-op batching). The
 // caller vouches for this shape via getNativeModule's generic — the single trust
 // boundary, no per-call cast.
-interface NativeAnimatedSpec {
-  createAnimatedNode(tag: number, config: NativeNodeConfig): void
+interface INativeAnimatedSpec {
+  createAnimatedNode(tag: number, config: INativeNodeConfig): void
   connectAnimatedNodes(parentTag: number, childTag: number): void
   disconnectAnimatedNodes(parentTag: number, childTag: number): void
   connectAnimatedNodeToView(nodeTag: number, viewTag: number): void
@@ -57,8 +57,8 @@ interface NativeAnimatedSpec {
   startAnimatingNode(
     animationId: number,
     nodeTag: number,
-    config: NativeAnimationConfig,
-    endCallback: NativeEndCallback,
+    config: INativeAnimationConfig,
+    endCallback: INativeEndCallback,
   ): void
   stopAnimation(animationId: number): void
   setAnimatedNodeValue(nodeTag: number, value: number): void
@@ -68,7 +68,7 @@ interface NativeAnimatedSpec {
   startListeningToAnimatedNodeValue(tag: number): void
   stopListeningToAnimatedNodeValue(tag: number): void
   getValue(tag: number, saveValueCallback: (value: number) => void): void
-  addAnimatedEventToView(viewTag: number, eventName: string, eventMapping: NativeEventMapping): void
+  addAnimatedEventToView(viewTag: number, eventName: string, eventMapping: INativeEventMapping): void
   removeAnimatedEventFromView(viewTag: number, eventName: string, animatedNodeTag: number): void
 }
 
@@ -76,15 +76,15 @@ interface NativeAnimatedSpec {
 const TURBO_MODULE_NAME = 'NativeAnimatedTurboModule'
 const LEGACY_MODULE_NAME = 'NativeAnimatedModule'
 
-let resolved: NativeAnimatedSpec | null = null
+let resolved: INativeAnimatedSpec | null = null
 
-function module(): NativeAnimatedSpec | null {
+function module(): INativeAnimatedSpec | null {
   if (resolved !== null) return resolved
   // Don't cache a miss: the native host may not be installed yet at first call
   // (or a headless smoke installs a fake afterwards).
   const found =
-    getNativeModule<NativeAnimatedSpec>(TURBO_MODULE_NAME) ??
-    getNativeModule<NativeAnimatedSpec>(LEGACY_MODULE_NAME)
+    getNativeModule<INativeAnimatedSpec>(TURBO_MODULE_NAME) ??
+    getNativeModule<INativeAnimatedSpec>(LEGACY_MODULE_NAME)
   if (found !== null) resolved = found
   return found
 }
@@ -114,7 +114,7 @@ export function generateNativeAnimationId(): number {
 // silent headless and dead on device).
 const VALUE_UPDATE_EVENT = 'onAnimatedValueUpdate'
 const valueListeners = new Map<number, (value: number) => void>()
-let valueUpdateSubscription: EventSubscription | undefined
+let valueUpdateSubscription: IEventSubscription | undefined
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -138,7 +138,7 @@ function ensureValueUpdateSubscription(): void {
 // queue is empty. Each guards on availability so a missing module degrades to a
 // logged no-op rather than a throw inside a commit.
 export const nativeAnimated = {
-  createAnimatedNode(tag: number, config: NativeNodeConfig): void {
+  createAnimatedNode(tag: number, config: INativeNodeConfig): void {
     module()?.createAnimatedNode(tag, config)
   },
   connectAnimatedNodes(parentTag: number, childTag: number): void {
@@ -164,8 +164,8 @@ export const nativeAnimated = {
   startAnimatingNode(
     animationId: number,
     nodeTag: number,
-    config: NativeAnimationConfig,
-    endCallback: NativeEndCallback,
+    config: INativeAnimationConfig,
+    endCallback: INativeEndCallback,
   ): void {
     dlog(`native: startAnimatingNode id=${animationId} node=${nodeTag} type=${config.type}`)
     module()?.startAnimatingNode(animationId, nodeTag, config, endCallback)
@@ -208,7 +208,7 @@ export const nativeAnimated = {
       valueUpdateSubscription = undefined
     }
   },
-  addAnimatedEventToView(viewTag: number, eventName: string, mapping: NativeEventMapping): void {
+  addAnimatedEventToView(viewTag: number, eventName: string, mapping: INativeEventMapping): void {
     module()?.addAnimatedEventToView(viewTag, eventName, mapping)
   },
   removeAnimatedEventFromView(viewTag: number, eventName: string, animatedNodeTag: number): void {

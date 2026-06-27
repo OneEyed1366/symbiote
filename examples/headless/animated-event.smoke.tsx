@@ -16,11 +16,11 @@ import { event, AnimatedEvent } from '../../core/engine/src/animated/event'
 
 // ---- fake NativeAnimatedTurboModule (records calls) ----------------------
 
-interface NativeCall {
+interface INativeCall {
   method: string
   args: unknown[]
 }
-const nativeCalls: NativeCall[] = []
+const nativeCalls: INativeCall[] = []
 
 function record(method: string): (...args: unknown[]) => void {
   return (...args: unknown[]) => {
@@ -54,15 +54,15 @@ Object.assign(globalThis, {
 
 // ---- fake Fabric slot (keeps the real reactTag so the commit is checkable) ----
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
-let committed: FakeNode[] = []
+let committed: IFakeNode[] = []
 
 const slot = {
   createNode(
@@ -71,47 +71,47 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
+  ): IFakeNode {
     return { tag, viewName, props, children: [], instanceHandle }
   },
-  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+  cloneNodeWithNewProps: (node: IFakeNode, newProps: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: newProps,
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     newProps: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props: newProps, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild(parent: FakeNode, child: FakeNode): FakeNode {
+  ): IFakeNode => ({ ...node, props: newProps, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild(parent: IFakeNode, child: IFakeNode): IFakeNode {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet(childSet: FakeNode[], child: FakeNode): void {
+  appendChildToSet(childSet: IFakeNode[], child: IFakeNode): void {
     childSet.push(child)
   },
-  completeRoot(_rootTag: number, childSet: FakeNode[]): void {
+  completeRoot(_rootTag: number, childSet: IFakeNode[]): void {
     committed = childSet
   },
   registerEventHandler(): void {},
 }
 Object.assign(globalThis, { nativeFabricUIManager: slot })
 
-function appView(): FakeNode {
+function appView(): IFakeNode {
   if (committed.length !== 1 || committed[0].props.pointerEvents !== 'box-none') {
     throw new Error(`expected one synthetic box-none root, got ${JSON.stringify(committed)}`)
   }
   return committed[0].children[0]
 }
 
-function callsOf(method: string): NativeCall[] {
+function callsOf(method: string): INativeCall[] {
   return nativeCalls.filter((call) => call.method === method)
 }
 
 // translateY read off the committed view's flattened transform. The scoped
 // setNativeProps commit hoists `style` onto the view, so transform lands on props.
-function committedTranslateY(view: FakeNode): number {
+function committedTranslateY(view: IFakeNode): number {
   const transform = Reflect.get(view.props, 'transform')
   if (!Array.isArray(transform)) {
     throw new Error(`expected a transform array on the view, got ${JSON.stringify(view.props)}`)

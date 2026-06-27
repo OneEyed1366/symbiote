@@ -45,51 +45,51 @@ const ANIMATION_PROPERTY = {
   scaleXY: 'scaleXY',
 } as const
 
-export type LayoutAnimationType = (typeof ANIMATION_TYPE)[keyof typeof ANIMATION_TYPE]
-export type LayoutAnimationProperty = (typeof ANIMATION_PROPERTY)[keyof typeof ANIMATION_PROPERTY]
+export type ILayoutAnimationType = (typeof ANIMATION_TYPE)[keyof typeof ANIMATION_TYPE]
+export type ILayoutAnimationProperty = (typeof ANIMATION_PROPERTY)[keyof typeof ANIMATION_PROPERTY]
 
-export type LayoutAnimationTypes = Readonly<Record<LayoutAnimationType, LayoutAnimationType>>
-export type LayoutAnimationProperties = Readonly<
-  Record<LayoutAnimationProperty, LayoutAnimationProperty>
+export type ILayoutAnimationTypes = Readonly<Record<ILayoutAnimationType, ILayoutAnimationType>>
+export type ILayoutAnimationProperties = Readonly<
+  Record<ILayoutAnimationProperty, ILayoutAnimationProperty>
 >
 
-export interface LayoutAnimationAnim {
+export interface ILayoutAnimationAnim {
   duration?: number
   delay?: number
   springDamping?: number
   initialVelocity?: number
-  type?: LayoutAnimationType
-  property?: LayoutAnimationProperty
+  type?: ILayoutAnimationType
+  property?: ILayoutAnimationProperty
 }
 
-export interface LayoutAnimationConfig {
+export interface ILayoutAnimationConfig {
   duration: number
-  create?: LayoutAnimationAnim
-  update?: LayoutAnimationAnim
-  delete?: LayoutAnimationAnim
+  create?: ILayoutAnimationAnim
+  update?: ILayoutAnimationAnim
+  delete?: ILayoutAnimationAnim
 }
 
-type OnAnimationDidEndCallback = () => void
-type OnAnimationDidFailCallback = () => void
+type IOnAnimationDidEndCallback = () => void
+type IOnAnimationDidFailCallback = () => void
 
 // The native UIManager surface this module talks to. The caller vouches for the
 // shape via `getNativeModule<T>` (the single trust-boundary narrowing — no
 // per-call `as`). The method is optional because an older/partial host may not
 // expose it; we feature-detect before calling.
-interface NativeLayoutAnimationUIManager {
+interface INativeLayoutAnimationUIManager {
   configureNextLayoutAnimation?(
-    config: LayoutAnimationConfig,
-    onSuccess: OnAnimationDidEndCallback,
-    onError: OnAnimationDidFailCallback,
+    config: ILayoutAnimationConfig,
+    onSuccess: IOnAnimationDidEndCallback,
+    onError: IOnAnimationDidFailCallback,
   ): void
 }
 
 // Lazily resolved, like AppState — importing this module has no native side
 // effect; resolution happens on first `configureNext`. `null` once we've looked
 // and found nothing linked (headless, or a host without the module).
-let uiManager: NativeLayoutAnimationUIManager | null | undefined
+let uiManager: INativeLayoutAnimationUIManager | null | undefined
 
-function resolveUIManager(): NativeLayoutAnimationUIManager | null {
+function resolveUIManager(): INativeLayoutAnimationUIManager | null {
   if (uiManager !== undefined) return uiManager
 
   // Try the most plausible bridgeless name first, then fall back. A wrong primary
@@ -97,7 +97,7 @@ function resolveUIManager(): NativeLayoutAnimationUIManager | null {
   // unlinked name), so the fallback covers a misnamed primary.
   const candidates = [NATIVE_UI_MANAGER_NAME.primary, NATIVE_UI_MANAGER_NAME.fallback]
   for (const name of candidates) {
-    const module = getNativeModule<NativeLayoutAnimationUIManager>(name)
+    const module = getNativeModule<INativeLayoutAnimationUIManager>(name)
     if (module !== null) {
       // DEVICE-VERIFY-PENDING seam: this line on the simulator/device is the only
       // proof the chosen name is the real one. Keep it permanently (P0 logging gate).
@@ -121,9 +121,9 @@ function resolveUIManager(): NativeLayoutAnimationUIManager | null {
 // `create`/`delete` carry both type and property; `update` carries only type.
 function createLayoutAnimation(
   duration: number,
-  type?: LayoutAnimationType,
-  property?: LayoutAnimationProperty,
-): LayoutAnimationConfig {
+  type?: ILayoutAnimationType,
+  property?: ILayoutAnimationProperty,
+): ILayoutAnimationConfig {
   return {
     duration,
     create: { type, property },
@@ -159,7 +159,7 @@ const Presets = {
     update: { type: ANIMATION_TYPE.spring, springDamping: SPRING_DAMPING },
     delete: { type: ANIMATION_TYPE.linear, property: ANIMATION_PROPERTY.opacity },
   },
-} as const satisfies Readonly<Record<string, LayoutAnimationConfig>>
+} as const satisfies Readonly<Record<string, ILayoutAnimationConfig>>
 
 // ---- enabled gate --------------------------------------------------------
 
@@ -194,9 +194,9 @@ function setLayoutAnimationEnabled(value: boolean): void {
 // firing `onAnimationDidEnd` before the animation visually completes. On our
 // Fabric-only path native completion is reliably wired, so we rely on it solely.
 function configureNext(
-  config: LayoutAnimationConfig,
-  onAnimationDidEnd?: OnAnimationDidEndCallback,
-  onAnimationDidFail?: OnAnimationDidFailCallback,
+  config: ILayoutAnimationConfig,
+  onAnimationDidEnd?: IOnAnimationDidEndCallback,
+  onAnimationDidFail?: IOnAnimationDidFailCallback,
 ): void {
   // RN bails before touching native when animations are disabled
   // (LayoutAnimation.js:69).
@@ -214,7 +214,7 @@ function configureNext(
   // Idempotent guard so native can't drive both success and error into a
   // double-fire (RN's `animationCompletionHasRun`), without a JS timer racing it.
   let completionHasRun = false
-  const onComplete: OnAnimationDidEndCallback = () => {
+  const onComplete: IOnAnimationDidEndCallback = () => {
     if (completionHasRun) return
     completionHasRun = true
     onAnimationDidEnd?.()
@@ -229,37 +229,37 @@ function configureNext(
 
 class LayoutAnimationImpl {
   // Frozen so callers can't mutate the shared type/property tables.
-  readonly Types: LayoutAnimationTypes = Object.freeze({ ...ANIMATION_TYPE })
-  readonly Properties: LayoutAnimationProperties = Object.freeze({ ...ANIMATION_PROPERTY })
+  readonly Types: ILayoutAnimationTypes = Object.freeze({ ...ANIMATION_TYPE })
+  readonly Properties: ILayoutAnimationProperties = Object.freeze({ ...ANIMATION_PROPERTY })
   readonly Presets = Presets
 
   // Methods (not class fields) so they stay overridable under
   // useDefineForClassFields.
   configureNext(
-    config: LayoutAnimationConfig,
-    onAnimationDidEnd?: OnAnimationDidEndCallback,
-    onAnimationDidFail?: OnAnimationDidFailCallback,
+    config: ILayoutAnimationConfig,
+    onAnimationDidEnd?: IOnAnimationDidEndCallback,
+    onAnimationDidFail?: IOnAnimationDidFailCallback,
   ): void {
     configureNext(config, onAnimationDidEnd, onAnimationDidFail)
   }
 
   create(
     duration: number,
-    type?: LayoutAnimationType,
-    property?: LayoutAnimationProperty,
-  ): LayoutAnimationConfig {
+    type?: ILayoutAnimationType,
+    property?: ILayoutAnimationProperty,
+  ): ILayoutAnimationConfig {
     return createLayoutAnimation(duration, type, property)
   }
 
-  easeInEaseOut(onAnimationDidEnd?: OnAnimationDidEndCallback): void {
+  easeInEaseOut(onAnimationDidEnd?: IOnAnimationDidEndCallback): void {
     configureNext(Presets.easeInEaseOut, onAnimationDidEnd)
   }
 
-  linear(onAnimationDidEnd?: OnAnimationDidEndCallback): void {
+  linear(onAnimationDidEnd?: IOnAnimationDidEndCallback): void {
     configureNext(Presets.linear, onAnimationDidEnd)
   }
 
-  spring(onAnimationDidEnd?: OnAnimationDidEndCallback): void {
+  spring(onAnimationDidEnd?: IOnAnimationDidEndCallback): void {
     configureNext(Presets.spring, onAnimationDidEnd)
   }
 

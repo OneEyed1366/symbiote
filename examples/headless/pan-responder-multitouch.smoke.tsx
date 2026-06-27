@@ -15,22 +15,22 @@
 import { type ReactElement } from 'react'
 import { mount, View, PanResponder } from '@symbiote/react'
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
-type EventHandler = (
+type IEventHandler = (
   instanceHandle: unknown,
   topLevelType: string,
   nativeEvent: Record<string, unknown>,
 ) => void
 
-let committed: FakeNode[] = []
-let eventHandler: EventHandler | undefined
+let committed: IFakeNode[] = []
+let eventHandler: IEventHandler | undefined
 
 const slot = {
   createNode(
@@ -39,30 +39,30 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
+  ): IFakeNode {
     return { tag, viewName, props, children: [], instanceHandle }
   },
-  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+  cloneNodeWithNewProps: (node: IFakeNode, newProps: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: newProps,
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     newProps: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props: newProps, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild(parent: FakeNode, child: FakeNode): FakeNode {
+  ): IFakeNode => ({ ...node, props: newProps, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild(parent: IFakeNode, child: IFakeNode): IFakeNode {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet(childSet: FakeNode[], child: FakeNode): void {
+  appendChildToSet(childSet: IFakeNode[], child: IFakeNode): void {
     childSet.push(child)
   },
-  completeRoot(_rootTag: number, childSet: FakeNode[]): void {
+  completeRoot(_rootTag: number, childSet: IFakeNode[]): void {
     committed = childSet
   },
-  registerEventHandler(handler: EventHandler): void {
+  registerEventHandler(handler: IEventHandler): void {
     eventHandler = handler
   },
 }
@@ -70,7 +70,7 @@ Object.assign(globalThis, { nativeFabricUIManager: slot })
 
 // ---- a View wired with PanResponder, capturing every move gestureState ----
 
-interface Snapshot {
+interface ISnapshot {
   dx: number
   dy: number
   vx: number
@@ -78,7 +78,7 @@ interface Snapshot {
   numberActiveTouches: number
 }
 
-const moves: Snapshot[] = []
+const moves: ISnapshot[] = []
 const responder = PanResponder.create({
   onStartShouldSetPanResponder: () => true,
   onPanResponderMove: (_event, gesture) => {
@@ -104,7 +104,7 @@ const handle = viewNode.instanceHandle
 if (eventHandler === undefined) throw new Error('event handler was never registered')
 const dispatch = eventHandler
 
-interface Pt {
+interface IPt {
   pageX: number
   pageY: number
   identifier: number
@@ -113,15 +113,15 @@ interface Pt {
   // hasRemainingResponderTouch in events.ts keeps the responder while a finger is down.
   target: unknown
 }
-function pt(identifier: number, pageX: number, pageY: number, timestamp: number): Pt {
+function pt(identifier: number, pageX: number, pageY: number, timestamp: number): IPt {
   return { pageX, pageY, identifier, timestamp, target: handle }
 }
 // A native touch frame: `touches` are all fingers down, `changedTouches` the ones that
 // changed this frame — exactly the shape Fabric delivers and shared records.
 function frame(
   type: string,
-  touches: Pt[],
-  changedTouches: Pt[],
+  touches: IPt[],
+  changedTouches: IPt[],
   timestamp: number,
 ): void {
   dispatch(handle, type, { touches, changedTouches, target: viewNode.tag, timestamp })

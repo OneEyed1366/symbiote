@@ -7,22 +7,22 @@
 // boolean; the rest are side-effecting. Declared here (not inlined on ViewProps) so the
 // set stays in one place and reads as one concept.
 
-import type { SymbioteEvent } from '@symbiote/engine'
+import type { ISymbioteEvent } from '@symbiote/engine'
 
-type ResponderGate = (event: SymbioteEvent) => boolean
-type ResponderHandler = (event: SymbioteEvent) => void
+type IResponderGate = (event: ISymbioteEvent) => boolean
+type IResponderHandler = (event: ISymbioteEvent) => void
 
-export interface ResponderProps {
-  onStartShouldSetResponder?: ResponderGate
-  onStartShouldSetResponderCapture?: ResponderGate
-  onMoveShouldSetResponder?: ResponderGate
-  onMoveShouldSetResponderCapture?: ResponderGate
-  onResponderGrant?: ResponderHandler
-  onResponderReject?: ResponderHandler
-  onResponderStart?: ResponderHandler
-  onResponderMove?: ResponderHandler
-  onResponderEnd?: ResponderHandler
-  onResponderRelease?: ResponderHandler
-  onResponderTerminate?: ResponderHandler
-  onResponderTerminationRequest?: ResponderGate
+export interface IResponderProps {
+  onStartShouldSetResponder?: IResponderGate
+  onStartShouldSetResponderCapture?: IResponderGate
+  onMoveShouldSetResponder?: IResponderGate
+  onMoveShouldSetResponderCapture?: IResponderGate
+  onResponderGrant?: IResponderHandler
+  onResponderReject?: IResponderHandler
+  onResponderStart?: IResponderHandler
+  onResponderMove?: IResponderHandler
+  onResponderEnd?: IResponderHandler
+  onResponderRelease?: IResponderHandler
+  onResponderTerminate?: IResponderHandler
+  onResponderTerminationRequest?: IResponderGate
 }

@@ -13,41 +13,41 @@
 import { createElement, type FC, type ReactNode } from 'react'
 import { dlog, Platform } from '@symbiote/engine'
 import { View } from './components'
-import { Pressable, type PressableProps } from './pressable'
+import { Pressable, type IPressableProps } from './pressable'
 
 // The two background dict shapes RN's static factories produce. Modelled as a
 // discriminated union on `type` so a caller can narrow without a cast.
-export interface ThemeAttrBackground {
+export interface IThemeAttrBackground {
   type: 'ThemeAttrAndroid'
   attribute: 'selectableItemBackground' | 'selectableItemBackgroundBorderless'
   rippleRadius?: number
 }
 
-export interface RippleBackground {
+export interface IRippleBackground {
   type: 'RippleAndroid'
   color: string | null
   borderless: boolean
   rippleRadius?: number
 }
 
-export type NativeFeedbackBackground = ThemeAttrBackground | RippleBackground
+export type INativeFeedbackBackground = IThemeAttrBackground | IRippleBackground
 
-type TouchableNativeFeedbackBaseProps = Omit<PressableProps, 'style' | 'children'> & {
-  background?: NativeFeedbackBackground
+type ITouchableNativeFeedbackBaseProps = Omit<IPressableProps, 'style' | 'children'> & {
+  background?: INativeFeedbackBackground
   useForeground?: boolean
   // A single child element, mirroring RN (it accepts only one View child).
   children?: ReactNode
 }
 
-export interface TouchableNativeFeedbackProps extends TouchableNativeFeedbackBaseProps {}
+export interface ITouchableNativeFeedbackProps extends ITouchableNativeFeedbackBaseProps {}
 
 // The static helpers are pure: each returns the plain config dict RN's native
 // ripple manager understands. They live as properties on the component value so
 // callers reach them as `TouchableNativeFeedback.Ripple(...)`, exactly like RN.
-interface TouchableNativeFeedbackComponent extends FC<TouchableNativeFeedbackProps> {
-  SelectableBackground: (rippleRadius?: number) => ThemeAttrBackground
-  SelectableBackgroundBorderless: (rippleRadius?: number) => ThemeAttrBackground
-  Ripple: (color: string, borderless: boolean, rippleRadius?: number) => RippleBackground
+interface ITouchableNativeFeedbackComponent extends FC<ITouchableNativeFeedbackProps> {
+  SelectableBackground: (rippleRadius?: number) => IThemeAttrBackground
+  SelectableBackgroundBorderless: (rippleRadius?: number) => IThemeAttrBackground
+  Ripple: (color: string, borderless: boolean, rippleRadius?: number) => IRippleBackground
   canUseNativeForeground: () => boolean
 }
 
@@ -56,16 +56,16 @@ interface TouchableNativeFeedbackComponent extends FC<TouchableNativeFeedbackPro
 // it (canUseNativeForeground); otherwise it falls back to the background slot,
 // matching RN. On iOS both props are inert.
 function backgroundProps(
-  background: NativeFeedbackBackground,
+  background: INativeFeedbackBackground,
   useForeground: boolean,
-): Record<string, NativeFeedbackBackground> {
+): Record<string, INativeFeedbackBackground> {
   if (useForeground && TouchableNativeFeedback.canUseNativeForeground()) {
     return { nativeForegroundAndroid: background }
   }
   return { nativeBackgroundAndroid: background }
 }
 
-const TouchableNativeFeedbackImpl: FC<TouchableNativeFeedbackProps> = (props) => {
+const TouchableNativeFeedbackImpl: FC<ITouchableNativeFeedbackProps> = (props) => {
   const { background, useForeground = false, children, ...rest } = props
 
   // RN defaults a missing background to SelectableBackground() so the touchable
@@ -85,15 +85,15 @@ const TouchableNativeFeedbackImpl: FC<TouchableNativeFeedbackProps> = (props) =>
 
 // Attach the static factories to the component value. They are deeply-immutable
 // literals up to the caller's inputs, so the `type` discriminants are `as const`.
-const TouchableNativeFeedback: TouchableNativeFeedbackComponent = Object.assign(
+const TouchableNativeFeedback: ITouchableNativeFeedbackComponent = Object.assign(
   TouchableNativeFeedbackImpl,
   {
-    SelectableBackground: (rippleRadius?: number): ThemeAttrBackground => ({
+    SelectableBackground: (rippleRadius?: number): IThemeAttrBackground => ({
       type: 'ThemeAttrAndroid' as const,
       attribute: 'selectableItemBackground',
       rippleRadius,
     }),
-    SelectableBackgroundBorderless: (rippleRadius?: number): ThemeAttrBackground => ({
+    SelectableBackgroundBorderless: (rippleRadius?: number): IThemeAttrBackground => ({
       type: 'ThemeAttrAndroid' as const,
       attribute: 'selectableItemBackgroundBorderless',
       rippleRadius,
@@ -101,7 +101,7 @@ const TouchableNativeFeedback: TouchableNativeFeedbackComponent = Object.assign(
     // RN runs the color string through processColor (→ a native int); we have no
     // native bridge here, so we keep the string and let Android resolve it. A
     // null color is the documented "no tint" value.
-    Ripple: (color: string, borderless: boolean, rippleRadius?: number): RippleBackground => ({
+    Ripple: (color: string, borderless: boolean, rippleRadius?: number): IRippleBackground => ({
       type: 'RippleAndroid' as const,
       color,
       borderless,

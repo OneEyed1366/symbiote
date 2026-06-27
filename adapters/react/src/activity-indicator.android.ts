@@ -7,7 +7,7 @@
 // host by the absence of the "setStyle() not called" red box.
 
 import { createActivityIndicator } from './activity-indicator-shared'
-export type { ActivityIndicatorProps } from './activity-indicator-shared'
+export type { IActivityIndicatorProps } from './activity-indicator-shared'
 
 export const ActivityIndicator = createActivityIndicator({
   // RN: `color = Platform.OS === 'ios' ? GRAY : null` — Android lets the theme color it.

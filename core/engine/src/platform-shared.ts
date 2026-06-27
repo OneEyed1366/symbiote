@@ -18,11 +18,11 @@ export const PLATFORM_CONSTANTS = 'PlatformConstants'
 // defaults. '' mirrors iOS "unknown OS version"; Android uses 0 for an unknown API level.
 export const UNKNOWN_VERSION = ''
 
-export type PlatformOSType = 'ios' | 'android' | 'macos' | 'windows' | 'web' | 'native'
+export type IPlatformOSType = 'ios' | 'android' | 'macos' | 'windows' | 'web' | 'native'
 
 // RN's Platform.select spec: any subset of OS keys, optionally with `default`. Each
 // platform resolver consults only its own key, then `native`, then `default`.
-export type PlatformSelectSpec<T> = {
+export type IPlatformSelectSpec<T> = {
   ios?: T
   android?: T
   macos?: T
@@ -37,8 +37,8 @@ export type PlatformSelectSpec<T> = {
 // numeric API level on Android — hence string | number, with each concrete object
 // pinning the precise type. isPad/isMacCatalyst stay on the shared shape so app code
 // branches uniformly; off iOS they are simply always false (RN: iOS-only concepts).
-export interface PlatformStatic<TConstants> {
-  readonly OS: PlatformOSType
+export interface IPlatformStatic<TConstants> {
+  readonly OS: IPlatformOSType
   readonly Version: string | number
   readonly constants: TConstants | undefined
   readonly isPad: boolean
@@ -47,7 +47,7 @@ export interface PlatformStatic<TConstants> {
   readonly isTesting: boolean
   readonly isDisableAnimations: boolean
   readonly isMacCatalyst: boolean
-  select<T>(spec: PlatformSelectSpec<T>): T | undefined
+  select<T>(spec: IPlatformSelectSpec<T>): T | undefined
 }
 
 // Build a cached getConstants() resolver behind a structural guard. The native payload

@@ -7,11 +7,11 @@
 
 import { AnimatedValue, timing, loop, sequence } from '@symbiote/engine'
 
-interface NativeCall {
+interface INativeCall {
   method: string
   args: unknown[]
 }
-const nativeCalls: NativeCall[] = []
+const nativeCalls: INativeCall[] = []
 function record(method: string): (...args: unknown[]) => void {
   return (...args: unknown[]) => {
     nativeCalls.push({ method, args })
@@ -41,10 +41,10 @@ Object.assign(globalThis, {
   nativeModuleProxy: { NativeAnimatedTurboModule: fakeNativeAnimated },
 })
 
-function startsOf(): NativeCall[] {
+function startsOf(): INativeCall[] {
   return nativeCalls.filter((call) => call.method === 'startAnimatingNode')
 }
-function configOf(call: NativeCall): Record<string, unknown> {
+function configOf(call: INativeCall): Record<string, unknown> {
   const config = call.args[2]
   if (typeof config !== 'object' || config === null) throw new Error('start config missing')
   return { ...config }

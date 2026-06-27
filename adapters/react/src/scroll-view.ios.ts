@@ -3,17 +3,17 @@
 // Also the base (scroll-view.ts re-exports it) for headless / web. See ADR 0020.
 
 import { createElement, forwardRef, useImperativeHandle, useRef } from 'react'
-import type { SymbioteNode } from '@symbiote/engine'
+import type { ISymbioteNode } from '@symbiote/engine'
+import { buildScrollViewHandle } from '@symbiote/components'
 import {
-  buildScrollViewHandle,
   prepareScrollView,
   useNativeStickyScrollAttach,
-  type ScrollViewHandle,
-  type ScrollViewProps,
+  type IScrollViewHandle,
+  type IScrollViewProps,
 } from './scroll-view-shared'
-export type { ScrollViewProps, ScrollViewHandle } from './scroll-view-shared'
+export type { IScrollViewProps, IScrollViewHandle } from './scroll-view-shared'
 
-export const ScrollView = forwardRef<ScrollViewHandle, ScrollViewProps>((props, forwardedRef) => {
+export const ScrollView = forwardRef<IScrollViewHandle, IScrollViewProps>((props, forwardedRef) => {
   const {
     scrollViewIntrinsic,
     scrollViewBaseStyle,
@@ -26,15 +26,17 @@ export const ScrollView = forwardRef<ScrollViewHandle, ScrollViewProps>((props, 
   } = prepareScrollView(props)
   // The node ref backs the imperative handle; it attaches to the scroll-view element below
   // (passing `ref` through createElement props binds it to the SymbioteNode, as TextInput does).
-  const ref = useRef<SymbioteNode | null>(null)
-  useImperativeHandle(forwardedRef, () => buildScrollViewHandle(ref), [])
+  const ref = useRef<ISymbioteNode | null>(null)
+  // Lazy getter, not the ref itself: the node is null until the element commits, so the handle
+  // must read ref.current on each command (ADR 0024 §3) — an eager capture would freeze null.
+  useImperativeHandle(forwardedRef, () => buildScrollViewHandle(() => ref.current), [])
   // Drive the sticky scroll value on the native UI thread (RN attachNativeEvent). No-op on a
   // host without the native animated module — the JS sticky path stays in effect.
   useNativeStickyScrollAttach(ref, scrollAnimatedValue, nativeStickyAvailable)
 
   // Base style under user style so an explicit user value wins; undefined base (vertical)
   // passes the user style through unchanged.
-  const scrollStyle = scrollViewBaseStyle ? { ...scrollViewBaseStyle, ...style } : style
+  const scrollStyle = scrollViewBaseStyle ? [scrollViewBaseStyle, style] : style
   const scrollProps = { ...outerProps, style: scrollStyle, ref }
 
   if (refreshControl === undefined) {

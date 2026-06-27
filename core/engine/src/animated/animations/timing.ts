@@ -3,23 +3,23 @@
 // ms, shaping progress through an easing function. The native-frame export and
 // __startAnimationIfNative branch are dropped.
 
-import type { Animation, EndCallback } from '../animation'
+import type { IAnimation, IEndCallback } from '../animation'
 import type { AnimatedValue } from '../value'
-import { Easing, type EasingFunction } from '../easing'
+import { Easing, type IEasingFunction } from '../easing'
 import { dlog } from '../../debug'
-import type { NativeAnimationConfig } from '../native/native-animated'
-import { BaseAnimation, type AnimationConfig } from './base'
-import { cancelFrame, clearTimer, requestFrame, setTimer, type TimerHandle } from './raf'
+import type { INativeAnimationConfig } from '../native/native-animated'
+import { BaseAnimation, type IAnimationConfig } from './base'
+import { cancelFrame, clearTimer, requestFrame, setTimer, type ITimerHandle } from './raf'
 
-export interface TimingAnimationConfig extends AnimationConfig {
+export interface ITimingAnimationConfig extends IAnimationConfig {
   toValue: number
-  easing?: EasingFunction
+  easing?: IEasingFunction
   duration?: number
   delay?: number
 }
 
-let cachedEaseInOut: EasingFunction | undefined
-function easeInOut(): EasingFunction {
+let cachedEaseInOut: IEasingFunction | undefined
+function easeInOut(): IEasingFunction {
   if (cachedEaseInOut === undefined) {
     cachedEaseInOut = Easing.inOut(Easing.ease)
   }
@@ -32,12 +32,12 @@ export class TimingAnimation extends BaseAnimation {
   private readonly toValue: number
   private readonly duration: number
   private readonly delay: number
-  private readonly easing: EasingFunction
+  private readonly easing: IEasingFunction
   private onUpdate: (value: number) => void = () => {}
   private animationFrame: number | null = null
-  private timeout: TimerHandle | null = null
+  private timeout: ITimerHandle | null = null
 
-  constructor(config: TimingAnimationConfig) {
+  constructor(config: ITimingAnimationConfig) {
     super(config)
     this.toValue = config.toValue
     this.easing = config.easing ?? easeInOut()
@@ -46,7 +46,7 @@ export class TimingAnimation extends BaseAnimation {
   }
 
   // Native: hand the easing curve to native as a per-frame sample table.
-  protected override getNativeAnimationConfig(): NativeAnimationConfig {
+  protected override getNativeAnimationConfig(): INativeAnimationConfig {
     const frameDuration = 1000 / 60
     const numFrames = Math.round(this.duration / frameDuration)
     const frames: number[] = []
@@ -67,8 +67,8 @@ export class TimingAnimation extends BaseAnimation {
   override start(
     fromValue: number,
     onUpdate: (value: number) => void,
-    onEnd: EndCallback,
-    _previousAnimation: Animation | null,
+    onEnd: IEndCallback,
+    _previousAnimation: IAnimation | null,
     animatedValue: AnimatedValue,
   ): void {
     this.begin(onEnd)

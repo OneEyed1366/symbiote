@@ -12,7 +12,7 @@
 // The public event names a caller can subscribe to. A superset of both platforms:
 // some only ever fire on iOS, some only on Android. On a platform that never emits a
 // given event the subscription is inert (no device event arrives) — mirrors RN.
-export type AccessibilityChangeEventName =
+export type IAccessibilityChangeEventName =
   | 'screenReaderChanged'
   | 'reduceMotionChanged'
   | 'boldTextChanged'
@@ -25,34 +25,34 @@ export type AccessibilityChangeEventName =
   | 'highTextContrastChanged'
 
 // Back-compat alias for the pre-split name. The old iOS file exported
-// `AccessibilityChangeEvent`; keep it so existing imports keep resolving.
-export type AccessibilityChangeEvent = AccessibilityChangeEventName
+// `IAccessibilityChangeEvent`; keep it so existing imports keep resolving.
+export type IAccessibilityChangeEvent = IAccessibilityChangeEventName
 
 // What sendAccessibilityEvent accepts as its target: a host ref/instance, a bare native
 // tag, or nothing — exactly the input findNodeHandle resolves. Type-only import from
 // host-instance (which never imports accessibility-info, so no cycle).
-export type AccessibilityHandle =
-  | import('./host-instance').HostInstance
-  | import('@symbiote/engine').SymbioteNode
+export type IAccessibilityHandle =
+  | import('./host-instance').IHostInstance
+  | import('@symbiote/engine').ISymbioteNode
   | number
   | null
   | undefined
 
 // The `announcementFinished` payload (iOS). All other events carry a bare boolean.
-export interface AccessibilityAnnouncementFinishedEvent {
+export interface IAccessibilityAnnouncementFinishedEvent {
   announcement: string
   success: boolean
 }
 
 // A change handler receives either a boolean (most events) or the announcement
 // payload (`announcementFinished`). Callers narrow as needed.
-export type AccessibilityChangeEventHandler = (
-  state: boolean | AccessibilityAnnouncementFinishedEvent,
+export type IAccessibilityChangeEventHandler = (
+  state: boolean | IAccessibilityAnnouncementFinishedEvent,
 ) => void
 
 // Options for announceForAccessibilityWithOptions. Both fields are iOS-only; on
 // Android they are ignored and the announcement is posted plainly (mirrors RN).
-export interface AnnounceForAccessibilityOptions {
+export interface IAnnounceForAccessibilityOptions {
   queue?: boolean
   priority?: 'low' | 'default' | 'high'
 }
@@ -60,7 +60,7 @@ export interface AnnounceForAccessibilityOptions {
 // The unified imperative surface both platform impls satisfy. Every getter resolves
 // to a boolean (false on a platform whose native module lacks the query, mirroring
 // RN); getRecommendedTimeoutMillis resolves to a number.
-export interface AccessibilityInfoStatic {
+export interface IAccessibilityInfoStatic {
   isScreenReaderEnabled(): Promise<boolean>
   isReduceMotionEnabled(): Promise<boolean>
   isBoldTextEnabled(): Promise<boolean>
@@ -74,19 +74,19 @@ export interface AccessibilityInfoStatic {
   announceForAccessibility(announcement: string): void
   announceForAccessibilityWithOptions(
     announcement: string,
-    options: AnnounceForAccessibilityOptions,
+    options: IAnnounceForAccessibilityOptions,
   ): void
   setAccessibilityFocus(reactTag: number): void
   getRecommendedTimeoutMillis(originalTimeout: number): Promise<number>
-  sendAccessibilityEvent(handle: AccessibilityHandle, eventType: AccessibilityEventType): void
+  sendAccessibilityEvent(handle: IAccessibilityHandle, eventType: IAccessibilityEventType): void
   addEventListener(
-    eventName: AccessibilityChangeEventName,
-    handler: AccessibilityChangeEventHandler,
-  ): import('@symbiote/engine').EventSubscription
+    eventName: IAccessibilityChangeEventName,
+    handler: IAccessibilityChangeEventHandler,
+  ): import('@symbiote/engine').IEventSubscription
 }
 
 // The named events sendAccessibilityEvent can dispatch (RN's AccessibilityEventTypes).
-export type AccessibilityEventType = 'click' | 'focus' | 'viewHoverEnter' | 'windowStateChange'
+export type IAccessibilityEventType = 'click' | 'focus' | 'viewHoverEnter' | 'windowStateChange'
 
 export function isBoolean(value: unknown): value is boolean {
   return typeof value === 'boolean'

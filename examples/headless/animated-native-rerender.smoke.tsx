@@ -12,7 +12,7 @@ import { type ReactElement } from 'react'
 import {
   createSurface,
   setEventDispatcher,
-  type RootTag,
+  type IRootTag,
 } from '@symbiote/engine'
 import reconciler, { withDiscretePriority } from '../../adapters/react/src/host-config'
 import { LegacyRoot } from '../../adapters/react/src/reconciler-constants'
@@ -20,11 +20,11 @@ import { Animated } from '../../adapters/react/src/animated'
 
 // ---- fake NativeAnimatedTurboModule (records calls) ----------------------
 
-interface NativeCall {
+interface INativeCall {
   method: string
   args: unknown[]
 }
-const nativeCalls: NativeCall[] = []
+const nativeCalls: INativeCall[] = []
 
 function record(method: string): (...args: unknown[]) => void {
   return (...args: unknown[]) => {
@@ -60,15 +60,15 @@ Object.assign(globalThis, {
 
 // ---- fake Fabric slot ----------------------------------------------------
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
-let committed: FakeNode[] = []
+let committed: IFakeNode[] = []
 
 const slot = {
   createNode(
@@ -77,27 +77,27 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
+  ): IFakeNode {
     return { tag, viewName, props, children: [], instanceHandle }
   },
-  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+  cloneNodeWithNewProps: (node: IFakeNode, newProps: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: newProps,
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     newProps: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props: newProps, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild(parent: FakeNode, child: FakeNode): FakeNode {
+  ): IFakeNode => ({ ...node, props: newProps, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild(parent: IFakeNode, child: IFakeNode): IFakeNode {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet(childSet: FakeNode[], child: FakeNode): void {
+  appendChildToSet(childSet: IFakeNode[], child: IFakeNode): void {
     childSet.push(child)
   },
-  completeRoot(_rootTag: number, childSet: FakeNode[]): void {
+  completeRoot(_rootTag: number, childSet: IFakeNode[]): void {
     committed = childSet
   },
   registerEventHandler(): void {},
@@ -112,7 +112,7 @@ setEventDispatcher((run) => {
 
 // ---- mount with a held container so we can force re-renders ---------------
 
-const ROOT_TAG: RootTag = 73
+const ROOT_TAG: IRootTag = 73
 const surface = createSurface(ROOT_TAG)
 const noop = (): void => {}
 const container = reconciler.createContainer(
@@ -136,14 +136,14 @@ function render(element: ReactElement): void {
   reconciler.flushSyncWork()
 }
 
-function appView(): FakeNode {
+function appView(): IFakeNode {
   if (committed.length !== 1) {
     throw new Error(`expected one synthetic root, got ${JSON.stringify(committed)}`)
   }
   return committed[0].children[0]
 }
 
-function callsOf(method: string): NativeCall[] {
+function callsOf(method: string): INativeCall[] {
   return nativeCalls.filter((call) => call.method === method)
 }
 

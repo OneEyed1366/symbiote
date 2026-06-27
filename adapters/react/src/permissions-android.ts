@@ -12,7 +12,7 @@
 // synchronously on a missing module.
 //
 // The native contract is confirmed from RN's TurboModule spec at
-// specs_DEPRECATED/modules/NativePermissionsAndroid.js (`'PermissionsAndroid'`):
+// specs_DEPRECATED/modules/INativePermissionsAndroid.js (`'PermissionsAndroid'`):
 //   checkPermission(permission): Promise<boolean>
 //   requestPermission(permission): Promise<string>
 //   shouldShowRequestPermissionRationale(permission): Promise<boolean>
@@ -36,7 +36,7 @@ export const RESULTS = Object.freeze({
   NEVER_ASK_AGAIN: 'never_ask_again',
 } as const)
 
-export type PermissionStatus = (typeof RESULTS)[keyof typeof RESULTS]
+export type IPermissionStatus = (typeof RESULTS)[keyof typeof RESULTS]
 
 // The full Android permission-string map, copied verbatim from RN's source.
 // Frozen `as const` constant map (the same string-map exception as RESULTS).
@@ -86,12 +86,12 @@ export const PERMISSIONS = Object.freeze({
   NEARBY_WIFI_DEVICES: 'android.permission.NEARBY_WIFI_DEVICES',
 } as const)
 
-export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
+export type IPermission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
 
 // The optional rationale dialog passed to request(). In RN this is shown via a
 // SECOND native module (DialogManagerAndroid); symbiote keeps it simple and
 // proceeds straight to the native request when that module is absent (see below).
-export type Rationale = {
+export type IRationale = {
   title: string
   message: string
   buttonPositive?: string
@@ -101,7 +101,7 @@ export type Rationale = {
 
 // The PermissionsAndroid native module typed as the interface we vouch for — the
 // single point that accepts the native shape (no per-call `as`).
-interface NativePermissionsAndroid {
+interface INativePermissionsAndroid {
   checkPermission(permission: string): Promise<unknown>
   requestPermission(permission: string): Promise<unknown>
   shouldShowRequestPermissionRationale(permission: string): Promise<unknown>
@@ -110,8 +110,8 @@ interface NativePermissionsAndroid {
 
 // The DialogManagerAndroid native module that shows the rationale dialog. Typed
 // minimally — symbiote uses only showAlert, and only opportunistically.
-interface NativeDialogManagerAndroid {
-  showAlert(options: Rationale, onError: () => void, onAction: () => void): void
+interface INativeDialogManagerAndroid {
+  showAlert(options: IRationale, onError: () => void, onAction: () => void): void
 }
 
 function isBoolean(value: unknown): value is boolean {
@@ -119,9 +119,9 @@ function isBoolean(value: unknown): value is boolean {
 }
 
 // Narrow the native string result into a known RESULTS value. Any unrecognized
-// string is passed through as a PermissionStatus only when it matches; otherwise
+// string is passed through as a IPermissionStatus only when it matches; otherwise
 // we fall back to DENIED — a runtime guard at the trust boundary, not an `as`.
-function toPermissionStatus(value: unknown): PermissionStatus {
+function toPermissionStatus(value: unknown): IPermissionStatus {
   if (value === RESULTS.GRANTED || value === RESULTS.DENIED || value === RESULTS.NEVER_ASK_AGAIN) {
     return value
   }
@@ -131,8 +131,8 @@ function toPermissionStatus(value: unknown): PermissionStatus {
 // Narrow the native requestMultiplePermissions() return into a per-permission
 // status map. Each value is run through toPermissionStatus; non-object returns
 // yield an empty map.
-function toStatusMap(value: unknown): Record<string, PermissionStatus> {
-  const result: Record<string, PermissionStatus> = {}
+function toStatusMap(value: unknown): Record<string, IPermissionStatus> {
+  const result: Record<string, IPermissionStatus> = {}
   if (typeof value !== 'object' || value === null) return result
   for (const key of Object.keys(value)) {
     result[key] = toPermissionStatus(Reflect.get(value, key))
@@ -141,7 +141,7 @@ function toStatusMap(value: unknown): Record<string, PermissionStatus> {
 }
 
 // Resolved lazily — null when the module isn't linked (iOS / headless).
-const permissionsModule = getNativeModule<NativePermissionsAndroid>(PERMISSIONS_ANDROID_MODULE)
+const permissionsModule = getNativeModule<INativePermissionsAndroid>(PERMISSIONS_ANDROID_MODULE)
 dlog(`PermissionsAndroid: module ${permissionsModule ? 'resolved' : 'NOT resolved (null)'}`)
 
 export const PermissionsAndroid = {
@@ -150,7 +150,7 @@ export const PermissionsAndroid = {
 
   // Resolve whether a permission has already been granted. Without a native
   // module (iOS / headless) resolve false — never throw.
-  async check(permission: Permission): Promise<boolean> {
+  async check(permission: IPermission): Promise<boolean> {
     if (permissionsModule === null) {
       dlog('PermissionsAndroid.check -> module unavailable, resolving false')
       return false
@@ -164,7 +164,7 @@ export const PermissionsAndroid = {
   // is supplied and DialogManagerAndroid is present, show it first; otherwise
   // proceed straight to the native request (dlog the skip). Without the
   // PermissionsAndroid module resolve RESULTS.DENIED — never throw.
-  async request(permission: Permission, rationale?: Rationale): Promise<PermissionStatus> {
+  async request(permission: IPermission, rationale?: IRationale): Promise<IPermissionStatus> {
     if (permissionsModule === null) {
       dlog('PermissionsAndroid.request -> module unavailable, resolving DENIED')
       return RESULTS.DENIED
@@ -173,7 +173,7 @@ export const PermissionsAndroid = {
 
     if (rationale !== undefined) {
       const shouldShow = await permissionsModule.shouldShowRequestPermissionRationale(permission)
-      const dialogModule = getNativeModule<NativeDialogManagerAndroid>('DialogManagerAndroid')
+      const dialogModule = getNativeModule<INativeDialogManagerAndroid>('DialogManagerAndroid')
       if (isBoolean(shouldShow) && shouldShow && dialogModule !== null) {
         return new Promise((resolve, reject) => {
           dialogModule.showAlert(
@@ -197,7 +197,7 @@ export const PermissionsAndroid = {
 
   // Prompt for several permissions at once, resolving a per-permission status
   // map. Without a native module resolve an empty map — never throw.
-  async requestMultiple(permissions: Permission[]): Promise<Record<string, PermissionStatus>> {
+  async requestMultiple(permissions: IPermission[]): Promise<Record<string, IPermissionStatus>> {
     if (permissionsModule === null) {
       dlog('PermissionsAndroid.requestMultiple -> module unavailable, resolving {}')
       return {}
@@ -209,7 +209,7 @@ export const PermissionsAndroid = {
 
   // Whether the OS recommends showing a rationale before re-requesting. Without
   // a native module resolve false — never throw.
-  async shouldShowRequestPermissionRationale(permission: Permission): Promise<boolean> {
+  async shouldShowRequestPermissionRationale(permission: IPermission): Promise<boolean> {
     if (permissionsModule === null) {
       dlog('PermissionsAndroid.shouldShowRequestPermissionRationale -> module unavailable, resolving false')
       return false

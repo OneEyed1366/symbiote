@@ -6,7 +6,7 @@
 // re-exports it for web/headless.
 //
 // The native contract is confirmed from RN's TurboModule spec:
-//   .vendors/.../specs_DEPRECATED/modules/NativeAlertManager.js
+//   .vendors/.../specs_DEPRECATED/modules/INativeAlertManager.js
 //     alertWithArgs(args: Args, callback: (id: number, value: string) => void)
 //
 // Non-throwing, like StatusBar: a missing native module is a no-op, never a crash (on a
@@ -15,18 +15,18 @@
 import { dlog, getNativeModule } from '@symbiote/engine'
 
 import type {
-  AlertButtons,
-  AlertOptions,
-  AlertStatic,
-  AlertType,
+  IAlertButtons,
+  IAlertOptions,
+  IAlertStatic,
+  IAlertType,
 } from './alert-shared'
 
 export type {
-  AlertButton,
-  AlertButtonStyle,
-  AlertButtons,
-  AlertOptions,
-  AlertType,
+  IAlertButton,
+  IAlertButtonStyle,
+  IAlertButtons,
+  IAlertOptions,
+  IAlertType,
 } from './alert-shared'
 
 const ALERT_MANAGER = 'AlertManager'
@@ -34,11 +34,11 @@ const ALERT_MANAGER = 'AlertManager'
 // The native `Args` the spec accepts. Each entry in `buttons` is a single-key map of
 // `{ [index]: label }` — RN's wire shape (the native side assigns the tapped button's
 // index back as the callback `id`).
-interface AlertArgs {
+interface IAlertArgs {
   title: string
   message?: string
   buttons: Array<Record<number, string>>
-  type?: AlertType
+  type?: IAlertType
   defaultValue?: string
   cancelButtonKey?: string
   destructiveButtonKey?: string
@@ -51,11 +51,11 @@ interface AlertArgs {
 // single point that accepts the native shape (no per-call `as`); the generic on
 // getNativeModule carries it. The callback `id`/`value` arrive typed because we declare
 // them here, so they cross the trust boundary already narrowed.
-interface NativeAlertManager {
-  alertWithArgs(args: AlertArgs, callback: (id: number, value: string) => void): void
+interface INativeAlertManager {
+  alertWithArgs(args: IAlertArgs, callback: (id: number, value: string) => void): void
 }
 
-type PromptCallbackOrButtons = ((text: string) => void) | AlertButtons
+type IPromptCallbackOrButtons = ((text: string) => void) | IAlertButtons
 
 // prompt builds the native args, assigns each button its array index as id, and dispatches
 // the matching button's onPress when the native callback returns that id. Non-throwing: no
@@ -63,11 +63,11 @@ type PromptCallbackOrButtons = ((text: string) => void) | AlertButtons
 function prompt(
   title?: string,
   message?: string,
-  callbackOrButtons?: PromptCallbackOrButtons,
-  type: AlertType = 'plain-text',
+  callbackOrButtons?: IPromptCallbackOrButtons,
+  type: IAlertType = 'plain-text',
   defaultValue?: string,
   keyboardType?: string,
-  options?: AlertOptions,
+  options?: IAlertOptions,
 ): void {
   dlog('Alert.prompt')
 
@@ -100,7 +100,7 @@ function prompt(
     })
   }
 
-  const manager = getNativeModule<NativeAlertManager>(ALERT_MANAGER)
+  const manager = getNativeModule<INativeAlertManager>(ALERT_MANAGER)
   if (manager === null) {
     dlog(`Alert.prompt: "${ALERT_MANAGER}" unresolved — no-op`)
     return
@@ -129,10 +129,10 @@ function prompt(
 }
 
 // The static imperative API RN exposes, mirrored as a static-method object. `prompt` is
-// iOS-only, so it lives beyond AlertStatic on this build.
-export const Alert: AlertStatic & { prompt: typeof prompt } = {
+// iOS-only, so it lives beyond IAlertStatic on this build.
+export const Alert: IAlertStatic & { prompt: typeof prompt } = {
   // alert delegates to prompt (same AlertManager path), exactly as RN does on iOS.
-  alert(title?: string, message?: string, buttons?: AlertButtons, options?: AlertOptions): void {
+  alert(title?: string, message?: string, buttons?: IAlertButtons, options?: IAlertOptions): void {
     prompt(title, message, buttons, 'default', undefined, undefined, options)
   },
 

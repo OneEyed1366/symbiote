@@ -11,56 +11,56 @@
 // stays react-native-free and the app glue wires the host once at startup.
 
 import { createElement, type ComponentType } from 'react'
-import { getNativeModule, dlog, type RootTag } from '@symbiote/engine'
+import { getNativeModule, dlog, type IRootTag } from '@symbiote/engine'
 import { mount } from './render'
 
-// RN's ComponentProvider: a thunk returning the root component (lazy so the module
+// RN's IComponentProvider: a thunk returning the root component (lazy so the module
 // graph stays cheap until the app actually runs).
-export type ComponentProvider = () => ComponentType<object>
+export type IComponentProvider = () => ComponentType<object>
 
 // What the native host hands a runnable when it mounts a surface: the surface's
 // rootTag plus any initial props passed from native.
-export interface AppParameters {
-  rootTag: RootTag
+export interface IAppParameters {
+  rootTag: IRootTag
   initialProps?: object
 }
 
 // What actually mounts an app onto a surface for a given app key.
-export type Runnable = (appParameters: AppParameters) => void
+export type IRunnable = (appParameters: IAppParameters) => void
 
-// RN's WrapperComponentProvider: given the surface's parameters, returns a
+// RN's IWrapperComponentProvider: given the surface's parameters, returns a
 // component to wrap the app root in (e.g. a context provider). Optional.
-export type WrapperComponentProvider = (
-  appParameters: AppParameters,
+export type IWrapperComponentProvider = (
+  appParameters: IAppParameters,
 ) => ComponentType<object>
 
 // A point-in-time view of the registry — section keys plus the runnable map,
 // mirroring RN's `getRegistry` (AppRegistryImpl.js:140).
-export interface Registry {
+export interface IRegistry {
   sections: string[]
-  runnables: Record<string, Runnable>
+  runnables: Record<string, IRunnable>
 }
 
 // A headless task: a bit of code that runs without a UI, resolving when done.
-// Mirrors RN's `HeadlessTask` (AppRegistry.flow.js:16).
-export type HeadlessTask = (taskData: unknown) => Promise<void>
+// Mirrors RN's `IHeadlessTask` (AppRegistry.flow.js:16).
+export type IHeadlessTask = (taskData: unknown) => Promise<void>
 
 // Lazy provider of a headless task (so the task module graph stays cheap until
-// native actually starts it). Mirrors RN's `TaskProvider`.
-export type TaskProvider = () => HeadlessTask
+// native actually starts it). Mirrors RN's `ITaskProvider`.
+export type ITaskProvider = () => IHeadlessTask
 
-// Cancels a running headless task. Mirrors RN's `TaskCanceller`.
-export type TaskCanceller = () => void
+// Cancels a running headless task. Mirrors RN's `ITaskCanceller`.
+export type ITaskCanceller = () => void
 
 // Lazy provider of a task canceller, paired with a registered task.
-export type TaskCancelProvider = () => TaskCanceller
+export type ITaskCancelProvider = () => ITaskCanceller
 
 // The native module backing headless tasks. RN registers it under the name
 // "HeadlessJsTaskSupport" (the spec's TurboModuleRegistry.get<Spec>(...) name in
-// NativeHeadlessJsTaskSupport.js); per .docs/decisions/0012 the module name is
+// INativeHeadlessJsTaskSupport.js); per .docs/decisions/0012 the module name is
 // platform-specific, but this spec uses the same name on both platforms. A
 // headless fake answers to any name, so on-device resolution is the only proof.
-interface NativeHeadlessJsTaskSupport {
+interface INativeHeadlessJsTaskSupport {
   notifyTaskFinished?(taskId: number): void
   notifyTaskRetry?(taskId: number): Promise<boolean>
 }
@@ -70,30 +70,30 @@ const HEADLESS_TASK_MODULE = 'HeadlessJsTaskSupport'
 // The host's runnable registrar — RN's own AppRegistry. Injected by the app glue
 // so the adapter never imports react-native; native drives RN's AppRegistry, which
 // must hold our runnable under the app key for the surface to find it.
-export interface HostRegistrar {
-  registerRunnable(appKey: string, run: Runnable): string
+export interface IHostRegistrar {
+  registerRunnable(appKey: string, run: IRunnable): string
   // Native unmount of a surface by rootTag. RN routes this through RendererProxy's
   // `unmountComponentAtNodeAndRemoveContainer` (AppRegistryImpl.js:212); the host
   // owns the container teardown, so we delegate when wired and no-op headless.
-  unmountAtRootTag?(rootTag: RootTag): void
+  unmountAtRootTag?(rootTag: IRootTag): void
 }
 
-let hostRegistrar: HostRegistrar | undefined
+let hostRegistrar: IHostRegistrar | undefined
 
-export function setHostRegistrar(registrar: HostRegistrar): void {
+export function setHostRegistrar(registrar: IHostRegistrar): void {
   hostRegistrar = registrar
 }
 
-const runnables = new Map<string, Runnable>()
-const sections = new Map<string, Runnable>()
-const taskProviders = new Map<string, TaskProvider>()
-const taskCancelProviders = new Map<string, TaskCancelProvider>()
+const runnables = new Map<string, IRunnable>()
+const sections = new Map<string, IRunnable>()
+const taskProviders = new Map<string, ITaskProvider>()
+const taskCancelProviders = new Map<string, ITaskCancelProvider>()
 
 // RN wraps the app root in this component when set (AppRegistryImpl.js:45), so a
 // host can inject app-wide context. Applied in `runnableFor`.
-let wrapperComponentProvider: WrapperComponentProvider | undefined
+let wrapperComponentProvider: IWrapperComponentProvider | undefined
 
-function runnableFor(componentProvider: ComponentProvider): Runnable {
+function runnableFor(componentProvider: IComponentProvider): IRunnable {
   return (appParameters) => {
     dlog(`AppRegistry: mounting on rootTag ${String(appParameters.rootTag)}`)
     let element = createElement(componentProvider(), appParameters.initialProps)
@@ -107,7 +107,7 @@ function runnableFor(componentProvider: ComponentProvider): Runnable {
   }
 }
 
-function register(appKey: string, run: Runnable, section = false): string {
+function register(appKey: string, run: IRunnable, section = false): string {
   runnables.set(appKey, run)
   if (section) sections.set(appKey, run)
   // Bridge to the native registrar so the Fabric host can mount this app by key.
@@ -122,7 +122,7 @@ function register(appKey: string, run: Runnable, section = false): string {
 // is the only caller; it must be told when the task settles so the OS can release
 // the wakelock. Headless (no native module) → we just run the task.
 function runHeadlessTask(taskId: number, taskKey: string, data: unknown): void {
-  const native = getNativeModule<NativeHeadlessJsTaskSupport>(HEADLESS_TASK_MODULE)
+  const native = getNativeModule<INativeHeadlessJsTaskSupport>(HEADLESS_TASK_MODULE)
   dlog(`AppRegistry.startHeadlessTask: ${taskKey} (taskId=${taskId})`)
 
   const provider = taskProviders.get(taskKey)
@@ -152,22 +152,22 @@ function runHeadlessTask(taskId: number, taskKey: string, data: unknown): void {
 }
 
 export const AppRegistry = {
-  registerComponent(appKey: string, componentProvider: ComponentProvider): string {
+  registerComponent(appKey: string, componentProvider: IComponentProvider): string {
     return register(appKey, runnableFor(componentProvider))
   },
 
-  registerRunnable(appKey: string, run: Runnable): string {
+  registerRunnable(appKey: string, run: IRunnable): string {
     return register(appKey, run)
   },
 
   // Registers an app as a section, mirroring RN's `registerSection`
   // (AppRegistryImpl.js:115). Same path as a component, additionally tracked under
   // the section keys.
-  registerSection(appKey: string, componentProvider: ComponentProvider): string {
+  registerSection(appKey: string, componentProvider: IComponentProvider): string {
     return register(appKey, runnableFor(componentProvider), true)
   },
 
-  runApplication(appKey: string, appParameters: AppParameters): void {
+  runApplication(appKey: string, appParameters: IAppParameters): void {
     const run = runnables.get(appKey)
     if (run === undefined) {
       dlog(`AppRegistry.runApplication: no app registered for "${appKey}"`)
@@ -178,14 +178,14 @@ export const AppRegistry = {
 
   // Tears down a mounted surface by rootTag, delegating to the host registrar
   // (RN routes through RendererProxy — AppRegistryImpl.js:212). No-op headless.
-  unmountApplicationComponentAtRootTag(rootTag: RootTag): void {
+  unmountApplicationComponentAtRootTag(rootTag: IRootTag): void {
     dlog(`AppRegistry.unmountApplicationComponentAtRootTag: rootTag ${String(rootTag)}`)
     hostRegistrar?.unmountAtRootTag?.(rootTag)
   },
 
   // Installs the wrapper-component provider used by every subsequent mount
   // (AppRegistryImpl.js:45).
-  setWrapperComponentProvider(provider: WrapperComponentProvider): void {
+  setWrapperComponentProvider(provider: IWrapperComponentProvider): void {
     wrapperComponentProvider = provider
   },
 
@@ -194,7 +194,7 @@ export const AppRegistry = {
   },
 
   // The runnable registered under an app key, or undefined (AppRegistryImpl.js:136).
-  getRunnable(appKey: string): Runnable | undefined {
+  getRunnable(appKey: string): IRunnable | undefined {
     return runnables.get(appKey)
   },
 
@@ -204,12 +204,12 @@ export const AppRegistry = {
   },
 
   // The section runnables as a plain map (AppRegistryImpl.js:130).
-  getSections(): Record<string, Runnable> {
+  getSections(): Record<string, IRunnable> {
     return Object.fromEntries(sections)
   },
 
   // A point-in-time registry snapshot (AppRegistryImpl.js:140).
-  getRegistry(): Registry {
+  getRegistry(): IRegistry {
     return {
       sections: [...sections.keys()],
       runnables: Object.fromEntries(runnables),
@@ -221,15 +221,15 @@ export const AppRegistry = {
   // Registers a headless task — code that runs without a UI. Mirrors RN's
   // `registerHeadlessTask` (AppRegistryImpl.js:221): a thin wrapper over
   // `registerCancellableHeadlessTask` with a no-op canceller.
-  registerHeadlessTask(taskKey: string, taskProvider: TaskProvider): void {
+  registerHeadlessTask(taskKey: string, taskProvider: ITaskProvider): void {
     AppRegistry.registerCancellableHeadlessTask(taskKey, taskProvider, () => () => {})
   },
 
   // Registers a cancellable headless task (AppRegistryImpl.js:236).
   registerCancellableHeadlessTask(
     taskKey: string,
-    taskProvider: TaskProvider,
-    taskCancelProvider: TaskCancelProvider,
+    taskProvider: ITaskProvider,
+    taskCancelProvider: ITaskCancelProvider,
   ): void {
     if (taskProviders.has(taskKey)) {
       dlog(`AppRegistry: headless task registered multiple times for key "${taskKey}"`)

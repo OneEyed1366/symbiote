@@ -7,34 +7,34 @@
 // the data shape and grouping, and threads the imperative ref straight through.
 
 import { createElement, type ComponentType, type ReactElement, type ReactNode, type Ref } from 'react'
-import { dlog, type SymbioteEvent } from '@symbiote/engine'
+import { dlog, type ISymbioteEvent } from '@symbiote/engine'
 import {
   VirtualizedList,
-  type Separators,
-  type SeparatorProps,
-  type ViewabilityConfig,
-  type ViewabilityConfigCallbackPair,
-  type ViewableItemsChangedInfo,
-  type VirtualizedListHandle,
+  type ISeparators,
+  type ISeparatorProps,
+  type IViewabilityConfig,
+  type IViewabilityConfigCallbackPair,
+  type IViewableItemsChangedInfo,
+  type IVirtualizedListHandle,
 } from './virtualized-list'
-import type { AccessibilityProps, AriaProps } from './accessibility-props'
-import type { ViewStyle } from './styles'
+import type { IAccessibilityProps, IAriaProps } from '@symbiote/components'
+import type { IStyleProp, IViewStyle } from './styles'
 
 const SINGLE_COLUMN = 1
 
-type RenderItem<ItemT> = (info: {
+type IRenderItem<ItemT> = (info: {
   item: ItemT
   index: number
-  separators: Separators
+  separators: ISeparators
 }) => ReactNode
 
 // FlatList's imperative handle is exactly VirtualizedList's — scrollTo* forwarded
 // down to the underlying list.
-export type FlatListHandle = VirtualizedListHandle
+export type IFlatListHandle = IVirtualizedListHandle
 
-export interface FlatListProps<ItemT> extends AccessibilityProps, AriaProps {
+export interface IFlatListProps<ItemT> extends IAccessibilityProps, IAriaProps {
   data: readonly ItemT[]
-  renderItem: RenderItem<ItemT>
+  renderItem: IRenderItem<ItemT>
   keyExtractor?: (item: ItemT, index: number) => string
   getItemLayout?: (
     data: unknown,
@@ -43,8 +43,8 @@ export interface FlatListProps<ItemT> extends AccessibilityProps, AriaProps {
   numColumns?: number
   // Style for the auto-generated row View when numColumns > 1 (RN's
   // columnWrapperStyle). Ignored for a single column — there is no wrapping row.
-  columnWrapperStyle?: ViewStyle
-  ItemSeparatorComponent?: ComponentType<SeparatorProps<ItemT>>
+  columnWrapperStyle?: IStyleProp<IViewStyle>
+  ItemSeparatorComponent?: ComponentType<ISeparatorProps<ItemT>>
   ListHeaderComponent?: ComponentType<Record<string, never>> | ReactElement
   ListFooterComponent?: ComponentType<Record<string, never>> | ReactElement
   ListEmptyComponent?: ComponentType<Record<string, never>> | ReactElement
@@ -60,9 +60,9 @@ export interface FlatListProps<ItemT> extends AccessibilityProps, AriaProps {
   onRefresh?: () => void
   refreshing?: boolean | null
   progressViewOffset?: number
-  onViewableItemsChanged?: (info: ViewableItemsChangedInfo<ItemT>) => void
-  viewabilityConfig?: ViewabilityConfig
-  viewabilityConfigCallbackPairs?: ViewabilityConfigCallbackPair<ItemT>[]
+  onViewableItemsChanged?: (info: IViewableItemsChangedInfo<ItemT>) => void
+  viewabilityConfig?: IViewabilityConfig
+  viewabilityConfigCallbackPairs?: IViewabilityConfigCallbackPair<ItemT>[]
   // Forwarded to VirtualizedList: fires when scrollToIndex targets an unmeasured cell
   // with no getItemLayout (RN VirtualizedList.js:184-193).
   onScrollToIndexFailed?: (info: {
@@ -84,26 +84,26 @@ export interface FlatListProps<ItemT> extends AccessibilityProps, AriaProps {
   // Scroll callbacks forwarded through to VirtualizedList (via the rest spread),
   // which composes onScroll with its internal windowing handler and forwards the
   // lifecycle callbacks to the inner ScrollView (RN VirtualizedList.js:1096-1099,1695-1697).
-  onScroll?: (event: SymbioteEvent) => void
-  onScrollBeginDrag?: (event: SymbioteEvent) => void
-  onScrollEndDrag?: (event: SymbioteEvent) => void
-  onMomentumScrollBegin?: (event: SymbioteEvent) => void
-  onMomentumScrollEnd?: (event: SymbioteEvent) => void
+  onScroll?: (event: ISymbioteEvent) => void
+  onScrollBeginDrag?: (event: ISymbioteEvent) => void
+  onScrollEndDrag?: (event: ISymbioteEvent) => void
+  onMomentumScrollBegin?: (event: ISymbioteEvent) => void
+  onMomentumScrollEnd?: (event: ISymbioteEvent) => void
   scrollEventThrottle?: number
   keyboardShouldPersistTaps?: boolean | 'always' | 'never' | 'handled'
   keyboardDismissMode?: 'none' | 'on-drag' | 'interactive'
-  style?: ViewStyle
-  contentContainerStyle?: ViewStyle
+  style?: IStyleProp<IViewStyle>
+  contentContainerStyle?: IStyleProp<IViewStyle>
 }
 
 // A row is the slice of items packed into one virtualized cell when numColumns>1.
-interface Row<ItemT> {
+interface IRow<ItemT> {
   items: ItemT[]
   startIndex: number
 }
 
-function chunkIntoRows<ItemT>(data: readonly ItemT[], columns: number): Row<ItemT>[] {
-  const rows: Row<ItemT>[] = []
+function chunkIntoRows<ItemT>(data: readonly ItemT[], columns: number): IRow<ItemT>[] {
+  const rows: IRow<ItemT>[] = []
   for (let start = 0; start < data.length; start += columns) {
     rows.push({ items: data.slice(start, start + columns), startIndex: start })
   }
@@ -111,7 +111,7 @@ function chunkIntoRows<ItemT>(data: readonly ItemT[], columns: number): Row<Item
 }
 
 export function FlatList<ItemT>(
-  props: FlatListProps<ItemT> & { ref?: Ref<FlatListHandle> },
+  props: IFlatListProps<ItemT> & { ref?: Ref<IFlatListHandle> },
 ): ReactElement {
   const {
     ref,
@@ -121,11 +121,11 @@ export function FlatList<ItemT>(
     numColumns = SINGLE_COLUMN,
     columnWrapperStyle,
     // onViewableItemsChanged/viewability are typed against ItemT here; in the
-    // multi-column path the underlying stream is Row<ItemT>, so they are dropped
+    // multi-column path the underlying stream is IRow<ItemT>, so they are dropped
     // from `rest` (they cannot be forwarded as-is) and pulled out explicitly.
     onViewableItemsChanged,
     viewabilityConfigCallbackPairs,
-    // ItemSeparatorComponent is typed on ItemT; the multi-column stream is Row<ItemT>, so it
+    // ItemSeparatorComponent is typed on ItemT; the multi-column stream is IRow<ItemT>, so it
     // is wrapped there to unwrap rows back to items, exactly like viewability above.
     ItemSeparatorComponent,
     ...rest
@@ -151,9 +151,9 @@ export function FlatList<ItemT>(
   // Multi-column: the virtualized stream is rows. Each cell renders its items
   // side by side in a flex-row View so windowing accounts for whole rows.
   const rows = chunkIntoRows(data, numColumns)
-  const rowStyle: ViewStyle = { flexDirection: 'row', ...columnWrapperStyle }
+  const rowStyle: IStyleProp<IViewStyle> = [{ flexDirection: 'row' }, columnWrapperStyle]
 
-  const renderRow = (info: { item: Row<ItemT>; index: number; separators: Separators }): ReactNode => {
+  const renderRow = (info: { item: IRow<ItemT>; index: number; separators: ISeparators }): ReactNode => {
     const cells = info.item.items.map((item, column) => {
       const index = info.item.startIndex + column
       const key = keyExtractor ? keyExtractor(item, index) : String(index)
@@ -169,18 +169,18 @@ export function FlatList<ItemT>(
     return createElement('symbiote-view', { style: rowStyle }, ...cells)
   }
 
-  const rowKeyExtractor = (row: Row<ItemT>): string => `row-${row.startIndex}`
+  const rowKeyExtractor = (row: IRow<ItemT>): string => `row-${row.startIndex}`
 
   // Viewability over rows: map a row's viewable tokens back to per-item tokens so
   // the caller sees item-level visibility, not row-level. Each row token expands
   // to one token per item in that row, all sharing the row's isViewable flag.
   const wrapRowViewability = (
-    callback: (info: ViewableItemsChangedInfo<ItemT>) => void,
-  ): ((info: ViewableItemsChangedInfo<Row<ItemT>>) => void) => {
+    callback: (info: IViewableItemsChangedInfo<ItemT>) => void,
+  ): ((info: IViewableItemsChangedInfo<IRow<ItemT>>) => void) => {
     return (rowInfo): void => {
       const expand = (
-        tokens: ViewableItemsChangedInfo<Row<ItemT>>['viewableItems'],
-      ): ViewableItemsChangedInfo<ItemT>['viewableItems'] =>
+        tokens: IViewableItemsChangedInfo<IRow<ItemT>>['viewableItems'],
+      ): IViewableItemsChangedInfo<ItemT>['viewableItems'] =>
         tokens.flatMap((token) =>
           token.item.items.map((item, column) => {
             const index = token.item.startIndex + column
@@ -201,12 +201,12 @@ export function FlatList<ItemT>(
 
   // The divider between rows: its leading item is the LAST item of the row above, its
   // trailing item the FIRST item of the row below — so the user's separator, typed on ItemT,
-  // sees real items rather than the Row wrapper the multi-column stream uses internally.
-  const lastItemOf = (row: Row<ItemT> | undefined): ItemT | undefined =>
+  // sees real items rather than the IRow wrapper the multi-column stream uses internally.
+  const lastItemOf = (row: IRow<ItemT> | undefined): ItemT | undefined =>
     row !== undefined ? row.items[row.items.length - 1] : undefined
-  const firstItemOf = (row: Row<ItemT> | undefined): ItemT | undefined =>
+  const firstItemOf = (row: IRow<ItemT> | undefined): ItemT | undefined =>
     row !== undefined ? row.items[0] : undefined
-  const rowSeparatorComponent: ComponentType<SeparatorProps<Row<ItemT>>> | undefined =
+  const rowSeparatorComponent: ComponentType<ISeparatorProps<IRow<ItemT>>> | undefined =
     ItemSeparatorComponent === undefined
       ? undefined
       : (rowProps): ReactNode =>
@@ -216,10 +216,10 @@ export function FlatList<ItemT>(
             trailingItem: firstItemOf(rowProps.trailingItem),
           })
 
-  return createElement(VirtualizedList<Row<ItemT>>, {
+  return createElement(VirtualizedList<IRow<ItemT>>, {
     ref,
     data: rows,
-    getItem: (_source: unknown, index: number): Row<ItemT> => rows[index],
+    getItem: (_source: unknown, index: number): IRow<ItemT> => rows[index],
     getItemCount: (): number => rows.length,
     renderItem: renderRow,
     keyExtractor: rowKeyExtractor,

@@ -7,7 +7,7 @@
 //      follower stops chasing. The fake driver keeps the test off the real timeline.
 
 import { AnimatedValue, AnimatedTracking, timing } from '@symbiote/engine'
-import type { Animation, EndCallback } from '../../core/engine/src/animated/animation'
+import type { IAnimation, IEndCallback } from '../../core/engine/src/animated/animation'
 
 // Part A starts a real TimingAnimation (to prove the public wiring), which needs a
 // host rAF. We never advance a frame — we only assert the tracking attaches and that
@@ -40,9 +40,9 @@ Object.assign(globalThis, {
 
 // An instant driver: jump straight to the target and finish. Lets us assert the
 // tracking wiring without advancing real frames.
-function instantTo(target: number): Animation {
+function instantTo(target: number): IAnimation {
   return {
-    start(_fromValue: number, onUpdate: (value: number) => void, onEnd: EndCallback): void {
+    start(_fromValue: number, onUpdate: (value: number) => void, onEnd: IEndCallback): void {
       onUpdate(target)
       onEnd({ finished: true })
     },

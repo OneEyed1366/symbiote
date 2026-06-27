@@ -8,7 +8,7 @@ import {
   disposeRoot,
   setEventDispatcher,
   dlog,
-  type RootTag,
+  type IRootTag,
   type SymbioteSurface,
 } from '@symbiote/engine'
 import reconciler, { withDiscretePriority } from './host-config'
@@ -28,13 +28,13 @@ setEventDispatcher((run) => {
 // The reconciler container per surface, so a surface can be torn down (stopSurface)
 // or cleanly re-mounted on the same rootTag. The bridgeless host stops and restarts a
 // surface on Fast Refresh and on lifecycle/focus changes, reusing the rootTag.
-type OpaqueRoot = ReturnType<typeof reconciler.createContainer>
-const containers = new Map<RootTag, OpaqueRoot>()
+type IOpaqueRoot = ReturnType<typeof reconciler.createContainer>
+const containers = new Map<IRootTag, IOpaqueRoot>()
 
 // Unmount a surface's React tree (render null → empty completeRoot, clearing the
 // native views) and drop its shared root container so a later mount on the same
 // rootTag rebuilds from scratch instead of cloning the stopped surface's dead handles.
-function teardown(rootTag: RootTag): void {
+function teardown(rootTag: IRootTag): void {
   const container = containers.get(rootTag)
   if (container === undefined) return
   // @ts-expect-error updateContainerSync exists at runtime in react-reconciler 0.33
@@ -45,7 +45,7 @@ function teardown(rootTag: RootTag): void {
   disposeRoot(rootTag)
 }
 
-export function mount(rootTag: RootTag, element: ReactNode): SymbioteSurface {
+export function mount(rootTag: IRootTag, element: ReactNode): SymbioteSurface {
   // A re-mount on a live rootTag (host restarted the surface without stopping it
   // first) starts clean — otherwise the stale container double-drives the surface.
   teardown(rootTag)
@@ -81,7 +81,7 @@ export function mount(rootTag: RootTag, element: ReactNode): SymbioteSurface {
 // Tear down a surface by rootTag. This is the JS half of the bridgeless stopSurface
 // contract (see installStopSurfaceGlobal): the native AppRegistryBinding calls our
 // global to stop a surface; we unmount its tree and dispose its root.
-export function stopSurface(rootTag: RootTag): void {
+export function stopSurface(rootTag: IRootTag): void {
   dlog(`stopSurface root=${rootTag}`)
   teardown(rootTag)
 }

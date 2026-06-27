@@ -2,9 +2,9 @@
 // (ADR 0016). The value graph, easing, interpolation and (Phase 2) drivers are
 // pure JS with no React and no native dependency; every adapter re-exports them.
 
-export { AnimatedNode, AnimatedWithChildren, flushValue, type ValueListener } from './graph'
+export { AnimatedNode, AnimatedWithChildren, flushValue, type IValueListener } from './graph'
 export { AnimatedValue } from './value'
-export { AnimatedValueXY, type ValueXY } from './value-xy'
+export { AnimatedValueXY, type IValueXY } from './value-xy'
 export { AnimatedInterpolation } from './interpolation-node'
 export {
   AnimatedAddition,
@@ -26,21 +26,22 @@ export {
   forkEvent,
   unforkEvent,
   attachNativeEvent,
-  type EventConfig,
-  type EventListener,
-  type AnimatedEventHandler,
-  type NativeEventAttachment,
+  attachNativeEventHandler,
+  type IEventConfig,
+  type IEventListener,
+  type IAnimatedEventHandler,
+  type INativeEventAttachment,
 } from './event'
-export { AnimatedColor, type RgbaValue, type ColorInput } from './color'
-export { Easing, type EasingFunction } from './easing'
+export { AnimatedColor, type IRgbaValue, type IColorInput } from './color'
+export { Easing, type IEasingFunction } from './easing'
 export {
   createNumericInterpolation,
   createInterpolation,
   checkValidRanges,
-  type InterpolationConfig,
-  type ExtrapolateType,
+  type IInterpolationConfig,
+  type IExtrapolateType,
 } from './interpolation'
-export type { Animation, EndCallback, EndResult } from './animation'
+export type { IAnimation, IEndCallback, IEndResult } from './animation'
 export { TimingAnimation } from './animations/timing'
 export { SpringAnimation } from './animations/spring'
 export { DecayAnimation } from './animations/decay'
@@ -54,20 +55,33 @@ export {
   stagger,
   loop,
   delay,
-  type CompositeAnimation,
-  type TimingConfig,
-  type SpringConfig,
-  type DecayConfig,
-  type ParallelConfig,
-  type LoopAnimationConfig,
+  type ICompositeAnimation,
+  type ITimingConfig,
+  type ISpringConfig,
+  type IDecayConfig,
+  type IParallelConfig,
+  type ILoopAnimationConfig,
 } from './animations/composition'
 // The native-driver bridge (ADR 0017). Adapters need it to connect a props leaf to
 // a host view tag and to restore default values on disconnect.
 export {
   nativeAnimated,
   isNativeAnimatedAvailable,
-  type NativeNodeConfig,
-  type NativeAnimationConfig,
-  type NativeEventMapping,
-  type PlatformConfig,
+  type INativeNodeConfig,
+  type INativeAnimationConfig,
+  type INativeEventMapping,
+  type IPlatformConfig,
 } from './native/native-animated'
+// The pure graph leaves and the mock — framework-agnostic (extend AnimatedWithChildren,
+// no React/Vue). They live here with the rest of the graph; every adapter's
+// createAnimatedComponent + Animated namespace re-exports them (ADR 0016/0017).
+export { AnimatedProps } from './props'
+export { AnimatedStyle, AnimatedTransform } from './style'
+export { AnimatedMock } from './mock'
+// Framework-agnostic createAnimatedComponent helpers — both adapters import them.
+export {
+  reduceProps,
+  isAnimatedNode,
+  readPassthroughStyle,
+  resolveHostNode,
+} from './animated-component-shared'

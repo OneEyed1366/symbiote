@@ -4,15 +4,15 @@
 
 import { useSyncExternalStore } from 'react'
 
-import { Appearance, type ColorSchemeName } from './appearance'
+import { Appearance, type IColorSchemeName } from './appearance'
 
 const subscribe = (onStoreChange: () => void): (() => void) => {
   const subscription = Appearance.addChangeListener(onStoreChange)
   return () => subscription.remove()
 }
 
-const getSnapshot = (): ColorSchemeName | null => Appearance.getColorScheme()
+const getSnapshot = (): IColorSchemeName | null => Appearance.getColorScheme()
 
-export function useColorScheme(): ColorSchemeName | null {
+export function useColorScheme(): IColorSchemeName | null {
   return useSyncExternalStore(subscribe, getSnapshot)
 }

@@ -5,7 +5,7 @@
 
 import { createLinking } from './linking-shared'
 
-export type { UrlEvent, IntentExtra } from './linking-shared'
+export type { IUrlEvent, IIntentExtra } from './linking-shared'
 
 export const Linking = createLinking({
   moduleName: 'LinkingManager',

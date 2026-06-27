@@ -24,21 +24,21 @@ export { registerComponent, setNativeViewConfigSource } from './registry'
 // here; every adapter re-exports it.
 export { InteractionManager, Events as InteractionManagerEvents } from './interaction-manager'
 export type {
-  InteractionEvent,
-  SimpleTask,
-  PromiseTask,
-  Task,
-  Handle,
-  Cancellable,
+  IInteractionEvent,
+  ISimpleTask,
+  IPromiseTask,
+  ITask,
+  IHandle,
+  ICancellable,
 } from './interaction-manager'
 export type {
-  ComponentRegistration,
-  NativeEventBinding,
-  NativeViewConfig,
-  NativeViewConfigSource,
-  PropProcessor,
+  IComponentRegistration,
+  INativeEventBinding,
+  INativeViewConfig,
+  INativeViewConfigSource,
+  IPropProcessor,
 } from './registry'
-export type { SymbioteNode, SymbioteEvent, Listener } from './node'
+export type { ISymbioteNode, ISymbioteEvent, IListener } from './node'
 
 export { SymbioteSurface, createSurface } from './surface'
 export { setEventDispatcher } from './dispatch'
@@ -56,36 +56,51 @@ export {
   disposeRoot,
 } from './commit'
 export { PlatformColor, DynamicColorIOS, isOpaqueColorValue } from './platform-color'
-export type { ColorValue, OpaqueColorValue, DynamicColorIOSTuple } from './platform-color'
+export type { IColorValue, IOpaqueColorValue, IDynamicColorIOSTuple } from './platform-color'
 // CSS-style processors (boxShadow/filter): RN parses these in JS before native because
 // enableNativeCSSParsing() defaults to false. Exported so an adapter / test can reuse them.
 export { processBoxShadow } from './process-box-shadow'
-export type { ParsedBoxShadow } from './process-box-shadow'
+export type { IParsedBoxShadow } from './process-box-shadow'
 export { processFilter } from './process-filter'
-export type { ParsedFilter, ParsedDropShadow } from './process-filter'
+export type { IParsedFilter, IParsedDropShadow } from './process-filter'
 export { processTransformOrigin } from './process-transform-origin'
 export { processTransform } from './process-transform'
 export { processAspectRatio } from './process-aspect-ratio'
 export { processFontVariant } from './process-font-variant'
 export { flattenStyle } from './style'
+// The typed style surface — agnostic types, re-exported by every adapter (it used to
+// live in @symbiote/react; moved here so @symbiote/components can type render fns).
+export type {
+  IViewStyle,
+  ITextStyle,
+  IStyleProp,
+  IDimensionValue,
+  IFlexAlign,
+  IFlexJustify,
+  ITransformProp,
+  IBoxShadowValue,
+  IDropShadowValue,
+  IFilterFunction,
+  IBlendMode,
+} from './styles'
 export { StyleSheet, computeHairlineWidth } from './style-sheet'
 export { Platform } from './platform'
-export type { PlatformStatic, PlatformOSType, PlatformSelectSpec } from './platform'
+export type { IPlatformStatic, IPlatformOSType, IPlatformSelectSpec } from './platform'
 // The per-platform constants types come from their own files, not the host-selected
 // `./platform` — on an Android Metro build `./platform` IS platform.android.ts, which
 // has no PlatformConstantsIOS. These are type-only (erased at runtime), so naming the
 // explicit file pulls no cross-platform runtime code.
-export type { PlatformConstantsIOS } from './platform.ios'
-export type { PlatformConstantsAndroid } from './platform.android'
+export type { IPlatformConstantsIOS } from './platform.ios'
+export type { IPlatformConstantsAndroid } from './platform.android'
 export { dlog, isDebug } from './debug'
 
 export { getNativeModule, getEnforcingNativeModule } from './native-modules'
 export { installDeviceEventHub, NativeEventEmitter, setDeviceEventSource } from './native-events'
 export type {
-  EventSubscription,
-  EventEmitterModule,
-  NativeEventListener,
-  DeviceEventSource,
+  IEventSubscription,
+  IEventEmitterModule,
+  INativeEventListener,
+  IDeviceEventSource,
 } from './native-events'
 
 export {
@@ -112,6 +127,7 @@ export {
   forkEvent,
   unforkEvent,
   attachNativeEvent,
+  attachNativeEventHandler,
   flushValue,
   Easing,
   createNumericInterpolation,
@@ -130,43 +146,51 @@ export {
   delay,
   nativeAnimated,
   isNativeAnimatedAvailable,
+  AnimatedProps,
+  AnimatedStyle,
+  AnimatedTransform,
+  AnimatedMock,
+  reduceProps,
+  isAnimatedNode,
+  readPassthroughStyle,
+  resolveHostNode,
 } from './animated'
 export type {
-  ValueXY,
-  RgbaValue,
-  ColorInput,
-  EventConfig,
-  EventListener,
-  AnimatedEventHandler,
-  NativeEventAttachment,
-  ValueListener,
-  EasingFunction,
-  InterpolationConfig,
-  ExtrapolateType,
-  Animation,
-  EndCallback,
-  EndResult,
-  CompositeAnimation,
-  TimingConfig,
-  SpringConfig,
-  DecayConfig,
-  ParallelConfig,
-  LoopAnimationConfig,
-  NativeNodeConfig,
-  NativeAnimationConfig,
-  NativeEventMapping,
-  PlatformConfig,
+  IValueXY,
+  IRgbaValue,
+  IColorInput,
+  IEventConfig,
+  IEventListener,
+  IAnimatedEventHandler,
+  INativeEventAttachment,
+  IValueListener,
+  IEasingFunction,
+  IInterpolationConfig,
+  IExtrapolateType,
+  IAnimation,
+  IEndCallback,
+  IEndResult,
+  ICompositeAnimation,
+  ITimingConfig,
+  ISpringConfig,
+  IDecayConfig,
+  IParallelConfig,
+  ILoopAnimationConfig,
+  INativeNodeConfig,
+  INativeAnimationConfig,
+  INativeEventMapping,
+  IPlatformConfig,
 } from './animated'
 
 export { getSlot } from './fabric'
 export type {
-  FabricSlot,
-  FabricNode,
-  FabricChildSet,
-  FabricProps,
-  FabricEventHandler,
-  RootTag,
-  MeasureOnSuccess,
-  MeasureInWindowOnSuccess,
-  MeasureLayoutOnSuccess,
+  IFabricSlot,
+  IFabricNode,
+  IFabricChildSet,
+  IFabricProps,
+  IFabricEventHandler,
+  IRootTag,
+  IMeasureOnSuccess,
+  IMeasureInWindowOnSuccess,
+  IMeasureLayoutOnSuccess,
 } from './fabric'

@@ -40,11 +40,11 @@ import {
   type ReactNode,
   type Ref,
 } from 'react'
-import { dlog, type SymbioteEvent } from '@symbiote/engine'
-import { ScrollView, type ScrollViewHandle, type ScrollViewProps } from './scroll-view'
+import { dlog, type ISymbioteEvent, type ISymbioteNode } from '@symbiote/engine'
+import { ScrollView, type IScrollViewHandle, type IScrollViewProps } from './scroll-view'
 import { RefreshControl } from './refresh-control'
-import type { AccessibilityProps, AriaProps } from './accessibility-props'
-import type { ViewStyle } from './styles'
+import type { IAccessibilityProps, IAriaProps } from '@symbiote/components'
+import type { IStyleProp, IViewStyle } from './styles'
 
 // Defaults match RN. windowSize is measured in viewport-lengths (21 => ten
 // screens of buffer on each side of the visible region). onEndReachedThreshold
@@ -74,10 +74,10 @@ const NO_CONTENT_LENGTH_SENT = -1
 const DEFAULT_START_REACHED_THRESHOLD = 2
 // Inversion flips the content container along the scroll axis; each cell re-flips
 // so its own content stays upright (RN does the same with a scale(-1) transform).
-const INVERTED_Y_STYLE: ViewStyle = { transform: [{ scaleY: -1 }] }
-const INVERTED_X_STYLE: ViewStyle = { transform: [{ scaleX: -1 }] }
+const INVERTED_Y_STYLE: IViewStyle = { transform: [{ scaleY: -1 }] }
+const INVERTED_X_STYLE: IViewStyle = { transform: [{ scaleX: -1 }] }
 
-export interface CellLayout {
+export interface ICellLayout {
   length: number
   offset: number
 }
@@ -86,7 +86,7 @@ export interface CellLayout {
 // the section fields VirtualizedSectionList layers on): the highlight flag the cell can
 // toggle, the items on either side of the gap, and — for section lists — the section the
 // separator sits in. `section` stays optional because a flat VirtualizedList has none.
-export interface SeparatorProps<ItemT> {
+export interface ISeparatorProps<ItemT> {
   highlighted: boolean
   leadingItem?: ItemT
   trailingItem?: ItemT
@@ -98,22 +98,22 @@ export interface SeparatorProps<ItemT> {
 // VirtualizedListCellRenderer.js:92-115). highlight/unhighlight flip the highlighted flag
 // on the separators flanking this cell; updateProps merges arbitrary props onto the leading
 // (previous gap) or trailing (this gap) separator so a row can drive its own dividers.
-export interface Separators {
+export interface ISeparators {
   highlight(): void
   unhighlight(): void
   updateProps(select: 'leading' | 'trailing', newProps: Record<string, unknown>): void
 }
 
-type RenderItem<ItemT> = (info: {
+type IRenderItem<ItemT> = (info: {
   item: ItemT
   index: number
-  separators: Separators
+  separators: ISeparators
 }) => ReactNode
 
 // A viewable item, as reported to onViewableItemsChanged. Mirrors RN's
-// ViewToken shape (item + key + index + isViewable), minus the section field
+// IViewToken shape (item + key + index + isViewable), minus the section field
 // which only VirtualizedSectionList populates.
-export interface ViewToken<ItemT> {
+export interface IViewToken<ItemT> {
   item: ItemT
   key: string
   index: number
@@ -121,18 +121,18 @@ export interface ViewToken<ItemT> {
 }
 
 // onViewableItemsChanged callback info, mirroring RN's signature.
-export interface ViewableItemsChangedInfo<ItemT> {
-  viewableItems: ViewToken<ItemT>[]
-  changed: ViewToken<ItemT>[]
+export interface IViewableItemsChangedInfo<ItemT> {
+  viewableItems: IViewToken<ItemT>[]
+  changed: IViewToken<ItemT>[]
 }
 
-// Viewability tuning, mirroring RN's ViewabilityConfig. Either a coverage
+// Viewability tuning, mirroring RN's IViewabilityConfig. Either a coverage
 // percentage OR a minimum visible pixel height qualifies a cell as viewable;
 // itemVisiblePercentThreshold is the common one. waitForInteraction gates a
 // config so nothing is reported viewable until the first scroll interaction has
 // happened (RN's ViewabilityHelper: `waitForInteraction && !_hasInteracted`
 // returns no viewable items until recordInteraction, which RN calls on scroll).
-export interface ViewabilityConfig {
+export interface IViewabilityConfig {
   minimumViewTime?: number
   viewAreaCoveragePercentThreshold?: number
   itemVisiblePercentThreshold?: number
@@ -141,9 +141,9 @@ export interface ViewabilityConfig {
 
 // A config paired with its callback, so a list can track several viewability
 // definitions at once (RN's viewabilityConfigCallbackPairs).
-export interface ViewabilityConfigCallbackPair<ItemT> {
-  viewabilityConfig: ViewabilityConfig
-  onViewableItemsChanged: (info: ViewableItemsChangedInfo<ItemT>) => void
+export interface IViewabilityConfigCallbackPair<ItemT> {
+  viewabilityConfig: IViewabilityConfig
+  onViewableItemsChanged: (info: IViewableItemsChangedInfo<ItemT>) => void
 }
 
 // The imperative API RN exposes on a VirtualizedList/FlatList ref. Every scroll
@@ -151,7 +151,7 @@ export interface ViewabilityConfigCallbackPair<ItemT> {
 // flash/get*/record methods mirror RN's VirtualizedList: flashScrollIndicators
 // and the scroll-ref getters route to the inner ScrollView handle;
 // recordInteraction flips the interaction flag that ungates waitForInteraction.
-export interface VirtualizedListHandle {
+export interface IVirtualizedListHandle {
   scrollToOffset(params: { offset: number; animated?: boolean }): void
   scrollToIndex(params: {
     index: number
@@ -164,23 +164,26 @@ export interface VirtualizedListHandle {
   flashScrollIndicators(): void
   // RN returns the native scroll ref / responder / node. We hand back the inner
   // ScrollView handle (or null before it attaches) — no fabricated native tag.
-  getNativeScrollRef(): ScrollViewHandle | null
-  getScrollableNode(): ScrollViewHandle | null
-  getScrollResponder(): ScrollViewHandle | null
+  getNativeScrollRef(): IScrollViewHandle | null
+  getScrollableNode(): IScrollViewHandle | null
+  getScrollResponder(): IScrollViewHandle | null
+  // The raw scroll SymbioteNode (delegated to the inner ScrollView) — the seam Animated
+  // uses to native-attach an onScroll event to the list's UI-thread scroll node.
+  getScrollNode(): ISymbioteNode | null
   recordInteraction(): void
 }
 
-export interface VirtualizedListProps<ItemT> extends AccessibilityProps, AriaProps {
+export interface IVirtualizedListProps<ItemT> extends IAccessibilityProps, IAriaProps {
   data: unknown
   getItem: (data: unknown, index: number) => ItemT
   getItemCount: (data: unknown) => number
-  renderItem: RenderItem<ItemT>
+  renderItem: IRenderItem<ItemT>
   keyExtractor?: (item: ItemT, index: number) => string
   getItemLayout?: (
     data: unknown,
     index: number,
   ) => { length: number; offset: number; index: number }
-  ItemSeparatorComponent?: ComponentType<SeparatorProps<ItemT>>
+  ItemSeparatorComponent?: ComponentType<ISeparatorProps<ItemT>>
   ListHeaderComponent?: ComponentType<Record<string, never>> | ReactElement
   ListFooterComponent?: ComponentType<Record<string, never>> | ReactElement
   ListEmptyComponent?: ComponentType<Record<string, never>> | ReactElement
@@ -204,9 +207,9 @@ export interface VirtualizedListProps<ItemT> extends AccessibilityProps, AriaPro
   onRefresh?: () => void
   refreshing?: boolean | null
   progressViewOffset?: number
-  onViewableItemsChanged?: (info: ViewableItemsChangedInfo<ItemT>) => void
-  viewabilityConfig?: ViewabilityConfig
-  viewabilityConfigCallbackPairs?: ViewabilityConfigCallbackPair<ItemT>[]
+  onViewableItemsChanged?: (info: IViewableItemsChangedInfo<ItemT>) => void
+  viewabilityConfig?: IViewabilityConfig
+  viewabilityConfigCallbackPairs?: IViewabilityConfigCallbackPair<ItemT>[]
   // Fired when scrollToIndex targets a cell that has not been measured yet and there is
   // no getItemLayout to place it from — RN cannot know the offset, so instead of guessing
   // it hands the caller the failure to recover (e.g. scroll near, then retry). Mirrors RN
@@ -243,14 +246,14 @@ export interface VirtualizedListProps<ItemT> extends AccessibilityProps, AriaPro
   // handler must COMPOSE with the internal one, never replace it. We destructure
   // it out below so it cannot also arrive raw via ...accessibilityRest and clobber
   // the internal handler, then chain both: internal first, user second.
-  onScroll?: (event: SymbioteEvent) => void
+  onScroll?: (event: ISymbioteEvent) => void
   // Scroll-lifecycle callbacks forwarded to the inner ScrollView, mirroring RN's
   // assembly (VirtualizedList.js:1096-1099). The ScrollView already types and fires
   // these; the list only needs to forward them through.
-  onScrollBeginDrag?: (event: SymbioteEvent) => void
-  onScrollEndDrag?: (event: SymbioteEvent) => void
-  onMomentumScrollBegin?: (event: SymbioteEvent) => void
-  onMomentumScrollEnd?: (event: SymbioteEvent) => void
+  onScrollBeginDrag?: (event: ISymbioteEvent) => void
+  onScrollEndDrag?: (event: ISymbioteEvent) => void
+  onMomentumScrollBegin?: (event: ISymbioteEvent) => void
+  onMomentumScrollEnd?: (event: ISymbioteEvent) => void
   // Throttle for scroll-event delivery, forwarded to the inner ScrollView
   // (RN VirtualizedList.js:1102 defaults it to a near-zero value).
   scrollEventThrottle?: number
@@ -258,8 +261,8 @@ export interface VirtualizedListProps<ItemT> extends AccessibilityProps, AriaPro
   // through at runtime via the rest spread; typed here so consumers can set them.
   keyboardShouldPersistTaps?: boolean | 'always' | 'never' | 'handled'
   keyboardDismissMode?: 'none' | 'on-drag' | 'interactive'
-  style?: ViewStyle
-  contentContainerStyle?: ViewStyle
+  style?: IStyleProp<IViewStyle>
+  contentContainerStyle?: IStyleProp<IViewStyle>
 }
 
 // nativeEvent payload guards. The payloads arrive as `unknown` off the wire, so
@@ -275,7 +278,7 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 
 // onScroll -> the offset along the scroll axis. Vertical reads contentOffset.y,
 // horizontal reads contentOffset.x.
-function readScrollOffset(event: SymbioteEvent, horizontal: boolean): number | undefined {
+function readScrollOffset(event: ISymbioteEvent, horizontal: boolean): number | undefined {
   const native = asRecord(event.nativeEvent)
   if (!native) return undefined
   const offset = asRecord(native.contentOffset)
@@ -284,7 +287,7 @@ function readScrollOffset(event: SymbioteEvent, horizontal: boolean): number | u
 }
 
 // onLayout -> the cross-section length of the box along the scroll axis.
-function readLayoutLength(event: SymbioteEvent, horizontal: boolean): number | undefined {
+function readLayoutLength(event: ISymbioteEvent, horizontal: boolean): number | undefined {
   const native = asRecord(event.nativeEvent)
   if (!native) return undefined
   const layout = asRecord(native.layout)
@@ -293,7 +296,7 @@ function readLayoutLength(event: SymbioteEvent, horizontal: boolean): number | u
 }
 
 // A measured cell reports its own box; we take the scroll-axis length.
-function readCellLength(event: SymbioteEvent, horizontal: boolean): number | undefined {
+function readCellLength(event: ISymbioteEvent, horizontal: boolean): number | undefined {
   const native = asRecord(event.nativeEvent)
   if (!native) return undefined
   const layout = asRecord(native.layout)
@@ -315,13 +318,13 @@ function resolveElement(
 // VirtualizedListCellRenderer.js:205, where separatorProps starts {highlighted, leadingItem}
 // and absorbs updateProps writes). A bare element (non-component) is returned as-is.
 function renderSeparatorElement<ItemT>(
-  component: ComponentType<SeparatorProps<ItemT>> | undefined,
+  component: ComponentType<ISeparatorProps<ItemT>> | undefined,
   leadingItem: ItemT,
   trailingItem: ItemT,
-  overrides: Partial<SeparatorProps<ItemT>> | undefined,
+  overrides: Partial<ISeparatorProps<ItemT>> | undefined,
 ): ReactNode {
   if (component === undefined) return undefined
-  const props: SeparatorProps<ItemT> = {
+  const props: ISeparatorProps<ItemT> = {
     highlighted: false,
     leadingItem,
     trailingItem,
@@ -336,7 +339,7 @@ function renderSeparatorElement<ItemT>(
 function buildOffsets(
   count: number,
   measured: Map<number, number>,
-  fixedLayout: ((index: number) => CellLayout) | undefined,
+  fixedLayout: ((index: number) => ICellLayout) | undefined,
   averageLength: number,
 ): { offsets: number[]; lengths: number[]; total: number } {
   const offsets: number[] = new Array<number>(count)
@@ -429,7 +432,7 @@ function visiblePercent(
 // former when set, else the latter, matching RN's precedence.
 function isCellViewable(
   percent: number,
-  config: ViewabilityConfig,
+  config: IViewabilityConfig,
 ): boolean {
   const itemThreshold = config.itemVisiblePercentThreshold
   if (itemThreshold !== undefined) return percent >= itemThreshold
@@ -442,7 +445,7 @@ function isCellViewable(
 // expose an imperative handle without forwardRef (which erases the ItemT
 // generic). The ref is destructured here and wired through useImperativeHandle.
 export function VirtualizedList<ItemT>(
-  props: VirtualizedListProps<ItemT> & { ref?: Ref<VirtualizedListHandle> },
+  props: IVirtualizedListProps<ItemT> & { ref?: Ref<IVirtualizedListHandle> },
 ): ReactElement {
   const forwardedRef = props.ref
   const {
@@ -513,7 +516,7 @@ export function VirtualizedList<ItemT>(
   )
   // The underlying ScrollView's imperative handle, so an animated scroll can go through
   // its native scrollTo command (smooth) rather than an instant contentOffset push.
-  const scrollViewRef = useRef<ScrollViewHandle>(null)
+  const scrollViewRef = useRef<IScrollViewHandle>(null)
   // Measured cell lengths by index. A ref-backed Map mutated in place plus a
   // version counter to request a re-render only when a NEW measurement lands,
   // so steady-state scrolling doesn't thrash on already-known cells.
@@ -536,7 +539,7 @@ export function VirtualizedList<ItemT>(
   // The tokens reported viewable on the last onViewableItemsChanged, keyed by
   // cell key, so we only fire when the set changes (RN dedups the same way) and
   // can build the newly-hidden delta without rescanning all N items.
-  const lastViewableRef = useRef<Map<string, ViewToken<ItemT>>>(new Map())
+  const lastViewableRef = useRef<Map<string, IViewToken<ItemT>>>(new Map())
   // Pending minimumViewTime debounce timer (RN ViewabilityHelper._timers). A fresh
   // viewable set recomputed before this fires cancels it, so scrolling straight through a
   // cell (it never stays minimumViewTime ms) never reports it viewable. null = no timer.
@@ -551,7 +554,7 @@ export function VirtualizedList<ItemT>(
   // the geometric defaults at render. RN keeps this as per-cell separatorProps state
   // (VirtualizedListCellRenderer.js:67-72); we fold it to one map plus a version bump
   // since our separators are plain elements, not stateful CellRenderer instances.
-  const separatorOverridesRef = useRef<Map<number, Partial<SeparatorProps<ItemT>>>>(new Map())
+  const separatorOverridesRef = useRef<Map<number, Partial<ISeparatorProps<ItemT>>>>(new Map())
   const [, setSeparatorVersion] = useState(EMPTY_OFFSET)
   // initialScrollIndex is applied once, after the first layout gives us a
   // viewport and offsets to resolve the index into a pixel offset.
@@ -565,7 +568,7 @@ export function VirtualizedList<ItemT>(
 
   const fixedLayout = useMemo(() => {
     if (getItemLayout === undefined) return undefined
-    return (index: number): CellLayout => {
+    return (index: number): ICellLayout => {
       const layout = getItemLayout(data, index)
       return { length: layout.length, offset: layout.offset }
     }
@@ -621,7 +624,7 @@ export function VirtualizedList<ItemT>(
   }, [first, last, targetWindow.first, targetWindow.last, updateCellsBatchingPeriod])
 
   const onScroll = useCallback(
-    (event: SymbioteEvent): void => {
+    (event: ISymbioteEvent): void => {
       const offset = readScrollOffset(event, horizontal)
       if (offset === undefined) return
       dlog(`VirtualizedList onScroll offset=${offset}`)
@@ -709,8 +712,8 @@ export function VirtualizedList<ItemT>(
   // changed, fire onViewableItemsChanged + every config/callback pair. Run over
   // the committed window so offsets/scrollOffset are in sync. Single-config and
   // pairs forms both feed this one pass (RN supports either, not both).
-  const viewabilityPairs = useMemo((): ViewabilityConfigCallbackPair<ItemT>[] => {
-    const pairs: ViewabilityConfigCallbackPair<ItemT>[] = []
+  const viewabilityPairs = useMemo((): IViewabilityConfigCallbackPair<ItemT>[] => {
+    const pairs: IViewabilityConfigCallbackPair<ItemT>[] = []
     if (onViewableItemsChanged !== undefined) {
       pairs.push({
         viewabilityConfig: viewabilityConfig ?? {},
@@ -727,8 +730,8 @@ export function VirtualizedList<ItemT>(
     if (viewabilityPairs.length === EMPTY_OFFSET || viewportLength <= EMPTY_OFFSET) return
     if (count === FIRST_INDEX) return
 
-    const viewableTokens: ViewToken<ItemT>[] = []
-    const viewable = new Map<string, ViewToken<ItemT>>()
+    const viewableTokens: IViewToken<ItemT>[] = []
+    const viewable = new Map<string, IViewToken<ItemT>>()
     for (let index = first; index <= last && index < count; index += 1) {
       const percent = visiblePercent(offsets[index], lengths[index], scrollOffset, viewportLength)
       const item = getItem(data, index)
@@ -749,7 +752,7 @@ export function VirtualizedList<ItemT>(
         }
       }
       if (anyViewable) {
-        const token: ViewToken<ItemT> = { item, key, index, isViewable: true }
+        const token: IViewToken<ItemT> = { item, key, index, isViewable: true }
         viewable.set(key, token)
         viewableTokens.push(token)
       }
@@ -770,7 +773,7 @@ export function VirtualizedList<ItemT>(
 
     // The `changed` delta: newly viewable (true) and newly hidden (false). Hidden
     // ones come straight from the previous map, so no rescan of all N items.
-    const changed: ViewToken<ItemT>[] = []
+    const changed: IViewToken<ItemT>[] = []
     for (const token of viewableTokens) {
       if (!previous.has(token.key)) changed.push(token)
     }
@@ -784,7 +787,7 @@ export function VirtualizedList<ItemT>(
         `VirtualizedList viewable=${viewableTokens.length} changed=${changed.length} ` +
           `(window [${first}, ${last}])`,
       )
-      const info: ViewableItemsChangedInfo<ItemT> = { viewableItems: viewableTokens, changed }
+      const info: IViewableItemsChangedInfo<ItemT> = { viewableItems: viewableTokens, changed }
       for (const pair of viewabilityPairs) pair.onViewableItemsChanged(info)
     }
 
@@ -833,7 +836,7 @@ export function VirtualizedList<ItemT>(
   }, [])
 
   const onViewportLayout = useCallback(
-    (event: SymbioteEvent): void => {
+    (event: ISymbioteEvent): void => {
       const length = readLayoutLength(event, horizontal)
       if (length === undefined) return
       dlog(`VirtualizedList onLayout viewport=${length}`)
@@ -844,7 +847,7 @@ export function VirtualizedList<ItemT>(
 
   const makeCellMeasure = useCallback(
     (index: number) =>
-      (event: SymbioteEvent): void => {
+      (event: ISymbioteEvent): void => {
         if (fixedLayout) return
         const length = readCellLength(event, horizontal)
         if (length === undefined) return
@@ -861,7 +864,7 @@ export function VirtualizedList<ItemT>(
   // index outside [0, count-2] has no separator, so the write is a no-op (RN bails the
   // same way when prevCellKey/cellKey is null). Mirrors CellRenderer.updateSeparatorProps.
   const mergeSeparator = useCallback(
-    (gapIndex: number, patch: Partial<SeparatorProps<ItemT>>): void => {
+    (gapIndex: number, patch: Partial<ISeparatorProps<ItemT>>): void => {
       if (gapIndex < FIRST_INDEX || gapIndex > count - 2) return
       const overrides = separatorOverridesRef.current
       overrides.set(gapIndex, { ...overrides.get(gapIndex), ...patch })
@@ -870,11 +873,11 @@ export function VirtualizedList<ItemT>(
     [count],
   )
 
-  // The Separators handle for the cell at `index` (RN CellRenderer._separators). The gap
+  // The ISeparators handle for the cell at `index` (RN CellRenderer._separators). The gap
   // after this cell is its TRAILING separator; the gap before it (index-1) is its LEADING
   // separator. highlight/unhighlight flip both flanking gaps; updateProps targets one.
   const makeSeparators = useCallback(
-    (index: number): Separators => ({
+    (index: number): ISeparators => ({
       highlight: (): void => {
         dlog(`VirtualizedList separator highlight cell=${index}`)
         mergeSeparator(index - 1, { highlighted: true })
@@ -993,9 +996,10 @@ export function VirtualizedList<ItemT>(
       },
       // RN's getScrollableNode/getScrollResponder/getNativeScrollRef hand back the
       // native scroll ref; we surface the inner ScrollView handle (null pre-mount).
-      getNativeScrollRef: (): ScrollViewHandle | null => scrollViewRef.current,
-      getScrollableNode: (): ScrollViewHandle | null => scrollViewRef.current,
-      getScrollResponder: (): ScrollViewHandle | null => scrollViewRef.current,
+      getNativeScrollRef: (): IScrollViewHandle | null => scrollViewRef.current,
+      getScrollableNode: (): IScrollViewHandle | null => scrollViewRef.current,
+      getScrollResponder: (): IScrollViewHandle | null => scrollViewRef.current,
+      getScrollNode: (): ISymbioteNode | null => scrollViewRef.current?.getScrollNode() ?? null,
       // Manual trigger for RN's recordInteraction: flip the interaction flag so
       // waitForInteraction viewability configs start reporting (the next scroll /
       // window pass picks it up), without waiting for the first scroll.
@@ -1160,7 +1164,7 @@ export function VirtualizedList<ItemT>(
         ),
       )
       // The separator after cell `index` carries the gap's leading/trailing items and the
-      // highlight flag, merged with whatever a Separators handle pushed (RN passes
+      // highlight flag, merged with whatever a ISeparators handle pushed (RN passes
       // {highlighted, leadingItem, trailingItem} to ItemSeparatorComponent,
       // VirtualizedListCellRenderer.js:205). Geometric defaults first, overrides on top.
       const separator =
@@ -1198,10 +1202,10 @@ export function VirtualizedList<ItemT>(
     children.push(createElement('symbiote-view', { key: 'list-footer' }, footer))
   }
 
-  // onLayout is not on the ScrollViewProps surface, but ScrollView spreads its
+  // onLayout is not on the IScrollViewProps surface, but ScrollView spreads its
   // unknown props straight onto the outer RCTScrollView node, where the shared
   // node-prop scanner turns onLayout into a direct `layout` listener. Type the
-  // extra prop explicitly rather than widening ScrollViewProps from here.
+  // extra prop explicitly rather than widening IScrollViewProps from here.
   // A horizontal list must pin the content container to the full row width. The
   // content view otherwise stretches to the ScrollView's frame width (the default
   // cross-axis stretch), so the row is clipped and nothing overflows for iOS to
@@ -1212,14 +1216,14 @@ export function VirtualizedList<ItemT>(
   // (VirtualizedList.js ~L918 cell, ~L1108 ScrollView style; the content view is
   // unflipped). Flipping the content container too would cancel the ScrollView flip
   // — the list reads upright while each cell still flips, rendering cells upside-down.
-  const resolvedContentContainerStyle: ViewStyle = horizontal
-    ? { ...contentContainerStyle, width: total }
-    : { ...contentContainerStyle }
-  const resolvedStyle: ViewStyle | undefined = inverted
-    ? { ...style, ...(horizontal ? INVERTED_X_STYLE : INVERTED_Y_STYLE) }
+  const resolvedContentContainerStyle: IStyleProp<IViewStyle> = horizontal
+    ? [contentContainerStyle, { width: total }]
+    : contentContainerStyle
+  const resolvedStyle: IStyleProp<IViewStyle> | undefined = inverted
+    ? [style, horizontal ? INVERTED_X_STYLE : INVERTED_Y_STYLE]
     : style
 
-  const scrollProps: ScrollViewProps & { onLayout: (event: SymbioteEvent) => void } = {
+  const scrollProps: IScrollViewProps & { onLayout: (event: ISymbioteEvent) => void } = {
     // The list's accessibility surface (aria/role + accessibility*) rides down onto
     // the ScrollView, which folds it via resolveAccessibilityProps. Spread first so
     // the explicit windowing props below always win.

@@ -6,11 +6,11 @@
 
 import {
   createConstantsResolver,
-  type PlatformSelectSpec,
-  type PlatformStatic,
+  type IPlatformSelectSpec,
+  type IPlatformStatic,
 } from './platform-shared'
 
-export type { PlatformOSType, PlatformSelectSpec, PlatformStatic } from './platform-shared'
+export type { IPlatformOSType, IPlatformSelectSpec, IPlatformStatic } from './platform-shared'
 
 // The filename already selected this host — 'android' is a literal, not a probe.
 const OS_ANDROID = 'android'
@@ -24,7 +24,7 @@ const UNKNOWN_API_LEVEL = 0
 
 // The shape of PlatformConstants.getConstants() on Android (mirrors the RN spec). The
 // device-info fields (Brand/Model/etc.) are carried verbatim from native.
-export interface PlatformConstantsAndroid {
+export interface IPlatformConstantsAndroid {
   isTesting: boolean
   isDisableAnimations?: boolean
   reactNativeVersion: {
@@ -44,21 +44,21 @@ export interface PlatformConstantsAndroid {
   Manufacturer: string
 }
 
-function isPlatformConstantsAndroid(value: unknown): value is PlatformConstantsAndroid {
+function isPlatformConstantsAndroid(value: unknown): value is IPlatformConstantsAndroid {
   if (typeof value !== 'object' || value === null) return false
   return 'Version' in value && 'uiMode' in value
 }
 
 const resolveConstants = createConstantsResolver(isPlatformConstantsAndroid)
 
-export const Platform: PlatformStatic<PlatformConstantsAndroid> = {
+export const Platform: IPlatformStatic<IPlatformConstantsAndroid> = {
   OS: OS_ANDROID,
 
   get Version(): number {
     return resolveConstants()?.Version ?? UNKNOWN_API_LEVEL
   },
 
-  get constants(): PlatformConstantsAndroid | undefined {
+  get constants(): IPlatformConstantsAndroid | undefined {
     return resolveConstants()
   },
 
@@ -93,7 +93,7 @@ export const Platform: PlatformStatic<PlatformConstantsAndroid> = {
   },
 
   // RN's exact Android precedence: android -> native -> default.
-  select<T>(spec: PlatformSelectSpec<T>): T | undefined {
+  select<T>(spec: IPlatformSelectSpec<T>): T | undefined {
     if ('android' in spec) return spec.android
     if ('native' in spec) return spec.native
     return spec.default

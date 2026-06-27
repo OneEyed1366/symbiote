@@ -1,74 +1,43 @@
-// ActivityIndicator — shared core. RN wraps the native spinner in a centering View and
-// translates `size` in JS: 'small'/'large' map to a native size enum AND a fixed box
-// style; a numeric size never reaches native (it sizes the spinner via style only).
-// That translation is platform-invariant and lives here.
+// ActivityIndicator — the React lifecycle half. The render (size translation, wrapper +
+// spinner, color omission) lives framework-agnostic in @symbiote/components; here the
+// adapter only resolves props (accessibility, defaults), calls the render fn, and bridges
+// the Descriptor to a React element. No state, no effects — this component is render-only.
 //
-// What IS platform-specific (ADR 0020, prop-level): Android's AndroidProgressBar needs
-// `styleAttr` (which triggers its setStyle() — without it the view throws "setStyle()
-// not called") plus `indeterminate: true`, and its default color is the theme (null),
-// whereas iOS's ActivityIndicatorView takes neither and defaults to GRAY. So the factory
-// takes those platform bits and the .ios/.android files supply them; the filename
-// selects, no Platform.OS read.
+// The per-platform bits (iOS GRAY default + no extras; Android theme/null + styleAttr +
+// indeterminate) are supplied by the .ios/.android files via `IActivityIndicatorPlatform`.
 
-import { createElement, type FC } from 'react'
-import { dlog, type SymbioteEvent } from '@symbiote/engine'
-import { resolveAccessibilityProps, type AccessibilityProps, type AriaProps } from './accessibility-props'
-import type { ViewStyle } from './styles'
+import type { FC } from 'react'
+import { renderActivityIndicator } from '@symbiote/components'
+import type {
+  IActivityIndicatorPlatform,
+  IActivityIndicatorSize,
+} from '@symbiote/components'
+import type { ISymbioteEvent } from '@symbiote/engine'
+import { resolveAccessibilityProps, type IAccessibilityProps, type IAriaProps } from '@symbiote/components'
+import { descriptorToReact } from './descriptor-to-react'
+import type { IStyleProp, IViewStyle } from './styles'
 
-type ActivityIndicatorSize = 'small' | 'large' | number
+export type { IActivityIndicatorPlatform } from '@symbiote/components'
 
-// Fixed pixel boxes RN gives the two named sizes (styles.sizeSmall/sizeLarge).
-const SIZE_SMALL_PX = 20
-const SIZE_LARGE_PX = 36
-
-// Centering wrapper RN puts around the spinner (styles.container).
-const CONTAINER_STYLE: ViewStyle = {
-  alignItems: 'center',
-  justifyContent: 'center',
-}
-
-export interface ActivityIndicatorProps extends AccessibilityProps, AriaProps {
+export interface IActivityIndicatorProps extends IAccessibilityProps, IAriaProps {
   animating?: boolean
   color?: string
-  size?: ActivityIndicatorSize
+  size?: IActivityIndicatorSize
   hidesWhenStopped?: boolean
-  style?: ViewStyle
+  style?: IStyleProp<IViewStyle>
   // Standard ViewProps. RN spreads `...props` onto the centering wrapper View, so
   // these (and the inherited accessibility surface) land on the wrapper, not the spinner.
   testID?: string
-  onLayout?: (event: SymbioteEvent) => void
-}
-
-// The per-platform pieces the factory needs: the default spinner color (iOS GRAY vs
-// Android theme/null) and any extra native props the platform's spinner requires
-// (Android's styleAttr + indeterminate; none on iOS).
-export interface ActivityIndicatorPlatform {
-  defaultColor: string | null
-  nativeExtras: Readonly<Record<string, unknown>>
-}
-
-interface NativeSize {
-  sizeStyle: ViewStyle
-  sizeProp?: 'small' | 'large'
-}
-
-function resolveSize(size: ActivityIndicatorSize): NativeSize {
-  if (size === 'small') {
-    return { sizeStyle: { width: SIZE_SMALL_PX, height: SIZE_SMALL_PX }, sizeProp: 'small' }
-  }
-  if (size === 'large') {
-    return { sizeStyle: { width: SIZE_LARGE_PX, height: SIZE_LARGE_PX }, sizeProp: 'large' }
-  }
-  return { sizeStyle: { width: size, height: size } }
+  onLayout?: (event: ISymbioteEvent) => void
 }
 
 export function createActivityIndicator(
-  platform: ActivityIndicatorPlatform,
-): FC<ActivityIndicatorProps> {
+  platform: IActivityIndicatorPlatform,
+): FC<IActivityIndicatorProps> {
   return (rawProps) => {
     // The wrapper is a raw symbiote-view, not the View FC, so it never runs
-    // resolveAccessibilityProps itself — fold aria/role here, then forward the
-    // resolved accessibility* surface onto the wrapper via `...accessibilityRest`.
+    // resolveAccessibilityProps itself — fold aria/role here, then forward the resolved
+    // accessibility* surface (plus testID / onLayout) onto the wrapper via `passthrough`.
     const props = resolveAccessibilityProps(rawProps)
     const {
       animating = true,
@@ -76,41 +45,13 @@ export function createActivityIndicator(
       hidesWhenStopped = true,
       size = 'small',
       style,
-      onLayout,
-      ...accessibilityRest
+      ...passthrough
     } = props
 
-    const { sizeStyle, sizeProp } = resolveSize(size)
-    dlog(
-      sizeProp !== undefined
-        ? `ActivityIndicator size '${sizeProp}' -> native size enum '${sizeProp}'`
-        : `ActivityIndicator size ${String(size)} -> style only, native size not set`,
+    const descriptor = renderActivityIndicator(
+      { animating, color, hidesWhenStopped, size, style, passthrough },
+      platform,
     )
-
-    const nativeProps: Record<string, unknown> = {
-      animating,
-      hidesWhenStopped,
-      style: sizeStyle,
-      ...platform.nativeExtras,
-    }
-    // Omit color entirely when neither given nor defaulted (Android's theme default is
-    // null) — a null color prop would be rejected by Fabric's color parser.
-    const resolvedColor = color ?? platform.defaultColor
-    if (resolvedColor !== null) nativeProps.color = resolvedColor
-    if (sizeProp !== undefined) nativeProps.size = sizeProp
-
-    dlog('ActivityIndicator -> RCTView(spinner)')
-
-    const wrapperProps: Record<string, unknown> = {
-      ...accessibilityRest,
-      style: { ...CONTAINER_STYLE, ...style },
-    }
-    if (onLayout !== undefined) wrapperProps.onLayout = onLayout
-
-    return createElement(
-      'symbiote-view',
-      wrapperProps,
-      createElement('symbiote-activity-indicator', nativeProps),
-    )
+    return descriptorToReact(descriptor)
   }
 }

@@ -10,23 +10,23 @@
 
 import { createElement, createRef, type ReactElement } from 'react'
 import { mount } from '@symbiote/react'
-import { FlatList, type FlatListHandle } from '../../adapters/react/src/flat-list'
+import { FlatList, type IFlatListHandle } from '../../adapters/react/src/flat-list'
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
-interface CommandCall {
+interface ICommandCall {
   name: string
   args: readonly unknown[]
 }
 
-let committed: FakeNode[] = []
-const commands: CommandCall[] = []
+let committed: IFakeNode[] = []
+const commands: ICommandCall[] = []
 
 const slot = {
   createNode(
@@ -35,27 +35,27 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
+  ): IFakeNode {
     return { tag, viewName, props, children: [], instanceHandle }
   },
-  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+  cloneNodeWithNewProps: (node: IFakeNode, newProps: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: { ...node.props, ...newProps },
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     newProps: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props: { ...node.props, ...newProps }, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild(parent: FakeNode, child: FakeNode): FakeNode {
+  ): IFakeNode => ({ ...node, props: { ...node.props, ...newProps }, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild(parent: IFakeNode, child: IFakeNode): IFakeNode {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet(childSet: FakeNode[], child: FakeNode): void {
+  appendChildToSet(childSet: IFakeNode[], child: IFakeNode): void {
     childSet.push(child)
   },
-  completeRoot(_rootTag: number, childSet: FakeNode[]): void {
+  completeRoot(_rootTag: number, childSet: IFakeNode[]): void {
     committed = childSet
   },
   registerEventHandler(): void {},
@@ -67,7 +67,7 @@ const slot = {
 Object.assign(globalThis, { nativeFabricUIManager: slot })
 
 // Walk the committed tree; return the first node whose viewName looks like a scroll view.
-function findScrollView(nodes: FakeNode[]): FakeNode | undefined {
+function findScrollView(nodes: IFakeNode[]): IFakeNode | undefined {
   for (const node of nodes) {
     if (/scroll/i.test(node.viewName)) return node
     const nested = findScrollView(node.children)
@@ -120,7 +120,7 @@ function findScrollView(nodes: FakeNode[]): FakeNode | undefined {
   committed = []
   commands.length = 0
   const failures: Array<{ index: number; highestMeasuredFrameIndex: number; averageItemLength: number }> = []
-  const listRef = createRef<FlatListHandle>()
+  const listRef = createRef<IFlatListHandle>()
   const DATA = Array.from({ length: 100 }, (_unused, index) => ({ id: index }))
 
   function App(): ReactElement {

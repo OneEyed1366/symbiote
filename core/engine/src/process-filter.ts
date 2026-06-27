@@ -21,14 +21,14 @@ const LENGTH_PARSE_REGEX = /([+-]?\d*(\.\d+)?)([\w\W]+)?/g
 
 // RN processFilter.js:26-43. Each entry names exactly one filter; `color` on a parsed
 // drop-shadow is whatever the platform processor returns, hence unknown.
-export interface ParsedDropShadow {
+export interface IParsedDropShadow {
   offsetX: number
   offsetY: number
   standardDeviation?: number
   color?: unknown
 }
 
-export type ParsedFilter =
+export type IParsedFilter =
   | { brightness: number }
   | { blur: number }
   | { contrast: number }
@@ -38,12 +38,12 @@ export type ParsedFilter =
   | { opacity: number }
   | { saturate: number }
   | { sepia: number }
-  | { dropShadow: ParsedDropShadow }
+  | { dropShadow: IParsedDropShadow }
 
 // The structured input shapes — declared locally so shared does not import @symbiote/react.
 // Read loosely (callers pass plain records); each field is narrowed at the point of use.
-type RawDropShadow = Record<string, unknown>
-type RawFilterFunction = Record<string, unknown>
+type IRawDropShadow = Record<string, unknown>
+type IRawFilterFunction = Record<string, unknown>
 
 const RADIANS_TO_DEGREES = 180 / Math.PI
 
@@ -70,9 +70,9 @@ function processShadowColor(color: unknown): unknown {
 // RN processFilter.js:45-124. Returns [] on any invalid primitive (web semantics: an
 // invalid filter applies none of them, so the missing effect is obvious).
 export function processFilter(
-  filter: ReadonlyArray<RawFilterFunction> | string | undefined,
-): ParsedFilter[] {
-  const result: ParsedFilter[] = []
+  filter: ReadonlyArray<IRawFilterFunction> | string | undefined,
+): IParsedFilter[] {
+  const result: IParsedFilter[] = []
   if (filter == null) {
     return result
   }
@@ -137,7 +137,7 @@ export function processFilter(
 
 // RN sets `filterFunction[camelizedName] = amount` and pushes the loose object. We
 // build the discriminated union explicitly to keep it typed without an `as` cast.
-function filterEntry(name: string, amount: number): ParsedFilter {
+function filterEntry(name: string, amount: number): IParsedFilter {
   switch (name) {
     case 'brightness':
       return { brightness: amount }
@@ -160,7 +160,7 @@ function filterEntry(name: string, amount: number): ParsedFilter {
   }
 }
 
-function isDropShadowValue(value: unknown): value is RawDropShadow | string {
+function isDropShadowValue(value: unknown): value is IRawDropShadow | string {
   return typeof value === 'string' || (isRecord(value) && 'offsetX' in value)
 }
 
@@ -218,15 +218,15 @@ function getFilterAmount(filterName: string, filterArgs: unknown): number | unde
 
 // RN processFilter.js:188-256.
 function parseDropShadow(
-  rawDropShadow: string | RawDropShadow,
-): ParsedDropShadow | null {
+  rawDropShadow: string | IRawDropShadow,
+): IParsedDropShadow | null {
   const dropShadow =
     typeof rawDropShadow === 'string' ? parseDropShadowString(rawDropShadow) : rawDropShadow
   if (dropShadow == null) {
     return null
   }
 
-  const parsedDropShadow: ParsedDropShadow = { offsetX: 0, offsetY: 0 }
+  const parsedDropShadow: IParsedDropShadow = { offsetX: 0, offsetY: 0 }
   let offsetX: number | undefined
   let offsetY: number | undefined
 
@@ -279,8 +279,8 @@ function parseDropShadow(
 }
 
 // RN processFilter.js:258-312.
-function parseDropShadowString(rawDropShadow: string): RawDropShadow | null {
-  const dropShadow: RawDropShadow = { offsetX: 0, offsetY: 0 }
+function parseDropShadowString(rawDropShadow: string): IRawDropShadow | null {
+  const dropShadow: IRawDropShadow = { offsetX: 0, offsetY: 0 }
   let offsetX: string | undefined
   let offsetY: string | undefined
   let lengthCount = 0
@@ -348,4 +348,4 @@ function parseLength(length: string): number | null {
   return Number(match[1])
 }
 
-export type { RawDropShadow, RawFilterFunction }
+export type { IRawDropShadow, IRawFilterFunction }

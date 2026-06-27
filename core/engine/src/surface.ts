@@ -2,35 +2,35 @@
 // Fabric host and the list of top-level retained nodes. Adapters mutate it and
 // ask it to commit; the surface coalesces commits and drives the engine.
 
-import type { RootTag } from './fabric'
+import type { IRootTag } from './fabric'
 import { commitChildren } from './commit'
 import { dlog } from './debug'
 import { installEventHandler } from './events'
-import type { SymbioteNode } from './node'
+import type { ISymbioteNode } from './node'
 
 export class SymbioteSurface {
-  readonly rootTag: RootTag
-  readonly children: SymbioteNode[] = []
+  readonly rootTag: IRootTag
+  readonly children: ISymbioteNode[] = []
   private commitScheduled = false
 
-  constructor(rootTag: RootTag) {
+  constructor(rootTag: IRootTag) {
     this.rootTag = rootTag
   }
 
-  appendChild(child: SymbioteNode): void {
+  appendChild(child: ISymbioteNode): void {
     this.detach(child)
     child.parent = undefined
     this.children.push(child)
   }
 
-  insertBefore(child: SymbioteNode, beforeChild: SymbioteNode): void {
+  insertBefore(child: ISymbioteNode, beforeChild: ISymbioteNode): void {
     this.detach(child)
     child.parent = undefined
     const index = this.children.indexOf(beforeChild)
     this.children.splice(index < 0 ? this.children.length : index, 0, child)
   }
 
-  removeChild(child: SymbioteNode): void {
+  removeChild(child: ISymbioteNode): void {
     const index = this.children.indexOf(child)
     if (index >= 0) this.children.splice(index, 1)
   }
@@ -56,7 +56,7 @@ export class SymbioteSurface {
     })
   }
 
-  private detach(child: SymbioteNode): void {
+  private detach(child: ISymbioteNode): void {
     const parent = child.parent
     if (parent) {
       const index = parent.children.indexOf(child)
@@ -69,7 +69,7 @@ export class SymbioteSurface {
   }
 }
 
-export function createSurface(rootTag: RootTag): SymbioteSurface {
+export function createSurface(rootTag: IRootTag): SymbioteSurface {
   installEventHandler()
   dlog(`surface created root=${rootTag}`)
   return new SymbioteSurface(rootTag)

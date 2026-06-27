@@ -13,23 +13,23 @@ import { VirtualizedSectionList } from '../../adapters/react/src/virtualized-sec
 
 // ---- fake Fabric slot ---------------------------------------------------
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
-type EventHandler = (
+type IEventHandler = (
   instanceHandle: unknown,
   topLevelType: string,
   nativeEvent: Record<string, unknown>,
 ) => void
 
-let committed: FakeNode[] = []
-let eventHandler: EventHandler | undefined
-const allCreated: FakeNode[] = []
+let committed: IFakeNode[] = []
+let eventHandler: IEventHandler | undefined
+const allCreated: IFakeNode[] = []
 
 const slot = {
   createNode(
@@ -38,32 +38,32 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
-    const node: FakeNode = { tag, viewName, props, children: [], instanceHandle }
+  ): IFakeNode {
+    const node: IFakeNode = { tag, viewName, props, children: [], instanceHandle }
     allCreated.push(node)
     return node
   },
-  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+  cloneNodeWithNewProps: (node: IFakeNode, newProps: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: newProps,
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     newProps: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props: newProps, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild(parent: FakeNode, child: FakeNode): FakeNode {
+  ): IFakeNode => ({ ...node, props: newProps, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild(parent: IFakeNode, child: IFakeNode): IFakeNode {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet(childSet: FakeNode[], child: FakeNode): void {
+  appendChildToSet(childSet: IFakeNode[], child: IFakeNode): void {
     childSet.push(child)
   },
-  completeRoot(_rootTag: number, childSet: FakeNode[]): void {
+  completeRoot(_rootTag: number, childSet: IFakeNode[]): void {
     committed = childSet
   },
-  registerEventHandler(handler: EventHandler): void {
+  registerEventHandler(handler: IEventHandler): void {
     eventHandler = handler
   },
 }
@@ -74,17 +74,17 @@ Object.assign(globalThis, { nativeFabricUIManager: slot })
 
 const VIEWPORT_HEIGHT = 400
 
-interface Row {
+interface IRow {
   id: number
   label: string
 }
 
-interface SectionShape {
+interface ISectionShape {
   title: string
-  data: readonly Row[]
+  data: readonly IRow[]
 }
 
-const SECTIONS: SectionShape[] = [
+const SECTIONS: ISectionShape[] = [
   {
     title: 'Section A',
     data: [
@@ -102,14 +102,14 @@ const SECTIONS: SectionShape[] = [
 ]
 
 function App(): ReactElement {
-  return createElement(VirtualizedSectionList<Row>, {
+  return createElement(VirtualizedSectionList<IRow>, {
     sections: SECTIONS,
-    keyExtractor: (item: Row) => `k-${item.id}`,
-    renderSectionHeader: ({ section }: { section: SectionShape }) =>
+    keyExtractor: (item: IRow) => `k-${item.id}`,
+    renderSectionHeader: ({ section }: { section: ISectionShape }) =>
       createElement('symbiote-text', {}, `header:${section.title}`),
-    renderSectionFooter: ({ section }: { section: SectionShape }) =>
+    renderSectionFooter: ({ section }: { section: ISectionShape }) =>
       createElement('symbiote-text', {}, `footer:${section.title}`),
-    renderItem: ({ item }: { item: Row }) =>
+    renderItem: ({ item }: { item: IRow }) =>
       createElement('symbiote-text', {}, item.label),
   })
 }
@@ -127,14 +127,14 @@ function collectTexts(): string[] {
   return texts
 }
 
-function walk(nodes: FakeNode[], visit: (node: FakeNode) => void): void {
+function walk(nodes: IFakeNode[], visit: (node: IFakeNode) => void): void {
   for (const node of nodes) {
     visit(node)
     walk(node.children, visit)
   }
 }
 
-function findScrollView(): FakeNode {
+function findScrollView(): IFakeNode {
   const node = allCreated.find((n) => n.viewName === 'RCTScrollView')
   if (!node) throw new Error('no RCTScrollView was created')
   return node

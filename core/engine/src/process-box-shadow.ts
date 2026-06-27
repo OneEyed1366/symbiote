@@ -21,7 +21,7 @@ const NEWLINE_REGEX = /\n/g
 
 // RN processBoxShadow.js:21-28 (ParsedBoxShadow). `color` is whatever the platform
 // processor returns (a platform int on a real host), so it is left as unknown here.
-export interface ParsedBoxShadow {
+export interface IParsedBoxShadow {
   offsetX: number
   offsetY: number
   color?: unknown
@@ -33,7 +33,7 @@ export interface ParsedBoxShadow {
 // The structured input shape — mirrors react's BoxShadowValue but declared locally to
 // avoid a cross-package import cycle (shared must not depend on @symbiote/react). Read
 // loosely: callers pass plain records, so each field is narrowed at the point of use.
-type RawBoxShadow = Record<string, unknown>
+type IRawBoxShadow = Record<string, unknown>
 
 // A length field may be a CSS string ("22px") or a number; resolve to a number or null.
 // Mirrors RN's `typeof x === 'string' ? parseLength(x) : x`, but typed from `unknown`.
@@ -55,9 +55,9 @@ function processShadowColor(color: unknown): unknown {
 // RN processBoxShadow.js:30-111. Returns [] on any invalid primitive (matches web: an
 // invalid box-shadow paints nothing rather than a partial shadow).
 export function processBoxShadow(
-  rawBoxShadows: ReadonlyArray<RawBoxShadow> | string | undefined,
-): ParsedBoxShadow[] {
-  const result: ParsedBoxShadow[] = []
+  rawBoxShadows: ReadonlyArray<IRawBoxShadow> | string | undefined,
+): IParsedBoxShadow[] {
+  const result: IParsedBoxShadow[] = []
   if (rawBoxShadows == null) {
     return result
   }
@@ -68,7 +68,7 @@ export function processBoxShadow(
       : rawBoxShadows
 
   for (const rawBoxShadow of boxShadowList) {
-    const parsedBoxShadow: ParsedBoxShadow = { offsetX: 0, offsetY: 0 }
+    const parsedBoxShadow: IParsedBoxShadow = { offsetX: 0, offsetY: 0 }
 
     for (const arg of Object.keys(rawBoxShadow)) {
       switch (arg) {
@@ -128,14 +128,14 @@ export function processBoxShadow(
 
 // RN processBoxShadow.js:113-197. Walks each comma-separated shadow, classifying each
 // whitespace-separated arg as a color, the `inset` keyword, or a length by position.
-function parseBoxShadowString(rawBoxShadows: string): RawBoxShadow[] {
-  const result: RawBoxShadow[] = []
+function parseBoxShadowString(rawBoxShadows: string): IRawBoxShadow[] {
+  const result: IRawBoxShadow[] = []
 
   for (const rawBoxShadow of rawBoxShadows
     .split(COMMA_SPLIT_REGEX)
     .map((bS) => bS.trim())
     .filter((bS) => bS !== '')) {
-    const boxShadow: RawBoxShadow = { offsetX: 0, offsetY: 0 }
+    const boxShadow: IRawBoxShadow = { offsetX: 0, offsetY: 0 }
     let offsetX: number | string | undefined
     let offsetY: number | string | undefined
     let keywordDetectedAfterLength = false
@@ -223,4 +223,4 @@ function parseLength(length: string): number | null {
 }
 
 // Re-exported above for ParsedBoxShadow; the input shape stays internal.
-export type { RawBoxShadow }
+export type { IRawBoxShadow }

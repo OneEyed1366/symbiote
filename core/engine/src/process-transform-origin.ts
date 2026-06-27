@@ -20,13 +20,13 @@ const INDEX_X = 0
 const INDEX_Y = 1
 const INDEX_Z = 2
 
-type TransformOriginValue = string | number
+type ITransformOriginValue = string | number
 
 // RN processTransformOrigin.js:21-120. Parses the CSS string into the [x, y, z] array,
 // or normalizes/passes through an array input unchanged.
 export function processTransformOrigin(
-  transformOrigin: Array<TransformOriginValue> | string | undefined,
-): Array<TransformOriginValue> {
+  transformOrigin: Array<ITransformOriginValue> | string | undefined,
+): Array<ITransformOriginValue> {
   if (transformOrigin == null) {
     // RN never receives undefined here (the registry only calls the processor for a
     // present value), but the commit path may; default to center/center/0.
@@ -40,7 +40,7 @@ export function processTransformOrigin(
 
   const transformOriginString = transformOrigin
   TRANSFORM_ORIGIN_REGEX.lastIndex = 0
-  const transformOriginArray: Array<TransformOriginValue> = ['50%', '50%', 0]
+  const transformOriginArray: Array<ITransformOriginValue> = ['50%', '50%', 0]
 
   let index = INDEX_X
   let matches: RegExpExecArray | null

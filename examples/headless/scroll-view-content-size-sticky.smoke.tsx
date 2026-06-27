@@ -13,28 +13,28 @@ import { View, Text, mount } from '@symbiote/react'
 import { ScrollView } from '../../adapters/react/src/scroll-view'
 import {
   ScrollViewStickyHeader,
-  type StickyHeaderProps,
+  type IStickyHeaderComponentProps,
 } from '../../adapters/react/src/scroll-view-sticky-header'
 
 // ---- fake Fabric slot ---------------------------------------------------
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
-type EventHandler = (
+type IEventHandler = (
   instanceHandle: unknown,
   topLevelType: string,
   nativeEvent: Record<string, unknown>,
 ) => void
 
-let committed: FakeNode[] = []
-let eventHandler: EventHandler | undefined
-const allCreated: FakeNode[] = []
+let committed: IFakeNode[] = []
+let eventHandler: IEventHandler | undefined
+const allCreated: IFakeNode[] = []
 
 const slot = {
   createNode(
@@ -43,32 +43,32 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
-    const node: FakeNode = { tag, viewName, props, children: [], instanceHandle }
+  ): IFakeNode {
+    const node: IFakeNode = { tag, viewName, props, children: [], instanceHandle }
     allCreated.push(node)
     return node
   },
-  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+  cloneNodeWithNewProps: (node: IFakeNode, newProps: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: newProps,
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     newProps: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props: newProps, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild(parent: FakeNode, child: FakeNode): FakeNode {
+  ): IFakeNode => ({ ...node, props: newProps, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild(parent: IFakeNode, child: IFakeNode): IFakeNode {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet(childSet: FakeNode[], child: FakeNode): void {
+  appendChildToSet(childSet: IFakeNode[], child: IFakeNode): void {
     childSet.push(child)
   },
-  completeRoot(_rootTag: number, childSet: FakeNode[]): void {
+  completeRoot(_rootTag: number, childSet: IFakeNode[]): void {
     committed = childSet
   },
-  registerEventHandler(handler: EventHandler): void {
+  registerEventHandler(handler: IEventHandler): void {
     eventHandler = handler
   },
 }
@@ -95,7 +95,7 @@ function App(): ReactElement {
 
 // ---- helpers ------------------------------------------------------------
 
-function serializeNode(node: FakeNode): string {
+function serializeNode(node: IFakeNode): string {
   const kids = node.children.length ? `(${node.children.map(serializeNode).join('')})` : ''
   return `${node.viewName}${kids}`
 }
@@ -180,7 +180,7 @@ if (typeof outer.props.scrollEventThrottle !== 'number') {
   throw new Error(`sticky headers should set a scrollEventThrottle, got ${JSON.stringify(outer.props.scrollEventThrottle)}`)
 }
 
-function subtreeContains(node: FakeNode, target: FakeNode): boolean {
+function subtreeContains(node: IFakeNode, target: IFakeNode): boolean {
   if (node === target) return true
   return node.children.some((child) => subtreeContains(child, target))
 }
@@ -203,7 +203,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 // overwrites on every render, so after the layout round-trips this holds the resolved value.
 const nextYByHeader = new Map<string, number | undefined>()
 
-function headerText(children: StickyHeaderProps['children']): string {
+function headerText(children: IStickyHeaderComponentProps['children']): string {
   // Each header's child is a <Text>label</Text>; pull the label so we can tell H0 from H1.
   if (!isRecord(children)) return ''
   const props = Reflect.get(children, 'props')
@@ -214,7 +214,7 @@ function headerText(children: StickyHeaderProps['children']): string {
 
 // Spy wrapper: records the nextHeaderLayoutY it is handed, then delegates to the real header so
 // the genuine onLayout recorder (which reports this header's own y up to the parent) still runs.
-function SpyStickyHeader(props: StickyHeaderProps): ReactElement {
+function SpyStickyHeader(props: IStickyHeaderComponentProps): ReactElement {
   nextYByHeader.set(headerText(props.children), props.nextHeaderLayoutY)
   return createElement(ScrollViewStickyHeader, props)
 }

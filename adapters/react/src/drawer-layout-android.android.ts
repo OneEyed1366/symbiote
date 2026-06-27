@@ -32,27 +32,27 @@ import {
 import {
   dispatchViewCommand,
   dlog,
-  type SymbioteEvent,
-  type SymbioteNode,
+  type ISymbioteEvent,
+  type ISymbioteNode,
 } from '@symbiote/engine'
 import { View } from './components'
-import { resolveAccessibilityProps } from './accessibility-props'
-import type { ViewStyle } from './styles'
+import { resolveAccessibilityProps } from '@symbiote/components'
+import type { IViewStyle } from './styles'
 import type {
-  DrawerLayoutAndroidHandle,
-  DrawerLayoutAndroidProps,
-  DrawerPosition,
-  DrawerState,
+  IDrawerLayoutAndroidHandle,
+  IDrawerLayoutAndroidProps,
+  IDrawerPosition,
+  IDrawerState,
 } from './drawer-layout-android-shared'
 
 export type {
-  DrawerPosition,
-  DrawerLockMode,
-  KeyboardDismissMode,
-  DrawerState,
-  DrawerSlideEvent,
-  DrawerLayoutAndroidProps,
-  DrawerLayoutAndroidHandle,
+  IDrawerPosition,
+  IDrawerLockMode,
+  IKeyboardDismissMode,
+  IDrawerState,
+  IDrawerSlideEvent,
+  IDrawerLayoutAndroidProps,
+  IDrawerLayoutAndroidHandle,
 } from './drawer-layout-android-shared'
 
 // The native view name registered by AndroidDrawerLayoutNativeComponent's
@@ -64,20 +64,20 @@ const CLOSE_DRAWER_COMMAND = 'closeDrawer'
 
 // RN's drawerState int -> string mapping (android: DRAWER_STATES indexed by the native
 // drawerState). 0=Idle, 1=Dragging, 2=Settling.
-const DRAWER_STATES: ReadonlyArray<DrawerState> = ['Idle', 'Dragging', 'Settling']
+const DRAWER_STATES: ReadonlyArray<IDrawerState> = ['Idle', 'Dragging', 'Settling']
 
 const DEFAULT_DRAWER_BACKGROUND_COLOR = 'white'
-const DEFAULT_DRAWER_POSITION: DrawerPosition = 'left'
+const DEFAULT_DRAWER_POSITION: IDrawerPosition = 'left'
 
 // RN styles.base on the host: flex:1 plus the Android drop-shadow that floats the
 // drawer over content (android styles.base { flex:1, elevation:16 }).
-const HOST_STYLE: Readonly<ViewStyle> = {
+const HOST_STYLE: Readonly<IViewStyle> = {
   flex: 1,
   elevation: 16,
 }
 
 // RN styles.mainSubview — the content wrapper fills the host (absolute, all edges 0).
-const MAIN_SUBVIEW_STYLE: Readonly<ViewStyle> = {
+const MAIN_SUBVIEW_STYLE: Readonly<IViewStyle> = {
   position: 'absolute',
   top: 0,
   left: 0,
@@ -87,18 +87,18 @@ const MAIN_SUBVIEW_STYLE: Readonly<ViewStyle> = {
 
 // RN styles.drawerSubview — the navigation wrapper is absolute and full-height; its
 // width comes from drawerWidth and its background from drawerBackgroundColor.
-const DRAWER_SUBVIEW_STYLE: Readonly<ViewStyle> = {
+const DRAWER_SUBVIEW_STYLE: Readonly<IViewStyle> = {
   position: 'absolute',
   top: 0,
   bottom: 0,
 }
 
-function offsetFromSlide(event: SymbioteEvent): number {
+function offsetFromSlide(event: ISymbioteEvent): number {
   const offset = event.nativeEvent.offset
   return typeof offset === 'number' ? offset : 0
 }
 
-function stateFromChange(event: SymbioteEvent): DrawerState {
+function stateFromChange(event: ISymbioteEvent): IDrawerState {
   const index = event.nativeEvent.drawerState
   if (typeof index === 'number' && index >= 0 && index < DRAWER_STATES.length) {
     return DRAWER_STATES[index]
@@ -108,7 +108,7 @@ function stateFromChange(event: SymbioteEvent): DrawerState {
 
 // Issue a drawer command against the committed host node, or log a silent no-op when
 // there is no node yet (the first render has not committed).
-function dispatchDrawerCommand(node: SymbioteNode | null, command: string): void {
+function dispatchDrawerCommand(node: ISymbioteNode | null, command: string): void {
   if (node === null) {
     dlog(`DrawerLayoutAndroid ${command} no-op: no committed host node`)
     return
@@ -118,8 +118,8 @@ function dispatchDrawerCommand(node: SymbioteNode | null, command: string): void
 }
 
 export const DrawerLayoutAndroid = forwardRef<
-  DrawerLayoutAndroidHandle,
-  DrawerLayoutAndroidProps
+  IDrawerLayoutAndroidHandle,
+  IDrawerLayoutAndroidProps
 >((props, ref) => {
   const {
     drawerWidth,
@@ -138,7 +138,7 @@ export const DrawerLayoutAndroid = forwardRef<
     ...passthrough
   } = props
 
-  const node = useRef<SymbioteNode | null>(null)
+  const node = useRef<ISymbioteNode | null>(null)
   // RN tracks drawerOpened to gate the navigation view's pointerEvents (android
   // _onDrawerOpen/_onDrawerClose setState). Closed -> 'none' so the off-screen drawer
   // never intercepts touches; open -> 'auto'.
@@ -166,14 +166,14 @@ export const DrawerLayoutAndroid = forwardRef<
   }, [onDrawerClose])
 
   const handleDrawerSlide = useCallback(
-    (event: SymbioteEvent): void => {
+    (event: ISymbioteEvent): void => {
       onDrawerSlide?.({ offset: offsetFromSlide(event) })
     },
     [onDrawerSlide],
   )
 
   const handleDrawerStateChanged = useCallback(
-    (event: SymbioteEvent): void => {
+    (event: ISymbioteEvent): void => {
       onDrawerStateChanged?.(stateFromChange(event))
     },
     [onDrawerStateChanged],
@@ -217,7 +217,7 @@ export const DrawerLayoutAndroid = forwardRef<
       keyboardDismissMode,
       drawerBackgroundColor,
       statusBarBackgroundColor,
-      style: { ...HOST_STYLE, ...style },
+      style: [HOST_STYLE, style],
       onDrawerOpen: handleDrawerOpen,
       onDrawerClose: handleDrawerClose,
       onDrawerSlide: handleDrawerSlide,

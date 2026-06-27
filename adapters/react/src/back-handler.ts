@@ -11,15 +11,15 @@ import {
   installDeviceEventHub,
   NativeEventEmitter,
   getNativeModule,
-  type EventEmitterModule,
-  type EventSubscription,
+  type IEventEmitterModule,
+  type IEventSubscription,
   dlog,
 } from '@symbiote/engine'
 
 // The native module name RN registers this under. NOTE: this is the name the
-// NativeDeviceEventManager spec resolves via
+// INativeDeviceEventManager spec resolves via
 // `TurboModuleRegistry.get('DeviceEventManager')` — NOT the spec filename
-// `NativeDeviceEventManager`. Per the symbiote invariant, a module name is only
+// `INativeDeviceEventManager`. Per the symbiote invariant, a module name is only
 // provable on a real host (a headless fake answers to any name); this name is
 // device-verify-pending (Android). See .docs/native-module-platform-routing.md.
 const DEVICE_EVENT_MANAGER_MODULE = 'DeviceEventManager'
@@ -34,37 +34,37 @@ const BACK_PRESS_EVENT = {
   hardwareBackPress: 'hardwareBackPress',
 } as const
 
-export type BackPressEventName =
+export type IBackPressEventName =
   (typeof BACK_PRESS_EVENT)[keyof typeof BACK_PRESS_EVENT]
 
 // A handler returns true to consume the back press (stop the chain); any
 // falsy/void result lets earlier-registered handlers run, and ultimately the
 // native default. RN passes a HardwareBackPressEvent; we keep the signature
 // event-less since the slot has no Event class yet and handlers ignore it.
-export type BackPressHandler = () => boolean | null | undefined | void
+export type IBackPressHandler = () => boolean | null | undefined | void
 
 // The native DeviceEventManager: a single method that triggers Android's default
 // back behavior (finishing the activity / exiting the app).
-interface NativeDeviceEventManager extends EventEmitterModule {
+interface INativeDeviceEventManager extends IEventEmitterModule {
   invokeDefaultBackPressHandler(): void
 }
 
 // The registry, in registration order. Invoked in reverse on a back press.
-const backPressSubscriptions: BackPressHandler[] = []
+const backPressSubscriptions: IBackPressHandler[] = []
 
-function isHandled(result: ReturnType<BackPressHandler>): boolean {
+function isHandled(result: ReturnType<IBackPressHandler>): boolean {
   return result === true
 }
 
 // Lazily resolved so importing this module has no native side effect: a headless
 // run without a fake __turboModuleProxy still loads it; resolution happens on the
 // first use. `null` when the module isn't linked (e.g. iOS).
-let deviceEventManager: NativeDeviceEventManager | null | undefined
+let deviceEventManager: INativeDeviceEventManager | null | undefined
 let emitter: NativeEventEmitter | undefined
 
-function getModule(): NativeDeviceEventManager | null {
+function getModule(): INativeDeviceEventManager | null {
   if (deviceEventManager === undefined) {
-    deviceEventManager = getNativeModule<NativeDeviceEventManager>(DEVICE_EVENT_MANAGER_MODULE)
+    deviceEventManager = getNativeModule<INativeDeviceEventManager>(DEVICE_EVENT_MANAGER_MODULE)
     dlog(`BackHandler: module ${deviceEventManager ? 'resolved' : 'NOT resolved (null)'}`)
   }
   return deviceEventManager
@@ -110,7 +110,7 @@ class BackHandlerImpl {
 
   // Register a hardware-back handler. The returned subscription's remove()
   // unregisters it. Idempotent on the same handler reference (RN semantics).
-  addEventListener(_eventName: BackPressEventName, handler: BackPressHandler): EventSubscription {
+  addEventListener(_eventName: IBackPressEventName, handler: IBackPressHandler): IEventSubscription {
     // Install the hub/emitter on first subscribe so native back presses reach the chain.
     getEmitter()
     dlog('BackHandler.addEventListener -> hardwareBackPress')
@@ -129,7 +129,7 @@ class BackHandlerImpl {
 
   // Legacy unsubscribe kept for RN parity. The modern path is the subscription's
   // remove() returned by addEventListener.
-  removeEventListener(_eventName: BackPressEventName, handler: BackPressHandler): void {
+  removeEventListener(_eventName: IBackPressEventName, handler: IBackPressHandler): void {
     const index = backPressSubscriptions.indexOf(handler)
     if (index !== -1) {
       backPressSubscriptions.splice(index, 1)

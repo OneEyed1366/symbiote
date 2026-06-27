@@ -6,20 +6,18 @@
 // BEFORE the await, callback fired exactly once; (b) spring same; (c) decay is the
 // empty animation (no toValue to land on); (d) sequence/parallel jump their members.
 
-import { AnimatedValue } from '@symbiote/engine'
-import type { EndResult } from '@symbiote/engine'
-// Reach the mock source directly — it is the half swapped in under reduced motion.
-import { AnimatedMock } from '../../adapters/react/src/animated/mock'
+import { AnimatedValue, AnimatedMock } from '@symbiote/engine'
+import type { IEndResult } from '@symbiote/engine'
 
 // ---- fake Fabric slot ----------------------------------------------------
 // setValue flushes through the commit engine, which reads nativeFabricUIManager. A
 // minimal slot keeps that path from throwing even though no view is attached.
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
@@ -32,19 +30,19 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
+  ): IFakeNode {
     return { tag: nextTag++, viewName, props, children: [], instanceHandle }
   },
-  cloneNodeWithNewProps(node: FakeNode, newProps: Record<string, unknown>): FakeNode {
+  cloneNodeWithNewProps(node: IFakeNode, newProps: Record<string, unknown>): IFakeNode {
     return { ...node, props: { ...node.props, ...newProps } }
   },
-  cloneNodeWithNewChildren(node: FakeNode): FakeNode {
+  cloneNodeWithNewChildren(node: IFakeNode): IFakeNode {
     return { ...node, children: [] }
   },
-  createChildSet(): FakeNode[] {
+  createChildSet(): IFakeNode[] {
     return []
   },
-  appendChildToSet(childSet: FakeNode[], child: FakeNode): void {
+  appendChildToSet(childSet: IFakeNode[], child: IFakeNode): void {
     childSet.push(child)
   },
   completeRoot(): void {},
@@ -66,7 +64,7 @@ function testTimingJumpsSynchronously(): void {
 
   let endCount = 0
   let landedValue = -1
-  AnimatedMock.timing(value, { toValue: 1, duration: 10000 }).start((result: EndResult) => {
+  AnimatedMock.timing(value, { toValue: 1, duration: 10000 }).start((result: IEndResult) => {
     endCount += 1
     assert(result.finished, 'mock timing must report finished:true')
     // The callback runs INSIDE start() — value is already final here, no await.

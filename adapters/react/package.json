@@ -13,6 +13,7 @@
     "typecheck": "tsc --build"
   },
   "dependencies": {
+    "@symbiote/components": "workspace:*",
     "@symbiote/engine": "workspace:*",
     "react-reconciler": "^0.33.0"
   },

@@ -5,7 +5,7 @@
 // hand-built tree and assert capture-before-bubble ordering and stopPropagation in
 // the capture phase.
 
-import { appendChild, createElement, type SymbioteEvent } from '@symbiote/engine'
+import { appendChild, createElement, type ISymbioteEvent } from '@symbiote/engine'
 import { installEventHandler } from '../../core/engine/src/events'
 // `change` (and thus `changeCapture`) is not a ViewConfig event for a bare RCTView, so
 // routeProp would route onChange/onChangeCapture to props, not listeners. The dispatch
@@ -14,13 +14,13 @@ import { installEventHandler } from '../../core/engine/src/events'
 // ViewConfig gate.
 import { setEventListener } from '../../core/engine/src/node'
 
-type EventHandler = (
+type IEventHandler = (
   instanceHandle: unknown,
   topLevelType: string,
   nativeEvent: Record<string, unknown>,
 ) => void
 
-let eventHandler: EventHandler | undefined
+let eventHandler: IEventHandler | undefined
 
 const slot = {
   createNode: (
@@ -36,7 +36,7 @@ const slot = {
   appendChild: (parent: unknown): unknown => parent,
   appendChildToSet: (): void => {},
   completeRoot: (): void => {},
-  registerEventHandler(handler: EventHandler): void {
+  registerEventHandler(handler: IEventHandler): void {
     eventHandler = handler
   },
 }
@@ -88,7 +88,7 @@ if (order[2] !== 'child capture') {
 const seen: string[] = []
 const child2 = createElement('RCTView')
 appendChild(parent, child2)
-setEventListener(parent, 'changeCapture', (event: SymbioteEvent) => {
+setEventListener(parent, 'changeCapture', (event: ISymbioteEvent) => {
   seen.push('parent capture')
   event.stopPropagation()
 })
@@ -104,7 +104,7 @@ const targets: string[] = []
 const child3 = createElement('RCTView')
 appendChild(parent, child3)
 // reset parent's capture listener (cleared its stopPropagation closure)
-setEventListener(parent, 'changeCapture', (event: SymbioteEvent) => {
+setEventListener(parent, 'changeCapture', (event: ISymbioteEvent) => {
   if (event.target === child3 && event.currentTarget === parent) targets.push('ok')
 })
 fire(child3, 'topChange')

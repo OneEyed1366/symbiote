@@ -10,21 +10,21 @@ import { FlatList } from '../../adapters/react/src/flat-list'
 
 // ---- fake Fabric slot ---------------------------------------------------
 
-interface FakeNode {
+interface IFakeNode {
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
-type EventHandler = (
+type IEventHandler = (
   instanceHandle: unknown,
   topLevelType: string,
   nativeEvent: Record<string, unknown>,
 ) => void
 
-let eventHandler: EventHandler | undefined
-const allCreated: FakeNode[] = []
+let eventHandler: IEventHandler | undefined
+const allCreated: IFakeNode[] = []
 
 const slot = {
   createNode(
@@ -33,30 +33,30 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
-    const node: FakeNode = { viewName, props, children: [], instanceHandle }
+  ): IFakeNode {
+    const node: IFakeNode = { viewName, props, children: [], instanceHandle }
     allCreated.push(node)
     return node
   },
-  cloneNodeWithNewProps: (node: FakeNode, props: Record<string, unknown>): FakeNode => ({
+  cloneNodeWithNewProps: (node: IFakeNode, props: Record<string, unknown>): IFakeNode => ({
     ...node,
     props,
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     props: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild(parent: FakeNode, child: FakeNode): FakeNode {
+  ): IFakeNode => ({ ...node, props, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild(parent: IFakeNode, child: IFakeNode): IFakeNode {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet(childSet: FakeNode[], child: FakeNode): void {
+  appendChildToSet(childSet: IFakeNode[], child: IFakeNode): void {
     childSet.push(child)
   },
   completeRoot(): void {},
-  registerEventHandler(handler: EventHandler): void {
+  registerEventHandler(handler: IEventHandler): void {
     eventHandler = handler
   },
 }
@@ -70,24 +70,24 @@ const ITEM_WIDTH = 50
 const TOTAL_WIDTH = ITEM_COUNT * ITEM_WIDTH
 const VIEWPORT_WIDTH = 200
 
-interface Row {
+interface IRow {
   id: string
   index: number
 }
 
-const data: Row[] = Array.from({ length: ITEM_COUNT }, (_, index) => ({ id: `row-${index}`, index }))
+const data: IRow[] = Array.from({ length: ITEM_COUNT }, (_, index) => ({ id: `row-${index}`, index }))
 
 function App(): ReactElement {
-  return createElement(FlatList<Row>, {
+  return createElement(FlatList<IRow>, {
     data,
     horizontal: true,
-    keyExtractor: (item: Row) => item.id,
+    keyExtractor: (item: IRow) => item.id,
     getItemLayout: (_data: unknown, index: number) => ({
       length: ITEM_WIDTH,
       offset: ITEM_WIDTH * index,
       index,
     }),
-    renderItem: ({ item }: { item: Row; index: number }) =>
+    renderItem: ({ item }: { item: IRow; index: number }) =>
       createElement('symbiote-view', { key: item.id, style: { width: ITEM_WIDTH, height: 40 } }),
   })
 }

@@ -12,26 +12,26 @@
 
 import { createElement } from 'react'
 import { mount } from '@symbiote/react'
-import { setNativeViewConfigSource, type SymbioteEvent } from '@symbiote/engine'
+import { setNativeViewConfigSource, type ISymbioteEvent } from '@symbiote/engine'
 
 // ---- fake Fabric slot ---------------------------------------------------
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
-type EventHandler = (
+type IEventHandler = (
   instanceHandle: unknown,
   topLevelType: string,
   nativeEvent: Record<string, unknown>,
 ) => void
 
-let eventHandler: EventHandler | undefined
-const allCreated: FakeNode[] = []
+let eventHandler: IEventHandler | undefined
+const allCreated: IFakeNode[] = []
 
 const slot = {
   createNode(
@@ -40,40 +40,40 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
-    const node: FakeNode = { tag, viewName, props, children: [], instanceHandle }
+  ): IFakeNode {
+    const node: IFakeNode = { tag, viewName, props, children: [], instanceHandle }
     allCreated.push(node)
     return node
   },
-  cloneNode(node: FakeNode): FakeNode {
-    const clone: FakeNode = { ...node, props: { ...node.props }, children: [...node.children] }
+  cloneNode(node: IFakeNode): IFakeNode {
+    const clone: IFakeNode = { ...node, props: { ...node.props }, children: [...node.children] }
     allCreated.push(clone)
     return clone
   },
-  cloneNodeWithNewChildren(node: FakeNode): FakeNode {
-    const clone: FakeNode = { ...node, props: { ...node.props }, children: [] }
+  cloneNodeWithNewChildren(node: IFakeNode): IFakeNode {
+    const clone: IFakeNode = { ...node, props: { ...node.props }, children: [] }
     allCreated.push(clone)
     return clone
   },
-  cloneNodeWithNewProps(node: FakeNode, props: Record<string, unknown>): FakeNode {
-    const clone: FakeNode = { ...node, props: { ...node.props, ...props }, children: [...node.children] }
+  cloneNodeWithNewProps(node: IFakeNode, props: Record<string, unknown>): IFakeNode {
+    const clone: IFakeNode = { ...node, props: { ...node.props, ...props }, children: [...node.children] }
     allCreated.push(clone)
     return clone
   },
-  cloneNodeWithNewChildrenAndProps(node: FakeNode, props: Record<string, unknown>): FakeNode {
-    const clone: FakeNode = { ...node, props: { ...node.props, ...props }, children: [] }
+  cloneNodeWithNewChildrenAndProps(node: IFakeNode, props: Record<string, unknown>): IFakeNode {
+    const clone: IFakeNode = { ...node, props: { ...node.props, ...props }, children: [] }
     allCreated.push(clone)
     return clone
   },
-  createChildSet(): FakeNode[] {
+  createChildSet(): IFakeNode[] {
     return []
   },
-  appendChild(parent: FakeNode, child: FakeNode): void {
+  appendChild(parent: IFakeNode, child: IFakeNode): void {
     parent.children.push(child)
   },
   appendChildToSet(): void {},
   completeRoot(): void {},
-  registerEventHandler(handler: EventHandler): void {
+  registerEventHandler(handler: IEventHandler): void {
     eventHandler = handler
   },
   dispatchCommand(): void {},
@@ -112,7 +112,7 @@ setNativeViewConfigSource((name) => (name === 'RNCSlider' ? RNC_SLIDER_VIEW_CONF
 
 const SLIDER_VIEW = 'RNCSlider'
 
-function sliderNode(): FakeNode {
+function sliderNode(): IFakeNode {
   const node = allCreated.find((n) => n.viewName === SLIDER_VIEW)
   if (!node) throw new Error(`no ${SLIDER_VIEW} was created`)
   return node
@@ -122,12 +122,12 @@ function reset(): void {
   allCreated.length = 0
 }
 
-function fire(node: FakeNode, topLevelType: string, nativeEvent: Record<string, unknown>): void {
+function fire(node: IFakeNode, topLevelType: string, nativeEvent: Record<string, unknown>): void {
   if (!eventHandler) throw new Error('no event handler was registered')
   eventHandler(node.instanceHandle, topLevelType, nativeEvent)
 }
 
-function numberFromEvent(event: SymbioteEvent): number | undefined {
+function numberFromEvent(event: ISymbioteEvent): number | undefined {
   const value = event.nativeEvent.value
   return typeof value === 'number' ? value : undefined
 }
@@ -180,7 +180,7 @@ mount(
 
 reset()
 let changed: number | undefined
-const onChange = (event: SymbioteEvent): void => {
+const onChange = (event: ISymbioteEvent): void => {
   changed = numberFromEvent(event)
 }
 mount(32, createElement('RNCSlider', { value: 0.2, onChange, onRNCSliderValueChange: onChange }))
@@ -207,7 +207,7 @@ mount(
   33,
   createElement('RNCSlider', {
     value: 0.2,
-    onRNCSliderSlidingComplete: (event: SymbioteEvent): void => {
+    onRNCSliderSlidingComplete: (event: ISymbioteEvent): void => {
       completedAt = numberFromEvent(event)
     },
   }),

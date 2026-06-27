@@ -4,26 +4,26 @@
 // view names at commit.
 
 import { createElement, type FC, type Ref, type ReactNode } from 'react'
-import type { SymbioteEvent } from '@symbiote/engine'
-import type { HostInstance } from './host-instance'
-import { resolveAccessibilityProps, type AccessibilityProps, type AriaProps } from './accessibility-props'
-import type { ResponderProps } from './responder-props'
-import type { TextStyle, ViewStyle } from './styles'
+import type { ISymbioteEvent } from '@symbiote/engine'
+import type { IHostInstance } from './host-instance'
+import { resolveAccessibilityProps, type IAccessibilityProps, type IAriaProps } from '@symbiote/components'
+import type { IResponderProps } from './responder-props'
+import type { IStyleProp, ITextStyle, IViewStyle } from './styles'
 
-export interface ViewProps extends AccessibilityProps, AriaProps, ResponderProps {
-  style?: ViewStyle
-  onPress?: (event: SymbioteEvent) => void
+export interface IViewProps extends IAccessibilityProps, IAriaProps, IResponderProps {
+  style?: IStyleProp<IViewStyle>
+  onPress?: (event: ISymbioteEvent) => void
   // Touch lifecycle around a press, synthesized from the touch stream (events.ts),
   // mirroring RN's Pressability — onPressIn fires on touch-down, onPressOut on release.
-  onPressIn?: (event: SymbioteEvent) => void
-  onPressOut?: (event: SymbioteEvent) => void
+  onPressIn?: (event: ISymbioteEvent) => void
+  onPressOut?: (event: ISymbioteEvent) => void
   // The most-used View event: fires with the measured frame once Fabric lays the view
   // out. A listener also raises the onLayout flag prop so native actually measures.
-  onLayout?: (event: SymbioteEvent) => void
+  onLayout?: (event: ISymbioteEvent) => void
   // Bubbling focus/blur (RN's FocusEventProps) — declared on the base View, so any
   // view emits them; registered in shared's view-config BASE_EVENTS.
-  onFocus?: (event: SymbioteEvent) => void
-  onBlur?: (event: SymbioteEvent) => void
+  onFocus?: (event: ISymbioteEvent) => void
+  onBlur?: (event: ISymbioteEvent) => void
   // Gate touch handling without changing layout: 'none' lets touches fall through,
   // 'box-none' makes the view itself transparent to touches but not its children.
   pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only'
@@ -43,24 +43,24 @@ export interface ViewProps extends AccessibilityProps, AriaProps, ResponderProps
   shouldRasterizeIOS?: boolean
   needsOffscreenAlphaCompositing?: boolean
   // A host ref hands back the public instance (measure / setNativeProps / focus).
-  ref?: Ref<HostInstance>
+  ref?: Ref<IHostInstance>
   children?: ReactNode
 }
 
-export interface TextProps extends AccessibilityProps, AriaProps {
-  style?: TextStyle
-  onPress?: (event: SymbioteEvent) => void
+export interface ITextProps extends IAccessibilityProps, IAriaProps {
+  style?: IStyleProp<ITextStyle>
+  onPress?: (event: ISymbioteEvent) => void
   // Synthesized from a long touch hold by shared/events.ts (a hold timer armed on
   // touch start, fired after 500ms, suppressing the tap on release) — like RN's Text.
-  onLongPress?: (event: SymbioteEvent) => void
-  // Touch lifecycle around a press (RN's TextProps), synthesized from the touch stream.
-  onPressIn?: (event: SymbioteEvent) => void
-  onPressOut?: (event: SymbioteEvent) => void
-  // The view-frame layout event (RN's TextProps onLayout), distinct from onTextLayout's
+  onLongPress?: (event: ISymbioteEvent) => void
+  // Touch lifecycle around a press (RN's ITextProps), synthesized from the touch stream.
+  onPressIn?: (event: ISymbioteEvent) => void
+  onPressOut?: (event: ISymbioteEvent) => void
+  // The view-frame layout event (RN's ITextProps onLayout), distinct from onTextLayout's
   // per-glyph frames; a listener raises the onLayout flag prop so native measures.
-  onLayout?: (event: SymbioteEvent) => void
+  onLayout?: (event: ISymbioteEvent) => void
   // Fires after glyph layout with per-line frames — wired as a direct event (RCTText).
-  onTextLayout?: (event: SymbioteEvent) => void
+  onTextLayout?: (event: ISymbioteEvent) => void
   numberOfLines?: number
   ellipsizeMode?: 'head' | 'middle' | 'tail' | 'clip'
   selectable?: boolean
@@ -73,7 +73,7 @@ export interface TextProps extends AccessibilityProps, AriaProps {
   selectionColor?: string
   testID?: string
   nativeID?: string
-  ref?: Ref<HostInstance>
+  ref?: Ref<IHostInstance>
   children?: ReactNode
 }
 
@@ -81,12 +81,12 @@ export interface TextProps extends AccessibilityProps, AriaProps {
 // (`processedProps.nativeID = id`), so `id` wins when both are set. We fold it here and
 // blank the alias so a raw `id` never reaches Fabric (every non-function prop passes
 // through to the slot otherwise).
-function resolveId({ id, ...rest }: ViewProps): ViewProps {
+function resolveId({ id, ...rest }: IViewProps): IViewProps {
   if (id === undefined) return rest
   return { ...rest, nativeID: id }
 }
 
-export const View: FC<ViewProps> = (props) =>
+export const View: FC<IViewProps> = (props) =>
   createElement('symbiote-view', resolveAccessibilityProps(resolveId(props)))
-export const Text: FC<TextProps> = (props) =>
+export const Text: FC<ITextProps> = (props) =>
   createElement('symbiote-text', resolveAccessibilityProps(props))

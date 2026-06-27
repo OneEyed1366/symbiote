@@ -26,20 +26,20 @@ const MATRIX_NUMBER_REGEX = /[+-]?\d+(\.\d+)?/g
 
 // A single transform entry: exactly one key (rotate / translateX / matrix / …) whose
 // value is a number, an angle/percentage string, or a numeric array (matrix / translate).
-type TransformEntry = Record<string, TransformValue>
-type TransformValue = number | string | Array<number | string> | undefined
+type ITransformEntry = Record<string, ITransformValue>
+type ITransformValue = number | string | Array<number | string> | undefined
 
 // The loosely-typed input shape — callers (commit) pass plain records filtered by isRecord
 // (Record<string, unknown>), so the array branch reads each entry without a cast. Mirrors
 // process-box-shadow's RawBoxShadow / isRecord pairing.
-type RawTransform = Record<string, unknown>
+type IRawTransform = Record<string, unknown>
 
 // RN processTransform.js:52-139. Mirrors _getKeyAndValueFromCSSTransform: turns one
 // `key(args)` pair into the entry value native expects.
 function getKeyAndValueFromCSSTransform(
   key: string,
   args: string,
-): { key: string; value: TransformValue } {
+): { key: string; value: ITransformValue } {
   switch (key) {
     case 'matrix': {
       // RN processTransform.js:62-63.
@@ -107,8 +107,8 @@ function getKeyAndValueFromCSSTransform(
 // is returned UNCHANGED (RN's only array work, _validateTransforms, is __DEV__-only and
 // throws — we never throw, so we skip it and run a non-throwing dlog sanity check).
 export function processTransform(
-  transform: ReadonlyArray<RawTransform> | string | undefined,
-): ReadonlyArray<RawTransform> {
+  transform: ReadonlyArray<IRawTransform> | string | undefined,
+): ReadonlyArray<IRawTransform> {
   if (transform == null) {
     return []
   }
@@ -121,7 +121,7 @@ export function processTransform(
   }
 
   TRANSFORM_REGEX.lastIndex = 0
-  const transformArray: Array<TransformEntry> = []
+  const transformArray: Array<ITransformEntry> = []
 
   let matches: RegExpExecArray | null
   while ((matches = TRANSFORM_REGEX.exec(transform))) {
@@ -138,7 +138,7 @@ export function processTransform(
 // dlogs the same conditions RN's invariant would have flagged, then returns. The commit
 // path keeps the array regardless — an invalid transform is the caller's bug, not ours to
 // abort a frame over.
-function warnInvalidTransforms(transform: ReadonlyArray<RawTransform>): void {
+function warnInvalidTransforms(transform: ReadonlyArray<IRawTransform>): void {
   for (const transformation of transform) {
     const keys = Object.keys(transformation)
     if (keys.length !== 1) {
@@ -151,4 +151,4 @@ function warnInvalidTransforms(transform: ReadonlyArray<RawTransform>): void {
   }
 }
 
-export type { TransformEntry, RawTransform }
+export type { ITransformEntry, IRawTransform }

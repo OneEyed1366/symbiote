@@ -6,18 +6,18 @@
 
 import type { AnimatedValue } from './value'
 
-export interface EndResult {
+export interface IEndResult {
   finished: boolean
 }
 
-export type EndCallback = (result: EndResult) => void
+export type IEndCallback = (result: IEndResult) => void
 
-export interface Animation {
+export interface IAnimation {
   start(
     fromValue: number,
     onUpdate: (value: number) => void,
-    onEnd: EndCallback,
-    previousAnimation: Animation | null,
+    onEnd: IEndCallback,
+    previousAnimation: IAnimation | null,
     animatedValue: AnimatedValue,
   ): void
   stop(): void

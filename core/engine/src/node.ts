@@ -17,33 +17,33 @@ export const RAW_TEXT_COMPONENT = 'RCTRawText'
 export const TEXT_COMPONENT = 'RCTText'
 export const VIRTUAL_TEXT_COMPONENT = 'RCTVirtualText'
 
-export interface SymbioteEvent {
+export interface ISymbioteEvent {
   type: string
   // `target` is the node the gesture started on; `currentTarget` is the node
   // whose listener is running right now as the event bubbles toward the root.
-  target: SymbioteNode
-  currentTarget: SymbioteNode
+  target: ISymbioteNode
+  currentTarget: ISymbioteNode
   nativeEvent: Record<string, unknown>
   stopPropagation: () => void
 }
 // Returns `unknown`, not `void`: the responder negotiation reads a boolean back
 // from onStartShouldSetResponder / onResponderTerminationRequest. Bubbling/direct
 // dispatch ignore the return; only the responder path consults it.
-export type Listener = (event: SymbioteEvent) => unknown
+export type IListener = (event: ISymbioteEvent) => unknown
 
-export interface SymbioteNode {
+export interface ISymbioteNode {
   readonly [BRAND]: true
   // Fabric view name passed to createNode (RCTView, RCTImageView, RCTText, ...).
   readonly component: string
   // A text container: its descendants render as virtual text spans.
   readonly isText: boolean
   props: Record<string, unknown>
-  listeners: Map<string, Listener> | undefined
-  children: SymbioteNode[]
-  parent: SymbioteNode | undefined
+  listeners: Map<string, IListener> | undefined
+  children: ISymbioteNode[]
+  parent: ISymbioteNode | undefined
 }
 
-export function createElement(component: string, isText = false): SymbioteNode {
+export function createElement(component: string, isText = false): ISymbioteNode {
   return {
     [BRAND]: true,
     component,
@@ -55,7 +55,7 @@ export function createElement(component: string, isText = false): SymbioteNode {
   }
 }
 
-export function createRawText(text: string): SymbioteNode {
+export function createRawText(text: string): ISymbioteNode {
   return {
     [BRAND]: true,
     component: RAW_TEXT_COMPONENT,
@@ -70,7 +70,7 @@ export function createRawText(text: string): SymbioteNode {
 // `instanceHandle` round-trips through Fabric unchanged: the object we pass to
 // createNode comes back as the event target. We brand our nodes so the event
 // handler can confirm a target is one of ours before dispatching.
-export function isSymbioteNode(value: unknown): value is SymbioteNode {
+export function isSymbioteNode(value: unknown): value is ISymbioteNode {
   return typeof value === 'object' && value !== null && BRAND in value
 }
 
@@ -81,18 +81,18 @@ export function isSymbioteNode(value: unknown): value is SymbioteNode {
 // not a new field, so the hot SymbioteNode shape is untouched.
 export const ANCHOR_COMPONENT = '#anchor'
 
-export function createAnchor(): SymbioteNode {
+export function createAnchor(): ISymbioteNode {
   return createElement(ANCHOR_COMPONENT)
 }
 
-export function isAnchor(node: SymbioteNode): boolean {
+export function isAnchor(node: ISymbioteNode): boolean {
   return node.component === ANCHOR_COMPONENT
 }
 
 // A pure prop set: no event inference. `onTintColor` is a Switch prop and reaches
 // Fabric like any other — the event-vs-prop decision is made by routeProp, never by
 // the key's name.
-export function setProp(node: SymbioteNode, key: string, value: unknown): void {
+export function setProp(node: ISymbioteNode, key: string, value: unknown): void {
   if (value === undefined) {
     delete node.props[key]
   } else {
@@ -112,12 +112,12 @@ const LAYOUT_FLAG_PROP = 'onLayout'
 // The explicit event channel. Structural adapters (Svelte addEventListener, Angular
 // Renderer2.listen) call this directly with an already-known event name; flat-bag
 // adapters reach it through routeProp. A non-function value clears the listener.
-export function setEventListener(node: SymbioteNode, name: string, value: unknown): void {
+export function setEventListener(node: ISymbioteNode, name: string, value: unknown): void {
   const isHandler = typeof value === 'function'
   if (isHandler) {
     const handler = value
     const listeners = (node.listeners ??= new Map())
-    listeners.set(name, (event: SymbioteEvent) => handler(event))
+    listeners.set(name, (event: ISymbioteEvent) => handler(event))
   } else {
     node.listeners?.delete(name)
   }
@@ -151,11 +151,23 @@ const RESPONDER_EVENTS: ReadonlySet<string> = new Set([
   'responderTerminationRequest',
 ])
 
+// React's JSX dev transform (transform-react-jsx-self / -source, injected by RN's babel
+// preset whenever dev=true) annotates every element with __self (the component instance)
+// and __source ({ fileName, lineNumber, columnNumber }). React's own Fabric host config
+// consumes both and never forwards them. A JSX-based adapter (Vue JSX, Solid JSX) instead
+// carries them onto the vnode as ordinary props, so they reach setProp and then Fabric —
+// where Android's folly::dynamic rejects __self with "JS Functions are not convertible to
+// dynamic" (the instance holds functions) and the surface paints black, while iOS silently
+// drops it. SFC/template authoring never produces them. Strip them here, once, so no
+// adapter leaks React JSX dev metadata to the host — mirroring React's host config.
+const REACT_JSX_DEV_PROPS: ReadonlySet<string> = new Set(['__self', '__source'])
+
 // The flat-bag split (React / Vue / Solid): an `onX` prop becomes an event listener
 // ONLY when the node's component actually declares `x` as an event (per the shared
 // ViewConfig). Otherwise it is a plain prop — so `onTintColor` on a Switch, whose
 // only event is `change`, routes to setProp and reaches Fabric.
-export function routeProp(node: SymbioteNode, key: string, value: unknown): void {
+export function routeProp(node: ISymbioteNode, key: string, value: unknown): void {
+  if (REACT_JSX_DEV_PROPS.has(key)) return
   if (ON_PREFIX.test(key)) {
     const name = listenerName(key)
     if (RESPONDER_EVENTS.has(name) || isEventFor(node.component, name)) {
@@ -166,11 +178,11 @@ export function routeProp(node: SymbioteNode, key: string, value: unknown): void
   setProp(node, key, value)
 }
 
-export function setText(node: SymbioteNode, text: string): void {
+export function setText(node: ISymbioteNode, text: string): void {
   node.props.text = text
 }
 
-function detach(child: SymbioteNode): void {
+function detach(child: ISymbioteNode): void {
   const parent = child.parent
   if (!parent) return
   const index = parent.children.indexOf(child)
@@ -178,16 +190,16 @@ function detach(child: SymbioteNode): void {
   child.parent = undefined
 }
 
-export function appendChild(parent: SymbioteNode, child: SymbioteNode): void {
+export function appendChild(parent: ISymbioteNode, child: ISymbioteNode): void {
   detach(child)
   child.parent = parent
   parent.children.push(child)
 }
 
 export function insertBefore(
-  parent: SymbioteNode,
-  child: SymbioteNode,
-  beforeChild: SymbioteNode,
+  parent: ISymbioteNode,
+  child: ISymbioteNode,
+  beforeChild: ISymbioteNode,
 ): void {
   detach(child)
   child.parent = parent
@@ -195,7 +207,7 @@ export function insertBefore(
   parent.children.splice(index < 0 ? parent.children.length : index, 0, child)
 }
 
-export function removeChild(parent: SymbioteNode, child: SymbioteNode): void {
+export function removeChild(parent: ISymbioteNode, child: ISymbioteNode): void {
   const index = parent.children.indexOf(child)
   if (index >= 0) parent.children.splice(index, 1)
   child.parent = undefined

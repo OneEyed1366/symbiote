@@ -8,7 +8,7 @@
 // cross-platform smoke never crashes when the native module is absent.
 //
 // The native contract is confirmed from RN's TurboModule spec at
-// specs_DEPRECATED/modules/NativeToastAndroid.js:
+// specs_DEPRECATED/modules/INativeToastAndroid.js:
 //   getConstants(): { SHORT, LONG, TOP, BOTTOM, CENTER }
 //   show(message: string, duration: number)
 //   showWithGravity(message: string, duration: number, gravity: number)
@@ -18,7 +18,7 @@ import { dlog, getNativeModule } from '@symbiote/engine'
 
 // The native module name RN registers this under. NOTE: this is the name the spec
 // resolves via `TurboModuleRegistry.getEnforcing<Spec>('ToastAndroid')` — NOT the
-// spec filename `NativeToastAndroid`. Per the symbiote invariant, a module name is
+// spec filename `INativeToastAndroid`. Per the symbiote invariant, a module name is
 // only provable on a real host (a headless fake answers to any name); this Android
 // name is device-verify-pending. See .docs/native-module-platform-routing.md.
 const TOAST_MODULE = 'ToastAndroid'
@@ -35,7 +35,7 @@ const FALLBACK_CONSTANTS = {
 } as const
 
 // The numeric constants ToastAndroid exposes. Same keys as the native getConstants().
-interface ToastConstants {
+interface IToastConstants {
   SHORT: number
   LONG: number
   TOP: number
@@ -45,7 +45,7 @@ interface ToastConstants {
 
 // The ToastAndroid native module typed as the interface we vouch for — the single
 // point that accepts the native shape (no per-call `as`).
-interface NativeToastAndroid {
+interface INativeToastAndroid {
   getConstants(): { [key: string]: unknown }
   show(message: string, duration: number): void
   showWithGravity(message: string, duration: number, gravity: number): void
@@ -59,11 +59,11 @@ interface NativeToastAndroid {
 }
 
 // Lazily resolved so importing this module has no native side effect.
-let toastModule: NativeToastAndroid | null | undefined
+let toastModule: INativeToastAndroid | null | undefined
 
-function getModule(): NativeToastAndroid | null {
+function getModule(): INativeToastAndroid | null {
   if (toastModule === undefined) {
-    toastModule = getNativeModule<NativeToastAndroid>(TOAST_MODULE)
+    toastModule = getNativeModule<INativeToastAndroid>(TOAST_MODULE)
     dlog(`ToastAndroid: ToastAndroid module ${toastModule ? 'resolved' : 'NOT resolved (null)'}`)
   }
   return toastModule
@@ -72,7 +72,7 @@ function getModule(): NativeToastAndroid | null {
 // Read a single numeric constant from the native getConstants() payload, narrowing
 // with a `typeof` guard (no cast) and falling back to the conventional RN value when
 // the module or the key is absent.
-function readConstant(raw: { [key: string]: unknown }, key: keyof ToastConstants): number {
+function readConstant(raw: { [key: string]: unknown }, key: keyof IToastConstants): number {
   const value = raw[key]
   return typeof value === 'number' ? value : FALLBACK_CONSTANTS[key]
 }
@@ -80,7 +80,7 @@ function readConstant(raw: { [key: string]: unknown }, key: keyof ToastConstants
 // Resolve the constants once: real numbers from native on a device, fallbacks
 // otherwise. Always returns a fully-populated object so the constants are never
 // undefined, even headless.
-function resolveConstants(): ToastConstants {
+function resolveConstants(): IToastConstants {
   const module = getModule()
   if (module === null) {
     dlog('ToastAndroid: constants from fallbacks (native module unavailable)')

@@ -5,13 +5,13 @@
 // listener. Only the window metrics changing triggers a re-render.
 
 import { useEffect, useState } from 'react'
-import { Dimensions, type DimensionsSet, type DisplayMetrics } from './dimensions'
+import { Dimensions, type IDimensionsSet, type IDisplayMetrics } from './dimensions'
 
-export function useWindowDimensions(): DisplayMetrics {
-  const [dimensions, setDimensions] = useState<DisplayMetrics>(() => Dimensions.get('window'))
+export function useWindowDimensions(): IDisplayMetrics {
+  const [dimensions, setDimensions] = useState<IDisplayMetrics>(() => Dimensions.get('window'))
 
   useEffect(() => {
-    function handleChange(window: DisplayMetrics): void {
+    function handleChange(window: IDisplayMetrics): void {
       if (
         dimensions.width !== window.width ||
         dimensions.height !== window.height ||
@@ -22,7 +22,7 @@ export function useWindowDimensions(): DisplayMetrics {
       }
     }
 
-    const subscription = Dimensions.addEventListener('change', (set: DimensionsSet) => {
+    const subscription = Dimensions.addEventListener('change', (set: IDimensionsSet) => {
       handleChange(set.window)
     })
     // We may have missed an update between calling `get` in render and subscribing

@@ -7,12 +7,12 @@
 
 import { AnimatedValue } from './value'
 
-export interface ValueXY {
+export interface IValueXY {
   x: number
   y: number
 }
 
-type ValueXYListener = (value: ValueXY) => void
+type IValueXYListener = (value: IValueXY) => void
 
 let nextListenerId = 1
 
@@ -46,19 +46,19 @@ export class AnimatedValueXY {
     }
   }
 
-  __getValue(): ValueXY {
+  __getValue(): IValueXY {
     return { x: this.x.__getValue(), y: this.y.__getValue() }
   }
 
   // Directly set both axes. Stops any running per-axis animation and updates
   // every bound prop.
-  setValue(value: ValueXY): void {
+  setValue(value: IValueXY): void {
     this.x.setValue(value.x)
     this.y.setValue(value.y)
   }
 
   // An offset applied on top of whatever value is set, per axis.
-  setOffset(offset: ValueXY): void {
+  setOffset(offset: IValueXY): void {
     this.x.setOffset(offset.x)
     this.y.setOffset(offset.y)
   }
@@ -77,14 +77,14 @@ export class AnimatedValueXY {
 
   // Stop any running animation on either axis. `callback` receives the final
   // 2D value, useful for syncing state to the resting position.
-  stopAnimation(callback?: (value: ValueXY) => void): void {
+  stopAnimation(callback?: (value: IValueXY) => void): void {
     this.x.stopAnimation()
     this.y.stopAnimation()
     callback?.(this.__getValue())
   }
 
   // Stop any animation and reset both axes to their original values.
-  resetAnimation(callback?: (value: ValueXY) => void): void {
+  resetAnimation(callback?: (value: IValueXY) => void): void {
     this.x.resetAnimation()
     this.y.resetAnimation()
     callback?.(this.__getValue())
@@ -93,7 +93,7 @@ export class AnimatedValueXY {
   // Observe updates from either axis as a single {x, y} event. Both axes share
   // one joint callback, so a change on either fires the listener with the
   // current 2D value.
-  addListener(callback: ValueXYListener): string {
+  addListener(callback: IValueXYListener): string {
     const id = String(nextListenerId++)
     const jointCallback = (): void => {
       callback(this.__getValue())

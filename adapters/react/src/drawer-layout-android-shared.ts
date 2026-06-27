@@ -5,40 +5,40 @@
 // them. No Platform.OS read anywhere.
 
 import type { ReactNode } from 'react'
-import type { AccessibilityProps, AriaProps } from './accessibility-props'
-import type { ViewStyle } from './styles'
+import type { IAccessibilityProps, IAriaProps } from '@symbiote/components'
+import type { IStyleProp, IViewStyle } from './styles'
 
-export type DrawerPosition = 'left' | 'right'
+export type IDrawerPosition = 'left' | 'right'
 
-export type DrawerLockMode = 'unlocked' | 'locked-closed' | 'locked-open'
+export type IDrawerLockMode = 'unlocked' | 'locked-closed' | 'locked-open'
 
-export type KeyboardDismissMode = 'none' | 'on-drag'
+export type IKeyboardDismissMode = 'none' | 'on-drag'
 
-export type DrawerState = 'Idle' | 'Dragging' | 'Settling'
+export type IDrawerState = 'Idle' | 'Dragging' | 'Settling'
 
-export interface DrawerSlideEvent {
+export interface IDrawerSlideEvent {
   offset: number
 }
 
-export interface DrawerLayoutAndroidProps extends AccessibilityProps, AriaProps {
+export interface IDrawerLayoutAndroidProps extends IAccessibilityProps, IAriaProps {
   drawerWidth?: number
-  drawerPosition?: DrawerPosition
-  drawerLockMode?: DrawerLockMode
-  keyboardDismissMode?: KeyboardDismissMode
+  drawerPosition?: IDrawerPosition
+  drawerLockMode?: IDrawerLockMode
+  keyboardDismissMode?: IKeyboardDismissMode
   drawerBackgroundColor?: string
   statusBarBackgroundColor?: string
   onDrawerOpen?: () => void
   onDrawerClose?: () => void
-  onDrawerSlide?: (event: DrawerSlideEvent) => void
-  onDrawerStateChanged?: (state: DrawerState) => void
+  onDrawerSlide?: (event: IDrawerSlideEvent) => void
+  onDrawerStateChanged?: (state: IDrawerState) => void
   renderNavigationView: () => ReactNode
-  style?: ViewStyle
+  style?: IStyleProp<IViewStyle>
   children?: ReactNode
 }
 
 // The imperative API a host ref hands back — RN's DrawerLayoutAndroidMethods, pared to
 // the two drawer commands (measure/setNativeProps already ride the host instance).
-export interface DrawerLayoutAndroidHandle {
+export interface IDrawerLayoutAndroidHandle {
   openDrawer(): void
   closeDrawer(): void
 }

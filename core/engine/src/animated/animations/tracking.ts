@@ -5,7 +5,7 @@
 // value chases the target continuously (a spring following a gesture). Ported from
 // RN's AnimatedTracking.js, JS path; native tracking re-uses the per-launch driver.
 
-import type { Animation, EndCallback } from '../animation'
+import type { IAnimation, IEndCallback } from '../animation'
 import { AnimatedNode } from '../graph'
 import type { AnimatedValue } from '../value'
 
@@ -15,8 +15,8 @@ export class AnimatedTracking extends AnimatedNode {
     private readonly parent: AnimatedNode,
     // Builds a fresh driver aimed at a concrete target value — the config captured
     // at call time with `toValue` resolved to the parent's current number.
-    private readonly createAnimation: (toValue: number) => Animation,
-    private readonly endCallback?: EndCallback,
+    private readonly createAnimation: (toValue: number) => IAnimation,
+    private readonly endCallback?: IEndCallback,
   ) {
     super()
     // Subscribe to the target immediately (RN does this in the constructor), so a

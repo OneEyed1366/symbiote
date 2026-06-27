@@ -1,5 +1,5 @@
 // Shared core of the Share module — only what does NOT differ by platform: the public
-// types (ShareContent / ShareOptions / ShareAction), the public contract (ShareStatic),
+// types (IShareContent / IShareOptions / IShareAction), the public contract (IShareStatic),
 // and the content invariant. Share is almost entirely divergent — one method, a totally
 // different native call per platform — so there is no shared factory: each platform file
 // (share.ios.ts / share.android.ts) implements `share()` fully against its own module.
@@ -8,14 +8,14 @@
 // share.ts re-exports the iOS build for web/headless. There is no runtime `Platform.OS`
 // read — the filename is the selector. See ADR 0019.
 
-// RN's ShareContent: a url OR a message is required (title always optional).
-export type ShareContent =
+// RN's IShareContent: a url OR a message is required (title always optional).
+export type IShareContent =
   | { title?: string; url: string; message?: string }
   | { title?: string; url?: string; message: string }
 
-// RN's ShareOptions. `dialogTitle` is Android-only — accepted for API parity but unused
+// RN's IShareOptions. `dialogTitle` is Android-only — accepted for API parity but unused
 // on iOS; the rest map straight onto the iOS native share options.
-export interface ShareOptions {
+export interface IShareOptions {
   dialogTitle?: string
   subject?: string
   excludedActivityTypes?: string[]
@@ -30,9 +30,9 @@ export interface ShareOptions {
 export const SHARED_ACTION = 'sharedAction'
 export const DISMISSED_ACTION = 'dismissedAction'
 
-// RN's ShareAction — the resolved shape. The action literals must agree with the
+// RN's IShareAction — the resolved shape. The action literals must agree with the
 // constants above.
-export interface ShareAction {
+export interface IShareAction {
   action: typeof SHARED_ACTION | typeof DISMISSED_ACTION
   activityType?: string | null
 }
@@ -40,8 +40,8 @@ export interface ShareAction {
 // What every platform's Share exposes to app code, including the action constants both
 // platform builds spread onto their Share object (so app code can compare against
 // Share.dismissedAction / Share.sharedAction).
-export interface ShareStatic {
-  share(content: ShareContent, options?: ShareOptions): Promise<ShareAction>
+export interface IShareStatic {
+  share(content: IShareContent, options?: IShareOptions): Promise<IShareAction>
   sharedAction: typeof SHARED_ACTION
   dismissedAction: typeof DISMISSED_ACTION
 }
@@ -58,7 +58,7 @@ export const shareActions: {
 
 // RN's invariant — return an Error (caller rejects rather than throws) so a bad call
 // can't unmount the tree on device. Shared because the rule is identical per platform.
-export function validateContent(content: ShareContent): Error | null {
+export function validateContent(content: IShareContent): Error | null {
   if (typeof content !== 'object' || content === null) {
     return new Error('Content to share must be a valid object')
   }

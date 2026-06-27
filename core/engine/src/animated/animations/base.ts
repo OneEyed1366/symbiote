@@ -9,7 +9,7 @@
 // class fields) so a subclass override is not shadowed under
 // useDefineForClassFields.
 
-import type { Animation, EndCallback, EndResult } from '../animation'
+import type { IAnimation, IEndCallback, IEndResult } from '../animation'
 import type { AnimatedValue } from '../value'
 import { flushValue } from '../graph'
 import { dlog, isDebug } from '../../debug'
@@ -17,11 +17,11 @@ import {
   generateNativeAnimationId,
   isNativeAnimatedAvailable,
   nativeAnimated,
-  type NativeAnimationConfig,
-  type PlatformConfig,
+  type INativeAnimationConfig,
+  type IPlatformConfig,
 } from '../native/native-animated'
 
-export interface AnimationConfig {
+export interface IAnimationConfig {
   isInteraction?: boolean
   iterations?: number
   // ADR 0017: offload the curve to the stock native module (zero JS per frame).
@@ -30,11 +30,11 @@ export interface AnimationConfig {
   // RN threads both into every native animation config (Animation.js:30-34): the
   // platform bag rides through to native unread; debugID labels the animation in
   // native diagnostics. Optional — current callers pass nothing.
-  platformConfig?: PlatformConfig
+  platformConfig?: IPlatformConfig
   debugID?: string
 }
 
-export abstract class BaseAnimation implements Animation {
+export abstract class BaseAnimation implements IAnimation {
   // `protected` so subclasses read it inside their rAF loop to decide whether to
   // schedule the next frame; cleared by stop().
   protected __active = false
@@ -42,14 +42,14 @@ export abstract class BaseAnimation implements Animation {
   // RN's Animation holds `_platformConfig` / `__debugID` and folds them into the
   // native config (Animation.js:60-62). Subclasses read them via the protected
   // accessors below so every driver's config carries them uniformly.
-  protected readonly __platformConfig: PlatformConfig | undefined
+  protected readonly __platformConfig: IPlatformConfig | undefined
   private readonly __debugID: string | undefined
 
-  private onEndCallback: EndCallback | null = null
+  private onEndCallback: IEndCallback | null = null
   private readonly nativeDriverRequested: boolean
   private nativeId: number | undefined
 
-  constructor(config: AnimationConfig) {
+  constructor(config: IAnimationConfig) {
     this.__iterations = config.iterations ?? 1
     this.nativeDriverRequested = config.useNativeDriver === true
     this.__platformConfig = config.platformConfig
@@ -65,20 +65,20 @@ export abstract class BaseAnimation implements Animation {
   abstract start(
     fromValue: number,
     onUpdate: (value: number) => void,
-    onEnd: EndCallback,
-    previousAnimation: Animation | null,
+    onEnd: IEndCallback,
+    previousAnimation: IAnimation | null,
     animatedValue: AnimatedValue,
   ): void
 
   // Subclasses call super.start(...) shape via this helper to wire the end
   // callback and arm the active flag before launching their loop.
-  protected begin(onEnd: EndCallback): void {
+  protected begin(onEnd: IEndCallback): void {
     this.onEndCallback = onEnd
     this.__active = true
   }
 
   // A native driver overrides this with its curve config (`{type:'frames'|'spring'|'decay', …}`).
-  protected getNativeAnimationConfig(): NativeAnimationConfig {
+  protected getNativeAnimationConfig(): INativeAnimationConfig {
     throw new Error('This animation type cannot be offloaded to the native driver')
   }
 
@@ -123,7 +123,7 @@ export abstract class BaseAnimation implements Animation {
 
   // Fire the completion callback at most once. start() and stop() each run at
   // most once over an animation's life, and so does this.
-  protected __notifyAnimationEnd(result: EndResult): void {
+  protected __notifyAnimationEnd(result: IEndResult): void {
     const callback = this.onEndCallback
     if (callback !== null) {
       this.onEndCallback = null

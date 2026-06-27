@@ -14,14 +14,14 @@
 import {
   generateNativeNodeTag,
   nativeAnimated,
-  type NativeNodeConfig,
-  type PlatformConfig,
+  type INativeNodeConfig,
+  type IPlatformConfig,
 } from './native/native-animated'
 
 // Most nodes emit a scalar; a composite node (AnimatedColor) emits its rasterized
 // string (an rgba() value). The payload is the union so one listener map serves
 // both — scalar nodes only ever pass a number.
-export type ValueListener = (state: { value: number | string }) => void
+export type IValueListener = (state: { value: number | string }) => void
 
 let nextListenerId = 1
 
@@ -34,7 +34,7 @@ let nextListenerId = 1
 let flushSuspendDepth = 0
 
 export class AnimatedNode {
-  private readonly listeners = new Map<string, ValueListener>()
+  private readonly listeners = new Map<string, IValueListener>()
 
   // While > 0, this node's own __callListeners is a no-op. A composite setter
   // (AnimatedColor.setValue) that drives several channels in a row would otherwise
@@ -53,7 +53,7 @@ export class AnimatedNode {
   // a useNativeDriver animation hands down via __makeNative, merged into this node's
   // native config at creation (__getNativeTag). Optional — undefined when no caller
   // supplied one, matching today's behavior.
-  private platformConfig: PlatformConfig | undefined
+  private platformConfig: IPlatformConfig | undefined
 
   __attach(): void {}
 
@@ -76,7 +76,7 @@ export class AnimatedNode {
   //      only READS child tags (also creating them), never connects, so creation is
   //      side-effect-free w.r.t. edges and createAnimatedNode may precede its refs.
   //   2. CONNECT every edge — only once both endpoints are guaranteed created.
-  __makeNative(platformConfig?: PlatformConfig): void {
+  __makeNative(platformConfig?: IPlatformConfig): void {
     if (this.isNative) return
     this.isNative = true
     // RN stores the platform bag before minting the tag (AnimatedNode.js:80) so it
@@ -109,7 +109,7 @@ export class AnimatedNode {
 
   // Each concrete node type (value / interpolation / style / transform / props)
   // overrides this with its native shape; a plain node cannot be offloaded.
-  __getNativeConfig(): NativeNodeConfig {
+  __getNativeConfig(): INativeNodeConfig {
     throw new Error('This animated node type cannot be used as a native animated node')
   }
 
@@ -132,7 +132,7 @@ export class AnimatedNode {
 
   // Asynchronous observation of value updates. There is no synchronous read of a
   // value once it is driven by an animation, so consumers subscribe instead.
-  addListener(callback: ValueListener): string {
+  addListener(callback: IValueListener): string {
     const id = String(nextListenerId++)
     this.listeners.set(id, callback)
     return id

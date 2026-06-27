@@ -16,20 +16,20 @@ import {
   setText,
   RAW_TEXT_COMPONENT,
   SymbioteSurface,
-  type SymbioteNode,
+  type ISymbioteNode,
 } from '@symbiote/engine'
-import { descriptorFor } from './component-names'
+import { descriptorFor } from '@symbiote/components'
 
 // Vue host nodes are all SymbioteNode (elements, raw text, anchors). The mount
 // container is the surface, so a parent can be either a node or the surface root.
-type HostNode = SymbioteNode
-type HostElement = SymbioteNode | SymbioteSurface
+type IHostNode = ISymbioteNode
+type IHostElement = ISymbioteNode | SymbioteSurface
 
-function isSurface(parent: HostElement): parent is SymbioteSurface {
+function isSurface(parent: IHostElement): parent is SymbioteSurface {
   return parent instanceof SymbioteSurface
 }
 
-function isRawText(node: SymbioteNode): boolean {
+function isRawText(node: ISymbioteNode): boolean {
   return node.component === RAW_TEXT_COMPONENT
 }
 
@@ -38,14 +38,20 @@ function isRawText(node: SymbioteNode): boolean {
 // requestCommit() collapses a burst of insert/patchProp within one tick into a single
 // completeRoot, exactly the seam the engine already exposes for reactive frameworks.
 export function createSymbioteRenderer(surface: SymbioteSurface) {
-  const options: RendererOptions<HostNode, HostElement> = {
+  const options: RendererOptions<IHostNode, IHostElement> = {
     createElement(type) {
       const descriptor = descriptorFor(type)
       return createElement(descriptor.component, descriptor.isText)
     },
 
     createText(text) {
-      return createRawText(text)
+      // Vue mounts Fragment boundaries (v-for / v-if lists / multi-root) as EMPTY text
+      // nodes via hostCreateText(''), NOT comments, then inserts them into the (usually
+      // non-Text) container. A raw text outside a <Text> is invalid in Fabric, so an empty
+      // text here is never real content — it's a positional anchor. Map it to an engine
+      // anchor (skipped by the commit walk, no native view), exactly like createComment.
+      // Non-empty text is genuine RCTRawText content and must live inside a <Text>.
+      return text === '' ? createAnchor() : createRawText(text)
     },
 
     // Fragment / v-if / v-for placeholder. A real retained node so insert/nextSibling/
@@ -133,5 +139,5 @@ export function createSymbioteRenderer(surface: SymbioteSurface) {
     },
   }
 
-  return createRenderer<HostNode, HostElement>(options)
+  return createRenderer<IHostNode, IHostElement>(options)
 }

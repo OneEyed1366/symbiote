@@ -9,20 +9,20 @@
 import { createElement, type ReactElement, type Ref } from 'react'
 import {
   VirtualizedSectionList,
-  type VirtualizedSectionListHandle,
-  type VirtualizedSectionListProps,
+  type IVirtualizedSectionListHandle,
+  type IVirtualizedSectionListProps,
 } from './virtualized-section-list'
 
-export type { Section } from './virtualized-section-list'
+export type { ISection } from './virtualized-section-list'
 
 // SectionList's public surface is exactly VirtualizedSectionList's. Keep the name
 // distinct so the high-level contract has its own identity even though the shape
 // matches the lower layer one-for-one today.
-export type SectionListProps<ItemT> = VirtualizedSectionListProps<ItemT>
-export type SectionListHandle = VirtualizedSectionListHandle
+export type ISectionListProps<ItemT> = IVirtualizedSectionListProps<ItemT>
+export type ISectionListHandle = IVirtualizedSectionListHandle
 
 export function SectionList<ItemT>(
-  props: SectionListProps<ItemT> & { ref?: Ref<SectionListHandle> },
+  props: ISectionListProps<ItemT> & { ref?: Ref<ISectionListHandle> },
 ): ReactElement {
   return createElement(VirtualizedSectionList<ItemT>, props)
 }

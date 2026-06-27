@@ -7,7 +7,7 @@
 // Fabric view of their own — like Vibration / Keyboard.
 //
 // The native contract is confirmed from RN's TurboModule spec at
-// specs_DEPRECATED/modules/NativeI18nManager.js (`'I18nManager'`):
+// specs_DEPRECATED/modules/INativeI18nManager.js (`'I18nManager'`):
 //   getConstants(): { doLeftAndRightSwapInRTL, isRTL, localeIdentifier? }
 //   allowRTL(allowRTL: boolean)
 //   forceRTL(forceRTL: boolean)
@@ -21,7 +21,7 @@ import { dlog, getNativeModule } from '@symbiote/engine'
 // device-verify-pending. See .docs/native-module-platform-routing.md.
 const I18N_MANAGER_MODULE = 'I18nManager'
 
-export type I18nManagerConstants = {
+export type II18nManagerConstants = {
   isRTL: boolean
   doLeftAndRightSwapInRTL: boolean
   localeIdentifier?: string
@@ -29,8 +29,8 @@ export type I18nManagerConstants = {
 
 // The I18nManager native module typed as the interface we vouch for — the single
 // point that accepts the native shape (no per-call `as`).
-interface NativeI18nManager {
-  getConstants(): I18nManagerConstants
+interface INativeI18nManager {
+  getConstants(): II18nManagerConstants
   allowRTL(allowRTL: boolean): void
   forceRTL(forceRTL: boolean): void
   swapLeftAndRightInRTL(flipStyles: boolean): void
@@ -38,7 +38,7 @@ interface NativeI18nManager {
 
 // RN's fallback constants when no native module is linked (headless / not yet on
 // device): not RTL, and the iOS default of swapping in RTL.
-const DEFAULT_CONSTANTS: I18nManagerConstants = {
+const DEFAULT_CONSTANTS: II18nManagerConstants = {
   isRTL: false,
   doLeftAndRightSwapInRTL: true,
 }
@@ -54,14 +54,14 @@ function isOptionalString(value: unknown): value is string | undefined {
 // Narrow the untyped native getConstants() return into our type — a runtime guard
 // at the trust boundary rather than an `as`. Falls back to the defaults if any
 // field is missing or the wrong type.
-function readConstants(module: NativeI18nManager): I18nManagerConstants {
+function readConstants(module: INativeI18nManager): II18nManagerConstants {
   const raw: unknown = module.getConstants()
   if (typeof raw !== 'object' || raw === null) return DEFAULT_CONSTANTS
   const isRTL = Reflect.get(raw, 'isRTL')
   const doLeftAndRightSwapInRTL = Reflect.get(raw, 'doLeftAndRightSwapInRTL')
   const localeIdentifier = Reflect.get(raw, 'localeIdentifier')
   if (!isBoolean(isRTL) || !isBoolean(doLeftAndRightSwapInRTL)) return DEFAULT_CONSTANTS
-  const constants: I18nManagerConstants = { isRTL, doLeftAndRightSwapInRTL }
+  const constants: II18nManagerConstants = { isRTL, doLeftAndRightSwapInRTL }
   if (isOptionalString(localeIdentifier) && localeIdentifier !== undefined) {
     constants.localeIdentifier = localeIdentifier
   }
@@ -70,17 +70,17 @@ function readConstants(module: NativeI18nManager): I18nManagerConstants {
 
 // Resolved once, at module load — RN reads the constants eagerly via a single
 // synchronous getConstants. `null` when the module isn't linked.
-const i18nModule = getNativeModule<NativeI18nManager>(I18N_MANAGER_MODULE)
+const i18nModule = getNativeModule<INativeI18nManager>(I18N_MANAGER_MODULE)
 dlog(`I18nManager: module ${i18nModule ? 'resolved' : 'NOT resolved (null)'}`)
 
-const constants: I18nManagerConstants =
+const constants: II18nManagerConstants =
   i18nModule === null ? DEFAULT_CONSTANTS : readConstants(i18nModule)
 
 export const I18nManager = {
   isRTL: constants.isRTL,
   doLeftAndRightSwapInRTL: constants.doLeftAndRightSwapInRTL,
 
-  getConstants(): I18nManagerConstants {
+  getConstants(): II18nManagerConstants {
     return constants
   },
 

@@ -22,35 +22,35 @@
 
 import { createElement, useEffect, useState, type FC, type ReactNode } from 'react'
 import { dlog } from '@symbiote/engine'
-import { resolveAccessibilityProps, type AccessibilityProps, type AriaProps } from './accessibility-props'
-import type { ViewStyle } from './styles'
+import { resolveAccessibilityProps, type IAccessibilityProps, type IAriaProps } from '@symbiote/components'
+import type { IStyleProp, IViewStyle } from './styles'
 
-export type ModalAnimationType = 'none' | 'slide' | 'fade'
+export type IModalAnimationType = 'none' | 'slide' | 'fade'
 
-export type ModalPresentationStyle =
+export type IModalPresentationStyle =
   | 'fullScreen'
   | 'pageSheet'
   | 'formSheet'
   | 'overFullScreen'
 
-export type ModalOrientation =
+export type IModalOrientation =
   | 'portrait'
   | 'portrait-upside-down'
   | 'landscape'
   | 'landscape-left'
   | 'landscape-right'
 
-export interface ModalOrientationChangeEvent {
+export interface IModalOrientationChangeEvent {
   orientation: 'portrait' | 'landscape'
 }
 
-export interface ModalProps extends AccessibilityProps, AriaProps {
+export interface IModalProps extends IAccessibilityProps, IAriaProps {
   visible?: boolean
   transparent?: boolean
   backdropColor?: string
-  animationType?: ModalAnimationType
-  presentationStyle?: ModalPresentationStyle
-  supportedOrientations?: ReadonlyArray<ModalOrientation>
+  animationType?: IModalAnimationType
+  presentationStyle?: IModalPresentationStyle
+  supportedOrientations?: ReadonlyArray<IModalOrientation>
   hardwareAccelerated?: boolean
   statusBarTranslucent?: boolean
   // navigationBarTranslucent makes the Android nav bar translucent; RN requires
@@ -63,8 +63,8 @@ export interface ModalProps extends AccessibilityProps, AriaProps {
   onShow?: () => void
   onDismiss?: () => void
   onRequestClose?: () => void
-  onOrientationChange?: (event: ModalOrientationChangeEvent) => void
-  style?: ViewStyle
+  onOrientationChange?: (event: IModalOrientationChangeEvent) => void
+  style?: IStyleProp<IViewStyle>
   children?: ReactNode
 }
 
@@ -74,7 +74,7 @@ export interface ModalProps extends AccessibilityProps, AriaProps {
 // the screen (ModalHostViewComponentDescriptor sets the node size to screenSize).
 // An absolute container with only top/left would collapse to its content instead.
 // The backdrop color is layered on at render time so transparent/backdropColor win.
-const CONTAINER_STYLE: Readonly<ViewStyle> = {
+const CONTAINER_STYLE: Readonly<IViewStyle> = {
   left: 0,
   top: 0,
   flex: 1,
@@ -82,18 +82,18 @@ const CONTAINER_STYLE: Readonly<ViewStyle> = {
 
 // RN sets styles.modal (position:'absolute') on RCTModalHostView itself (Modal.js
 // styles.modal + style={styles.modal} on the host).
-const MODAL_HOST_STYLE: Readonly<ViewStyle> = {
+const MODAL_HOST_STYLE: Readonly<IViewStyle> = {
   position: 'absolute',
 }
 
 const TRANSPARENT_BACKDROP = 'transparent'
 const OPAQUE_BACKDROP = 'white'
-const DEFAULT_ANIMATION_TYPE: ModalAnimationType = 'none'
+const DEFAULT_ANIMATION_TYPE: IModalAnimationType = 'none'
 
 // presentationStyle default (Modal.js: undefined -> 'fullScreen', but transparent
 // flips it to 'overFullScreen').
-const PRESENTATION_FULL_SCREEN: ModalPresentationStyle = 'fullScreen'
-const PRESENTATION_OVER_FULL_SCREEN: ModalPresentationStyle = 'overFullScreen'
+const PRESENTATION_FULL_SCREEN: IModalPresentationStyle = 'fullScreen'
+const PRESENTATION_OVER_FULL_SCREEN: IModalPresentationStyle = 'overFullScreen'
 
 // Wrap an optional event handler so its delivery is visible under DEBUG without
 // changing behavior: the wrapper logs the seam, then calls through to the real
@@ -109,7 +109,7 @@ function loggedEvent<TArgs extends ReadonlyArray<unknown>>(
   }
 }
 
-export const Modal: FC<ModalProps> = (rawProps) => {
+export const Modal: FC<IModalProps> = (rawProps) => {
   // Modal owns its host element (symbiote-modal), so it folds aria/role into
   // accessibility* here; the resolved fields ride the host node via `...passthrough`.
   const props = resolveAccessibilityProps(rawProps)
@@ -173,19 +173,18 @@ export const Modal: FC<ModalProps> = (rawProps) => {
   // set, so these Modal-specific props take precedence over the generic style prop
   // (Modal.js: containerStyles composed LAST in [styles.container, props.style,
   // containerStyles]).
-  const backdropOverride: ViewStyle =
+  const backdropOverride: IViewStyle =
     transparent === true
       ? { backgroundColor: TRANSPARENT_BACKDROP }
       : backdropColor !== undefined
         ? { backgroundColor: backdropColor }
         : {}
 
-  const containerStyle: ViewStyle = {
-    ...CONTAINER_STYLE,
-    backgroundColor: OPAQUE_BACKDROP,
-    ...style,
-    ...backdropOverride,
-  }
+  const containerStyle: IStyleProp<IViewStyle> = [
+    { ...CONTAINER_STYLE, backgroundColor: OPAQUE_BACKDROP },
+    style,
+    backdropOverride,
+  ]
 
   const resolvedPresentationStyle =
     presentationStyle ??

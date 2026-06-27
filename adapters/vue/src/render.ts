@@ -6,7 +6,7 @@ import {
   createSurface,
   disposeRoot,
   dlog,
-  type RootTag,
+  type IRootTag,
   type SymbioteSurface,
 } from '@symbiote/engine'
 import type { App, Component } from '@vue/runtime-core'
@@ -15,9 +15,9 @@ import { createSymbioteRenderer } from './renderer'
 // One Vue app per surface, so a surface can be torn down (stopSurface) or cleanly
 // re-mounted on the same rootTag — the bridgeless host stops and restarts a surface on
 // Fast Refresh and on lifecycle/focus changes, reusing the rootTag.
-const apps = new Map<RootTag, App>()
+const apps = new Map<IRootTag, App>()
 
-function teardown(rootTag: RootTag): void {
+function teardown(rootTag: IRootTag): void {
   const app = apps.get(rootTag)
   if (app === undefined) return
   app.unmount()
@@ -25,7 +25,7 @@ function teardown(rootTag: RootTag): void {
   disposeRoot(rootTag)
 }
 
-export function mount(rootTag: RootTag, rootComponent: Component): SymbioteSurface {
+export function mount(rootTag: IRootTag, rootComponent: Component): SymbioteSurface {
   // A re-mount on a live rootTag starts clean — otherwise the stale app double-drives
   // the surface.
   teardown(rootTag)
@@ -42,7 +42,7 @@ export function mount(rootTag: RootTag, rootComponent: Component): SymbioteSurfa
   return surface
 }
 
-export function stopSurface(rootTag: RootTag): void {
+export function stopSurface(rootTag: IRootTag): void {
   dlog(`stopSurface root=${rootTag}`)
   teardown(rootTag)
 }

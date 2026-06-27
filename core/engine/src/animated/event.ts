@@ -16,20 +16,28 @@
 
 import { dlog } from '../debug'
 import { getNativeTag } from '../commit'
-import type { SymbioteNode } from '../node'
+import { isSymbioteNode, type ISymbioteNode } from '../node'
 import { AnimatedNode, flushValue } from './graph'
-import { nativeAnimated } from './native/native-animated'
+import { isNativeAnimatedAvailable, nativeAnimated } from './native/native-animated'
 
 // A leaf in the mapping is an AnimatedNode; every interior position is a nested
 // record of further mappings. We never name AnimatedValueXY here (deferred).
-type Mapping = AnimatedNode | { readonly [key: string]: Mapping }
+type IMapping = AnimatedNode | { readonly [key: string]: IMapping }
 
-export interface EventConfig {
+export interface IEventConfig {
   readonly listener?: (...args: unknown[]) => void
+  // RN parity: real apps pass `useNativeDriver` on Animated.event (RN effectively
+  // requires it). Accepted for source-compatibility but NOT consumed here — event()
+  // always returns the JS handler, so the mapped value is driven per-event on the JS
+  // thread (ADR 0016's per-frame commit). True UI-thread scroll driving does exist,
+  // but via the separate imperative attachNativeEvent path (ScrollView wires it
+  // internally), never through this flag. Unlike animation configs (animations/base.ts),
+  // where useNativeDriver IS honored (ADR 0017), here it is currently inert.
+  readonly useNativeDriver?: boolean
 }
 
 // One resolved leaf: the AnimatedValue at `path` inside the event's `nativeEvent`.
-interface MappedValue {
+interface IMappedValue {
   readonly path: readonly string[]
   readonly node: AnimatedNode
 }
@@ -49,9 +57,9 @@ function settableValue(node: AnimatedNode): ((value: number) => void) | undefine
 // Walk the mapping to every leaf AnimatedNode, recording its key path. Shared by
 // the JS handler (to set values) and the native attach (to register paths).
 function collectMappedValues(
-  mapping: Mapping,
+  mapping: IMapping,
   path: readonly string[],
-  out: MappedValue[],
+  out: IMappedValue[],
 ): void {
   if (mapping instanceof AnimatedNode) {
     out.push({ path, node: mapping })
@@ -81,25 +89,33 @@ function extractAtPath(event: unknown, path: readonly string[]): number | undefi
 
 // The callback shape adapters wire as the view's event prop, carrying the
 // AnimatedEvent so the native attach path is reachable from the handler alone.
-export interface AnimatedEventHandler {
+export interface IAnimatedEventHandler {
   (...args: unknown[]): void
   __getEvent(): AnimatedEvent
 }
 
-export type EventListener = (...args: unknown[]) => void
+export type IEventListener = (...args: unknown[]) => void
 
 export class AnimatedEvent {
   // Listeners fired (in registration order) after the values are driven. Seeded
   // with config.listener; forkEvent appends more via __addListener (RN
   // AnimatedEvent.js seeds `__addListener(config.listener)` in its constructor).
-  private readonly listeners: EventListener[] = []
+  private readonly listeners: IEventListener[] = []
   // The leaves under argMapping[0].nativeEvent — the only place native-driven
   // events accept animated values (RN invariant). Resolved once at construction.
-  private readonly mappedValues: readonly MappedValue[]
+  private readonly mappedValues: readonly IMappedValue[]
+  // RN parity: the event remembers whether useNativeDriver was requested. Honored only
+  // when a native module is present (__isNative); otherwise the JS path drives values.
+  private readonly nativeDriverRequested: boolean
+  // Flipped once a host view native-attaches this event. The JS handler then stops
+  // setting values (native owns them on the UI thread) and only forwards listeners —
+  // no double-drive, no redundant per-tick commit.
+  private attachedNatively = false
 
-  constructor(argMapping: readonly Mapping[], config?: EventConfig) {
+  constructor(argMapping: readonly IMapping[], config?: IEventConfig) {
     if (config?.listener !== undefined) this.listeners.push(config.listener)
-    const mapped: MappedValue[] = []
+    this.nativeDriverRequested = config?.useNativeDriver === true
+    const mapped: IMappedValue[] = []
     const first = argMapping[0]
     if (isRecord(first)) {
       const nativeEvent = Reflect.get(first, 'nativeEvent')
@@ -112,17 +128,23 @@ export class AnimatedEvent {
 
   // Append / drop a listener (RN AnimatedEvent.js __addListener / __removeListener).
   // forkEvent/unforkEvent use these to combine extra handlers onto one AnimatedEvent.
-  __addListener(callback: EventListener): void {
+  __addListener(callback: IEventListener): void {
     this.listeners.push(callback)
   }
 
-  __removeListener(callback: EventListener): void {
+  __removeListener(callback: IEventListener): void {
     const index = this.listeners.indexOf(callback)
     if (index !== -1) this.listeners.splice(index, 1)
   }
 
   // Native path: mirror each leaf value into native and register its key path with
   // the stock module, so the event drives the view with zero JS per event.
+  // Whether this event should drive its values natively: useNativeDriver requested AND
+  // a native module present. The adapter consults it before native-attaching to a view.
+  __isNative(): boolean {
+    return this.nativeDriverRequested && isNativeAnimatedAvailable()
+  }
+
   __attach(viewTag: number, eventName: string): void {
     for (const mapped of this.mappedValues) {
       mapped.node.__makeNative()
@@ -132,6 +154,7 @@ export class AnimatedEvent {
         animatedValueTag: mapped.node.__getNativeTag(),
       })
     }
+    this.attachedNatively = true
   }
 
   __detach(viewTag: number, eventName: string): void {
@@ -139,23 +162,28 @@ export class AnimatedEvent {
       dlog(`event: detach ${eventName} -> view=${viewTag}`)
       nativeAnimated.removeAnimatedEventFromView(viewTag, eventName, mapped.node.__getNativeTag())
     }
+    this.attachedNatively = false
   }
 
   // JS path: walk each leaf, set its value from the matching event field, flush so
   // its bound props re-paint, then forward the raw args to the user's listener.
-  __getHandler(): AnimatedEventHandler {
-    const handler: AnimatedEventHandler = Object.assign(
+  __getHandler(): IAnimatedEventHandler {
+    const handler: IAnimatedEventHandler = Object.assign(
       (...args: unknown[]): void => {
-        // Paths are stored relative to `nativeEvent` (the native module excludes
-        // that prefix); the JS event arg still carries it, so re-add it here.
-        const nativeEvent = isRecord(args[0]) ? Reflect.get(args[0], 'nativeEvent') : undefined
-        for (const mapped of this.mappedValues) {
-          const extracted = extractAtPath(nativeEvent, mapped.path)
-          if (extracted === undefined) continue
-          const setValue = settableValue(mapped.node)
-          if (setValue === undefined) continue
-          setValue(extracted)
-          flushValue(mapped.node)
+        // Once natively attached, the UI thread owns the values — skip the JS set/flush
+        // (it would double-drive and commit per tick); only forward listeners below.
+        if (!this.attachedNatively) {
+          // Paths are stored relative to `nativeEvent` (the native module excludes
+          // that prefix); the JS event arg still carries it, so re-add it here.
+          const nativeEvent = isRecord(args[0]) ? Reflect.get(args[0], 'nativeEvent') : undefined
+          for (const mapped of this.mappedValues) {
+            const extracted = extractAtPath(nativeEvent, mapped.path)
+            if (extracted === undefined) continue
+            const setValue = settableValue(mapped.node)
+            if (setValue === undefined) continue
+            setValue(extracted)
+            flushValue(mapped.node)
+          }
         }
         for (const listener of this.listeners) listener(...args)
       },
@@ -168,11 +196,11 @@ export class AnimatedEvent {
 // The Animated.event factory: returns the handler an adapter wires as the event
 // prop. The handler also exposes the AnimatedEvent (__getEvent) for adapters that
 // need the native attach path.
-export function event(argMapping: readonly Mapping[], config?: EventConfig): AnimatedEventHandler {
+export function event(argMapping: readonly IMapping[], config?: IEventConfig): IAnimatedEventHandler {
   return new AnimatedEvent(argMapping, config).__getHandler()
 }
 
-export interface NativeEventAttachment {
+export interface INativeEventAttachment {
   detach(): void
 }
 
@@ -184,10 +212,10 @@ export interface NativeEventAttachment {
 // isNativeAnimatedAvailable(): with no native module __attach no-ops and the values never move,
 // so a JS Animated.event path must remain the fallback.
 export function attachNativeEvent(
-  node: SymbioteNode,
+  node: ISymbioteNode,
   eventName: string,
-  argMapping: readonly Mapping[],
-): NativeEventAttachment {
+  argMapping: readonly IMapping[],
+): INativeEventAttachment {
   const viewTag = getNativeTag(node)
   const animatedEvent = new AnimatedEvent(argMapping)
   if (viewTag !== undefined) {
@@ -201,6 +229,29 @@ export function attachNativeEvent(
   }
 }
 
+// Native-attach the AnimatedEvent already behind a handler from `event(...)`, binding it
+// to a committed host node. Unlike attachNativeEvent (which builds a fresh event from a
+// raw mapping for ScrollView's internal sticky value), this REUSES the caller's handler —
+// so createAnimatedComponent can offload `onScroll={Animated.event(…, {useNativeDriver})}`
+// to the UI thread, and the __makeNative cascade carries the bound interpolations/props
+// native with it. Returns undefined (caller keeps the JS path) when the prop is not a
+// native event handler, or the node has no committed tag yet.
+export function attachNativeEventHandler(
+  node: unknown,
+  eventName: string,
+  handler: unknown,
+): INativeEventAttachment | undefined {
+  if (!isSymbioteNode(node) || typeof handler !== 'function') return undefined
+  const accessor = Reflect.get(handler, '__getEvent')
+  if (typeof accessor !== 'function') return undefined
+  const animatedEvent: unknown = accessor.call(handler)
+  if (!(animatedEvent instanceof AnimatedEvent) || !animatedEvent.__isNative()) return undefined
+  const viewTag = getNativeTag(node)
+  if (viewTag === undefined) return undefined
+  animatedEvent.__attach(viewTag, eventName)
+  return { detach: () => animatedEvent.__detach(viewTag, eventName) }
+}
+
 // Combine an existing event handler with an extra listener (RN
 // AnimatedImplementation.js forkEventImpl ~519). Three cases, by the existing event:
 //   - absent          -> the listener becomes the handler
@@ -209,9 +260,9 @@ export function attachNativeEvent(
 // The AnimatedEvent is recognised through its handler's __getEvent (the only public
 // seam), so a handler built by `event(...)` forks into the underlying AnimatedEvent.
 export function forkEvent(
-  existing: AnimatedEventHandler | EventListener | undefined,
-  listener: EventListener,
-): AnimatedEventHandler | EventListener {
+  existing: IAnimatedEventHandler | IEventListener | undefined,
+  listener: IEventListener,
+): IAnimatedEventHandler | IEventListener {
   if (existing === undefined) return listener
   const animatedEvent = getAnimatedEvent(existing)
   if (animatedEvent !== undefined) {
@@ -228,8 +279,8 @@ export function forkEvent(
 // plain-function fork has no removable seam, so this is a no-op for that case —
 // exactly as RN, which only removes from an AnimatedEvent.
 export function unforkEvent(
-  existing: AnimatedEventHandler | EventListener | undefined,
-  listener: EventListener,
+  existing: IAnimatedEventHandler | IEventListener | undefined,
+  listener: IEventListener,
 ): void {
   const animatedEvent = existing === undefined ? undefined : getAnimatedEvent(existing)
   animatedEvent?.__removeListener(listener)
@@ -238,7 +289,7 @@ export function unforkEvent(
 // Reach the AnimatedEvent behind a handler. event(...) returns an AnimatedEventHandler
 // carrying __getEvent; a bare listener does not, so this narrows the fork cases.
 function getAnimatedEvent(
-  candidate: AnimatedEventHandler | EventListener,
+  candidate: IAnimatedEventHandler | IEventListener,
 ): AnimatedEvent | undefined {
   const accessor = Reflect.get(candidate, '__getEvent')
   return typeof accessor === 'function' ? accessor.call(candidate) : undefined

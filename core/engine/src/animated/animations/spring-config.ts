@@ -3,7 +3,7 @@
 // tension/friction inputs onto the stiffness/damping the damped-oscillator
 // integrator actually consumes. Pure math, no dependencies.
 
-export interface SpringConfigValues {
+export interface ISpringConfigValues {
   stiffness: number
   damping: number
 }
@@ -19,7 +19,7 @@ function dampingFromOrigamiValue(oValue: number): number {
 export function fromOrigamiTensionAndFriction(
   tension: number,
   friction: number,
-): SpringConfigValues {
+): ISpringConfigValues {
   return {
     stiffness: stiffnessFromOrigamiValue(tension),
     damping: dampingFromOrigamiValue(friction),
@@ -29,7 +29,7 @@ export function fromOrigamiTensionAndFriction(
 export function fromBouncinessAndSpeed(
   bounciness: number,
   speed: number,
-): SpringConfigValues {
+): ISpringConfigValues {
   function normalize(value: number, startValue: number, endValue: number): number {
     return (value - startValue) / (endValue - startValue)
   }

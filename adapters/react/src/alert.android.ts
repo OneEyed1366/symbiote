@@ -6,7 +6,7 @@
 // Metro picks this file on an Android host.
 //
 // The native contract is confirmed from RN's TurboModule spec:
-//   .vendors/.../specs_DEPRECATED/modules/NativeDialogManagerAndroid.js
+//   .vendors/.../specs_DEPRECATED/modules/INativeDialogManagerAndroid.js
 //     getConstants(): { buttonClicked, dismissed, buttonPositive, buttonNegative,
 //                       buttonNeutral }
 //     showAlert(config, onError: (msg) => void, onAction: (action, buttonKey?) => void)
@@ -22,17 +22,17 @@ import { dlog, getNativeModule } from '@symbiote/engine'
 import {
   DEFAULT_POSITIVE_TEXT,
   normalizeButtons,
-  type AlertButtons,
-  type AlertOptions,
-  type AlertStatic,
+  type IAlertButtons,
+  type IAlertOptions,
+  type IAlertStatic,
 } from './alert-shared'
 
 export type {
-  AlertButton,
-  AlertButtonStyle,
-  AlertButtons,
-  AlertOptions,
-  AlertType,
+  IAlertButton,
+  IAlertButtonStyle,
+  IAlertButtons,
+  IAlertOptions,
+  IAlertType,
 } from './alert-shared'
 
 const DIALOG_MANAGER = 'DialogManagerAndroid'
@@ -50,7 +50,7 @@ const ANDROID_DIALOG_CONSTANTS = {
 
 // The Android dialog config — RN's DialogOptions. At most three buttons map onto the
 // positive/negative/neutral slots; `cancelable` controls dismiss-on-outside-tap.
-interface DialogConfig {
+interface IDialogConfig {
   title: string
   message: string
   cancelable: boolean
@@ -61,7 +61,7 @@ interface DialogConfig {
 
 // The button-key constants getConstants() returns: the two action strings and the three
 // numeric button keys. We narrow them at the trust boundary below.
-interface AndroidDialogConstants {
+interface IAndroidDialogConstants {
   buttonClicked: string
   dismissed: string
   buttonPositive: number
@@ -71,10 +71,10 @@ interface AndroidDialogConstants {
 
 // The Android native module: getConstants() for the button-key constants plus showAlert.
 // `buttonKey` is optional on dismiss (no button was tapped).
-interface NativeDialogManagerAndroid {
+interface INativeDialogManagerAndroid {
   getConstants(): unknown
   showAlert(
-    config: DialogConfig,
+    config: IDialogConfig,
     onError: (error: string) => void,
     onAction: (action: string, buttonKey?: number) => void,
   ): void
@@ -86,7 +86,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
-function readDialogConstants(raw: unknown): AndroidDialogConstants {
+function readDialogConstants(raw: unknown): IAndroidDialogConstants {
   if (!isRecord(raw)) {
     dlog('Alert: DialogManagerAndroid.getConstants() returned a non-object — using defaults')
     return ANDROID_DIALOG_CONSTANTS
@@ -106,21 +106,21 @@ function readDialogConstants(raw: unknown): AndroidDialogConstants {
 
 // The static imperative API RN exposes, mirrored as a static-method object. `prompt` has
 // no Android counterpart in RN, so it is a dlog'd no-op here (documented below).
-export const Alert: AlertStatic & { prompt: () => void } = {
+export const Alert: IAlertStatic & { prompt: () => void } = {
   // The Android dialog path. RN keeps at most three buttons and maps them, last-to-first,
   // onto positive/negative/neutral; onAction reads the native button-key constant back and
   // fires that button's onPress. Non-throwing: no module -> no-op.
-  alert(title?: string, message?: string, buttons?: AlertButtons, options?: AlertOptions): void {
+  alert(title?: string, message?: string, buttons?: IAlertButtons, options?: IAlertOptions): void {
     dlog('Alert.alert (android)')
 
-    const manager = getNativeModule<NativeDialogManagerAndroid>(DIALOG_MANAGER)
+    const manager = getNativeModule<INativeDialogManagerAndroid>(DIALOG_MANAGER)
     if (manager === null) {
       dlog(`Alert.alert: "${DIALOG_MANAGER}" unresolved — no-op`)
       return
     }
     const constants = readDialogConstants(manager.getConstants())
 
-    const config: DialogConfig = {
+    const config: IDialogConfig = {
       title: title || '',
       message: message || '',
       cancelable: options?.cancelable ?? false,
@@ -128,7 +128,7 @@ export const Alert: AlertStatic & { prompt: () => void } = {
 
     // At most three buttons (neutral, negative, positive). Ignore the rest. RN pops
     // last-to-first, so the LAST button becomes positive and the FIRST neutral.
-    const validButtons: AlertButtons = normalizeButtons(buttons).slice(0, 3)
+    const validButtons: IAlertButtons = normalizeButtons(buttons).slice(0, 3)
     const buttonPositive = validButtons.pop()
     const buttonNegative = validButtons.pop()
     const buttonNeutral = validButtons.pop()

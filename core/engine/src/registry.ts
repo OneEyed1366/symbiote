@@ -19,13 +19,13 @@
 // NOT in that set derives. The list never grows with the community — only when we
 // add a core primitive of our own.
 
-export type PropProcessor = (value: unknown) => unknown
+export type IPropProcessor = (value: unknown) => unknown
 
 // A native event the component emits. `raw` is the Fabric topLevelType
 // (`topRNCSliderSlidingComplete`); `listener` is the name our nodes register the
 // handler under — the `onX`-prop split (`onRNCSliderSlidingComplete` ->
 // `rNCSliderSlidingComplete`). `direct: true` marks a non-bubbling event.
-export interface NativeEventBinding {
+export interface INativeEventBinding {
   raw: string
   listener: string
   direct?: boolean
@@ -34,37 +34,37 @@ export interface NativeEventBinding {
 // Manual override, an ESCAPE HATCH only — for a view with no codegen ViewConfig
 // (an old-arch lib), or to patch a derived one. The common path needs none of this:
 // a view's config is derived from the injected source automatically.
-export interface ComponentRegistration {
-  events?: readonly NativeEventBinding[]
-  processors?: Readonly<Record<string, PropProcessor>>
+export interface IComponentRegistration {
+  events?: readonly INativeEventBinding[]
+  processors?: Readonly<Record<string, IPropProcessor>>
 }
 
 // The slice of RN's ViewConfig we read. Structural and minimal: we never import
 // react-native here, the adapter hands us whatever ReactNativeViewConfigRegistry
 // returns and we touch only these fields.
-interface PhasedRegistrationNames {
+interface IPhasedRegistrationNames {
   bubbled?: string
 }
-interface BubblingEventType {
-  phasedRegistrationNames?: PhasedRegistrationNames
+interface IBubblingEventType {
+  phasedRegistrationNames?: IPhasedRegistrationNames
 }
-interface DirectEventType {
+interface IDirectEventType {
   registrationName?: string
 }
-export interface NativeViewConfig {
-  bubblingEventTypes?: Record<string, BubblingEventType | null | undefined>
-  directEventTypes?: Record<string, DirectEventType | null | undefined>
+export interface INativeViewConfig {
+  bubblingEventTypes?: Record<string, IBubblingEventType | null | undefined>
+  directEventTypes?: Record<string, IDirectEventType | null | undefined>
   validAttributes?: Record<string, unknown>
 }
-export type NativeViewConfigSource = (name: string) => NativeViewConfig | undefined
+export type INativeViewConfigSource = (name: string) => INativeViewConfig | undefined
 
-interface Resolved {
+interface IResolved {
   listeners: Set<string>
-  byRaw: Map<string, NativeEventBinding>
-  processors: Map<string, PropProcessor>
+  byRaw: Map<string, INativeEventBinding>
+  processors: Map<string, IPropProcessor>
 }
 
-const EMPTY: Resolved = { listeners: new Set(), byRaw: new Map(), processors: new Map() }
+const EMPTY: IResolved = { listeners: new Set(), byRaw: new Map(), processors: new Map() }
 
 // OUR own primitives — the finite set shared hand-tunes (view-config events,
 // commit COLOR_PROPS). The source is never consulted for these, so they can't
@@ -89,20 +89,20 @@ const BUILTIN_COMPONENTS = new Set([
 ]) satisfies ReadonlySet<string>
 
 // Manual overrides per component (usually none) — the escape hatch.
-const overrides = new Map<string, ComponentRegistration[]>()
-const resolvedCache = new Map<string, Resolved>()
+const overrides = new Map<string, IComponentRegistration[]>()
+const resolvedCache = new Map<string, IResolved>()
 
-let viewConfigSource: NativeViewConfigSource | undefined
+let viewConfigSource: INativeViewConfigSource | undefined
 
 // Wired once by the adapter on a real host: `name => ReactNativeViewConfigRegistry.get(name)`.
-export function setNativeViewConfigSource(source: NativeViewConfigSource): void {
+export function setNativeViewConfigSource(source: INativeViewConfigSource): void {
   viewConfigSource = source
   resolvedCache.clear()
 }
 
 // Escape hatch: override a derived config, or supply one for a view with no codegen
 // ViewConfig. NOT needed on the common path — views derive from the source.
-export function registerComponent(name: string, registration: ComponentRegistration = {}): void {
+export function registerComponent(name: string, registration: IComponentRegistration = {}): void {
   const list = overrides.get(name)
   if (list === undefined) overrides.set(name, [registration])
   else list.push(registration)
@@ -118,12 +118,12 @@ function splitListener(handlerProp: string): string {
   return handlerProp.charAt(2).toLowerCase() + handlerProp.slice(3)
 }
 
-function addEvent(into: Resolved, binding: NativeEventBinding): void {
+function addEvent(into: IResolved, binding: INativeEventBinding): void {
   into.listeners.add(binding.listener)
   into.byRaw.set(binding.raw, binding)
 }
 
-function deriveFromConfig(config: NativeViewConfig, into: Resolved): void {
+function deriveFromConfig(config: INativeViewConfig, into: IResolved): void {
   const { bubblingEventTypes, directEventTypes, validAttributes } = config
   if (bubblingEventTypes) {
     for (const raw in bubblingEventTypes) {
@@ -152,7 +152,7 @@ function deriveFromConfig(config: NativeViewConfig, into: Resolved): void {
   }
 }
 
-function applyRegistration(registration: ComponentRegistration, into: Resolved): void {
+function applyRegistration(registration: IComponentRegistration, into: IResolved): void {
   if (registration.events) for (const binding of registration.events) addEvent(into, binding)
   if (registration.processors) {
     for (const key of Object.keys(registration.processors)) {
@@ -164,7 +164,7 @@ function applyRegistration(registration: ComponentRegistration, into: Resolved):
 // Resolve a component's metadata. OUR built-ins short-circuit to EMPTY so the
 // source is never read for them (their hand-tuned tables stand). Everything else
 // derives from the injected source, then any manual override wins on top.
-function resolve(name: string): Resolved {
+function resolve(name: string): IResolved {
   if (BUILTIN_COMPONENTS.has(name)) return EMPTY
   let resolved = resolvedCache.get(name)
   if (resolved !== undefined) return resolved
@@ -186,12 +186,12 @@ export function isRegisteredEvent(component: string, listener: string): boolean 
 export function registeredNativeEvent(
   component: string,
   raw: string,
-): NativeEventBinding | undefined {
+): INativeEventBinding | undefined {
   return resolve(component).byRaw.get(raw)
 }
 
 // The processor for a prop of this component (e.g. processColor for a tint), or
 // undefined to leave the value untouched.
-export function registeredProcessor(component: string, key: string): PropProcessor | undefined {
+export function registeredProcessor(component: string, key: string): IPropProcessor | undefined {
   return resolve(component).processors.get(key)
 }

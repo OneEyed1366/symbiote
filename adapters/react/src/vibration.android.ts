@@ -10,7 +10,7 @@
 
 import { createVibration } from './vibration-shared'
 
-export type { NativeVibration, VibrationStatic } from './vibration-shared'
+export type { INativeVibration, IVibrationStatic } from './vibration-shared'
 
 // RN encodes "do not repeat" as -1 and "repeat from start" as 0 in vibrateByPattern.
 const REPEAT_NONE = -1

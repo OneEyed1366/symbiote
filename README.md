@@ -90,7 +90,7 @@ The only thing symbiote replaces is the JS renderer.
 
 ## See It Work
 
-The canary ([`examples/canary/App.tsx`](./examples/canary/App.tsx)) runs a full demo on the
+The canary ([`examples/react/App.tsx`](./examples/react/App.tsx)) runs a full demo on the
 iOS simulator — every primitive, the runtime-module layer, `Animated` on both drivers, and a
 third-party native slider, all committing through `@symbiote/engine` while React Native's own
 renderer is never involved. The same canary now also boots on an Android emulator through the
@@ -198,7 +198,7 @@ branch. iOS stays the reference surface (more real-hardware time, wider prop-edg
 `ActionSheetIOS` is iOS-only by design, and `Vibration` needs the app to declare the `VIBRATE`
 permission (RN's standard requirement, owned by the future scaffolder).
 
-**The bar for "done" is the canary, not a percentage.** [`examples/canary/App.tsx`](./examples/canary/App.tsx)
+**The bar for "done" is the canary, not a percentage.** [`examples/react/App.tsx`](./examples/react/App.tsx)
 is the working spec — it exercises the real surface (every primitive, the runtime modules,
 `Animated` on both drivers, gestures, a11y, a third-party native view) and it runs green on
 both an iOS simulator and an Android emulator. React Native's own surface is effectively
@@ -278,12 +278,12 @@ pnpm typecheck            # tsc --build across the workspace
 DEBUG=1 node examples/headless/<smoke>.tsx   # run a headless smoke (engine, no simulator)
 ```
 
-To run the canary on the iOS simulator, `examples/canary` is a stock React Native 0.86 app
+To run the canary on the iOS simulator, `examples/react` is a stock React Native 0.86 app
 (driven by symbiote via a registered runnable). Requires Node ≥ 22 and the
 [RN environment setup](https://reactnative.dev/docs/set-up-your-environment) (Xcode, CocoaPods):
 
 ```bash
-cd examples/canary
+cd examples/react
 npm install
 bundle install                 # first time only — installs CocoaPods itself
 bundle exec pod install        # (cd ios && pod install) — fetch native pods

@@ -13,7 +13,7 @@
 
 import {
   LayoutAnimation,
-  type LayoutAnimationConfig,
+  type ILayoutAnimationConfig,
 } from '../../adapters/react/src/layout-animation'
 
 // ---- fake native UIManager ----------------------------------------------
@@ -22,17 +22,17 @@ import {
 // NATIVE_UI_MANAGER_NAME.primary (DEVICE-VERIFY-PENDING on a real host).
 const NATIVE_MODULE_NAME = 'UIManager'
 
-interface CapturedCall {
-  config: LayoutAnimationConfig
+interface ICapturedCall {
+  config: ILayoutAnimationConfig
   onSuccess: () => void
   onError: () => void
 }
 
-let captured: CapturedCall | null = null
+let captured: ICapturedCall | null = null
 
 const fakeUIManager = {
   configureNextLayoutAnimation(
-    config: LayoutAnimationConfig,
+    config: ILayoutAnimationConfig,
     onSuccess: () => void,
     onError: () => void,
   ): void {
@@ -130,7 +130,7 @@ captured = null
 const freshModule = await import(
   `../../adapters/react/src/layout-animation?nocache=${Date.now()}`
 )
-const freshLayoutAnimation: { configureNext: (config: LayoutAnimationConfig) => void } =
+const freshLayoutAnimation: { configureNext: (config: ILayoutAnimationConfig) => void } =
   freshModule.LayoutAnimation
 
 let threw = false

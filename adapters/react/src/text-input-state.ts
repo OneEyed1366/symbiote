@@ -3,28 +3,28 @@
 // Keyboard.dismiss can blur whatever holds focus without a ref — exactly how RN's
 // dismissKeyboard() works (blurTextInput(currentlyFocusedInput())).
 
-import { dispatchViewCommand, dlog, type SymbioteNode } from '@symbiote/engine'
+import { dispatchViewCommand, dlog, type ISymbioteNode } from '@symbiote/engine'
 
-let currentlyFocused: SymbioteNode | null = null
+let currentlyFocused: ISymbioteNode | null = null
 
 // The input that last reported focus and hasn't reported blur, or null.
-export function currentlyFocusedInput(): SymbioteNode | null {
+export function currentlyFocusedInput(): ISymbioteNode | null {
   return currentlyFocused
 }
 
 // TextInput's focus event reports the node here; its blur event clears it (only if it
 // is still the current one — a later input may have taken focus in between).
-export function setInputFocused(node: SymbioteNode): void {
+export function setInputFocused(node: ISymbioteNode): void {
   currentlyFocused = node
 }
 
-export function setInputBlurred(node: SymbioteNode): void {
+export function setInputBlurred(node: ISymbioteNode): void {
   if (currentlyFocused === node) currentlyFocused = null
 }
 
 // Imperative blur: drive the native `blur` view command and drop the tracked focus.
 // Used by TextInput.blur() and Keyboard.dismiss().
-export function blurTextInput(node: SymbioteNode | null): void {
+export function blurTextInput(node: ISymbioteNode | null): void {
   if (node === null) return
   dlog('TextInputState.blurTextInput -> blur command')
   dispatchViewCommand(node, 'blur', [])

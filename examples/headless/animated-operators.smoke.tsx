@@ -82,11 +82,11 @@ function assert(condition: boolean, message: string): void {
 
 // ---- bonus native path: __getNativeConfig types -------------------------
 
-interface NativeCall {
+interface INativeCall {
   method: string
   args: unknown[]
 }
-const nativeCalls: NativeCall[] = []
+const nativeCalls: INativeCall[] = []
 const createdNodeTags = new Set<number>()
 
 function record(method: string): (...args: unknown[]) => void {

@@ -19,29 +19,29 @@ import { View, Text, mount } from '@symbiote/react'
 
 import {
   DrawerLayoutAndroid,
-  type DrawerLayoutAndroidHandle,
+  type IDrawerLayoutAndroidHandle,
 } from '../../adapters/react/src/drawer-layout-android.android'
 import { DrawerLayoutAndroid as DrawerLayoutFallback } from '../../adapters/react/src/drawer-layout-android'
 
 // ---- fake Fabric slot ---------------------------------------------------
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
-interface DispatchedCommand {
+interface IDispatchedCommand {
   tag: number
   command: string
   args: ReadonlyArray<unknown>
 }
 
-let committed: FakeNode[] = []
-const allCreated: FakeNode[] = []
-const dispatched: DispatchedCommand[] = []
+let committed: IFakeNode[] = []
+const allCreated: IFakeNode[] = []
+const dispatched: IDispatchedCommand[] = []
 
 const slot = {
   createNode(
@@ -50,34 +50,34 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
-    const node: FakeNode = { tag, viewName, props, children: [], instanceHandle }
+  ): IFakeNode {
+    const node: IFakeNode = { tag, viewName, props, children: [], instanceHandle }
     allCreated.push(node)
     return node
   },
-  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+  cloneNodeWithNewProps: (node: IFakeNode, newProps: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: newProps,
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     newProps: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props: newProps, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild(parent: FakeNode, child: FakeNode): FakeNode {
+  ): IFakeNode => ({ ...node, props: newProps, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild(parent: IFakeNode, child: IFakeNode): IFakeNode {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet(childSet: FakeNode[], child: FakeNode): void {
+  appendChildToSet(childSet: IFakeNode[], child: IFakeNode): void {
     childSet.push(child)
   },
-  completeRoot(_rootTag: number, childSet: FakeNode[]): void {
+  completeRoot(_rootTag: number, childSet: IFakeNode[]): void {
     committed = childSet
   },
   registerEventHandler(): void {},
   // dispatchViewCommand routes through here; capture the command for the ref assertion.
-  dispatchCommand(node: FakeNode, command: string, args: ReadonlyArray<unknown>): void {
+  dispatchCommand(node: IFakeNode, command: string, args: ReadonlyArray<unknown>): void {
     dispatched.push({ tag: node.tag, command, args })
   },
 }
@@ -86,10 +86,10 @@ Object.assign(globalThis, { nativeFabricUIManager: slot })
 
 // ---- helpers ------------------------------------------------------------
 
-function serialize(nodes: FakeNode[]): string {
+function serialize(nodes: IFakeNode[]): string {
   return nodes.map(serializeNode).join('')
 }
-function serializeNode(node: FakeNode): string {
+function serializeNode(node: IFakeNode): string {
   const kids = node.children.length ? `(${node.children.map(serializeNode).join('')})` : ''
   return `${node.viewName}${kids}`
 }
@@ -100,7 +100,7 @@ function reset(): void {
   dispatched.length = 0
 }
 
-function drawerNode(): FakeNode {
+function drawerNode(): IFakeNode {
   const node = allCreated.find((n) => n.viewName === 'AndroidDrawerLayout')
   if (!node) throw new Error('no AndroidDrawerLayout was created')
   return node
@@ -108,7 +108,7 @@ function drawerNode(): FakeNode {
 
 // The shared commit hoists flattened style keys to the top level of node props
 // (commit.ts fabricProps), so style assertions read node.props directly.
-function styleOf(node: FakeNode): Record<string, unknown> {
+function styleOf(node: IFakeNode): Record<string, unknown> {
   return node.props
 }
 
@@ -170,7 +170,7 @@ reset()
 
 // A callback ref captures the imperative handle React installs at commit, so the
 // assertions below can call openDrawer()/closeDrawer() and read what the fake slot saw.
-let handle: DrawerLayoutAndroidHandle | null = null
+let handle: IDrawerLayoutAndroidHandle | null = null
 
 function ImperativeCase(): ReactElement {
   return (
@@ -211,7 +211,7 @@ if (!dispatched.some((d) => d.command === 'closeDrawer')) {
 
 reset()
 
-let fallbackHandle: DrawerLayoutAndroidHandle | null = null
+let fallbackHandle: IDrawerLayoutAndroidHandle | null = null
 function FallbackCase(): ReactElement {
   return (
     <DrawerLayoutFallback

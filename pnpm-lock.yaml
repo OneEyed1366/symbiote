@@ -14,6 +14,9 @@ importers:
 
   adapters/react:
     dependencies:
+      '@symbiote/components':
+        specifier: workspace:*
+        version: link:../../core/components
       '@symbiote/engine':
         specifier: workspace:*
         version: link:../../core/engine
@@ -36,6 +39,9 @@ importers:
 
   adapters/vue:
     dependencies:
+      '@symbiote/components':
+        specifier: workspace:*
+        version: link:../../core/components
       '@symbiote/engine':
         specifier: workspace:*
         version: link:../../core/engine
@@ -48,6 +54,12 @@ importers:
       vue:
         specifier: '>=3.5.0'
         version: 3.5.38(typescript@5.9.3)
+
+  core/components:
+    dependencies:
+      '@symbiote/engine':
+        specifier: workspace:*
+        version: link:../engine
 
   core/engine:
     dependencies:

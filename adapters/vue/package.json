@@ -13,6 +13,7 @@
     "typecheck": "tsc --build"
   },
   "dependencies": {
+    "@symbiote/components": "workspace:*",
     "@symbiote/engine": "workspace:*",
     "@vue/runtime-core": "^3.5.13"
   },

@@ -8,14 +8,14 @@
 import { createElement, useState, type ReactElement } from 'react'
 import { mount, Pressable, View, Text } from '@symbiote/react'
 
-interface FakeNode {
+interface IFakeNode {
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
-let committed: FakeNode[] = []
+let committed: IFakeNode[] = []
 let eventHandler: ((handle: unknown, type: string, event: Record<string, unknown>) => void) | undefined
 
 // Fabric-faithful merge: raw props layer onto the node's current props; a null
@@ -39,27 +39,27 @@ const slot = {
     _r: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode => ({ viewName, props: { ...props }, children: [], instanceHandle }),
-  cloneNodeWithNewProps: (node: FakeNode, raw: Record<string, unknown>): FakeNode => ({
+  ): IFakeNode => ({ viewName, props: { ...props }, children: [], instanceHandle }),
+  cloneNodeWithNewProps: (node: IFakeNode, raw: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: mergeProps(node.props, raw),
     children: [...node.children],
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
-  cloneNodeWithNewChildrenAndProps: (node: FakeNode, raw: Record<string, unknown>): FakeNode => ({
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildrenAndProps: (node: IFakeNode, raw: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: mergeProps(node.props, raw),
     children: [],
   }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild: (parent: FakeNode, child: FakeNode): FakeNode => {
+  createChildSet: (): IFakeNode[] => [],
+  appendChild: (parent: IFakeNode, child: IFakeNode): IFakeNode => {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet: (childSet: FakeNode[], child: FakeNode): void => {
+  appendChildToSet: (childSet: IFakeNode[], child: IFakeNode): void => {
     childSet.push(child)
   },
-  completeRoot: (_r: number, childSet: FakeNode[]): void => {
+  completeRoot: (_r: number, childSet: IFakeNode[]): void => {
     committed = childSet
   },
   registerEventHandler: (
@@ -95,7 +95,7 @@ function App(): ReactElement {
   )
 }
 
-function findByTestId(nodes: FakeNode[], id: string): FakeNode | undefined {
+function findByTestId(nodes: IFakeNode[], id: string): IFakeNode | undefined {
   for (const node of nodes) {
     if (node.props.testID === id) return node
     const found = findByTestId(node.children, id)

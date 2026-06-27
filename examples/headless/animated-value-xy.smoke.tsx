@@ -41,11 +41,11 @@ assert(layout.top.__getValue() === 20, 'getLayout().top must reflect the new y a
 
 // ---- a combined listener fires with {x, y} --------------------------------
 
-interface ValueXYEvent {
+interface IValueXYEvent {
   x: number
   y: number
 }
-const events: ValueXYEvent[] = []
+const events: IValueXYEvent[] = []
 const listenerId = xy.addListener((value) => {
   events.push({ x: value.x, y: value.y })
 })

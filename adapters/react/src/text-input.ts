@@ -16,22 +16,22 @@ import {
   useRef,
   useState,
 } from 'react'
-import { dispatchViewCommand, dlog, type SymbioteEvent, type SymbioteNode } from '@symbiote/engine'
+import { dispatchViewCommand, dlog, type ISymbioteEvent, type ISymbioteNode } from '@symbiote/engine'
 import { blurTextInput, setInputBlurred, setInputFocused } from './text-input-state'
-import { resolveAccessibilityProps, type AccessibilityProps, type AriaProps } from './accessibility-props'
-import type { TextStyle } from './styles'
+import { resolveAccessibilityProps, type IAccessibilityProps, type IAriaProps } from '@symbiote/components'
+import type { ITextStyle } from './styles'
 
-type EventHandler = (event: SymbioteEvent) => void
+type IEventHandler = (event: ISymbioteEvent) => void
 
-type InputMode = 'none' | 'text' | 'decimal' | 'numeric' | 'tel' | 'search' | 'email' | 'url'
-type EnterKeyHint = 'enter' | 'done' | 'go' | 'next' | 'previous' | 'search' | 'send'
-type SubmitBehavior = 'submit' | 'blurAndSubmit' | 'newline'
+type IInputMode = 'none' | 'text' | 'decimal' | 'numeric' | 'tel' | 'search' | 'email' | 'url'
+type IEnterKeyHint = 'enter' | 'done' | 'go' | 'next' | 'previous' | 'search' | 'send'
+type ISubmitBehavior = 'submit' | 'blurAndSubmit' | 'newline'
 
 // RN's inputMode -> keyboardType map (TextInput.js:815). `search` is platform-split
 // (iOS 'web-search', else 'default'); we use the Android/default branch since the
 // folded prop is forwarded verbatim and the simulator target is iOS-first only for
 // the canary — the safe default avoids an unknown keyboardType on Android.
-const inputModeToKeyboardType: Record<InputMode, string> = {
+const inputModeToKeyboardType: Record<IInputMode, string> = {
   decimal: 'decimal-pad',
   email: 'email-address',
   none: 'default',
@@ -43,7 +43,7 @@ const inputModeToKeyboardType: Record<InputMode, string> = {
 }
 
 // RN's enterKeyHint -> returnKeyType map (TextInput.js:805). Note `enter` -> 'default'.
-const enterKeyHintToReturnKeyType: Record<EnterKeyHint, string> = {
+const enterKeyHintToReturnKeyType: Record<IEnterKeyHint, string> = {
   done: 'done',
   enter: 'default',
   go: 'go',
@@ -157,10 +157,10 @@ function foldAutoComplete(token: string | undefined): {
 // wins (with single-line 'newline' coerced to 'blurAndSubmit'); else it is derived
 // from the legacy blurOnSubmit per multiline.
 function foldSubmitBehavior(
-  submitBehavior: SubmitBehavior | undefined,
+  submitBehavior: ISubmitBehavior | undefined,
   blurOnSubmit: boolean | undefined,
   multiline: boolean,
-): SubmitBehavior {
+): ISubmitBehavior {
   if (submitBehavior !== undefined) {
     if (!multiline && submitBehavior === 'newline') return 'blurAndSubmit'
     return submitBehavior
@@ -169,7 +169,7 @@ function foldSubmitBehavior(
   return blurOnSubmit !== false ? 'blurAndSubmit' : 'submit'
 }
 
-export interface TextInputProps extends AccessibilityProps, AriaProps {
+export interface ITextInputProps extends IAccessibilityProps, IAriaProps {
   value?: string
   defaultValue?: string
   placeholder?: string
@@ -202,10 +202,10 @@ export interface TextInputProps extends AccessibilityProps, AriaProps {
   // Modern W3C-aligned aliases. RN folds each to its legacy native prop in JS
   // before reaching Fabric (TextInput.js) — the raw aliases are inert at the
   // native layer, so we fold them here and forward only the legacy value.
-  inputMode?: InputMode
-  enterKeyHint?: EnterKeyHint
+  inputMode?: IInputMode
+  enterKeyHint?: IEnterKeyHint
   readOnly?: boolean
-  submitBehavior?: SubmitBehavior
+  submitBehavior?: ISubmitBehavior
   cursorColor?: string
   selectionColor?: string
   selectionHandleColor?: string
@@ -216,23 +216,23 @@ export interface TextInputProps extends AccessibilityProps, AriaProps {
   // Pairs this input with an InputAccessoryView whose nativeID matches; native docks
   // that view above the keyboard while the input is focused. Forwarded via ...rest.
   inputAccessoryViewID?: string
-  style?: TextStyle
+  style?: ITextStyle
 
   onChangeText?: (text: string) => void
-  onChange?: EventHandler
-  onFocus?: EventHandler
-  onBlur?: EventHandler
-  onEndEditing?: EventHandler
-  onSubmitEditing?: EventHandler
-  onKeyPress?: EventHandler
-  onSelectionChange?: EventHandler
-  onContentSizeChange?: EventHandler
+  onChange?: IEventHandler
+  onFocus?: IEventHandler
+  onBlur?: IEventHandler
+  onEndEditing?: IEventHandler
+  onSubmitEditing?: IEventHandler
+  onKeyPress?: IEventHandler
+  onSelectionChange?: IEventHandler
+  onContentSizeChange?: IEventHandler
 }
 
 // The imperative handle RN exposes on a TextInput ref. focus/blur/clear drive native
 // view commands; isFocused is tracked JS-side from the focus/blur event pair (RN keeps
 // the same state in TextInputState — there is no native getter to query).
-export interface TextInputHandle {
+export interface ITextInputHandle {
   focus(): void
   blur(): void
   clear(): void
@@ -247,17 +247,17 @@ function foldText(value: string | undefined, defaultValue: string | undefined): 
   return undefined
 }
 
-function textFromChange(event: SymbioteEvent): string | undefined {
+function textFromChange(event: ISymbioteEvent): string | undefined {
   const text = event.nativeEvent.text
   return typeof text === 'string' ? text : undefined
 }
 
-function eventCountFromChange(event: SymbioteEvent): number | undefined {
+function eventCountFromChange(event: ISymbioteEvent): number | undefined {
   const count = event.nativeEvent.eventCount
   return typeof count === 'number' ? count : undefined
 }
 
-export const TextInput = forwardRef<TextInputHandle, TextInputProps>((rawProps, forwardedRef) => {
+export const TextInput = forwardRef<ITextInputHandle, ITextInputProps>((rawProps, forwardedRef) => {
   // TextInput is its own host element (not a View wrapper), so it folds aria/role here.
   const props = resolveAccessibilityProps(rawProps)
   // Pull out the modern W3C aliases so they don't reach Fabric raw (RN strips them
@@ -317,7 +317,7 @@ export const TextInput = forwardRef<TextInputHandle, TextInputProps>((rawProps, 
   const foldedUnderlineColorAndroid =
     underlineColorAndroid !== undefined ? underlineColorAndroid : 'transparent'
 
-  const ref = useRef<SymbioteNode | null>(null)
+  const ref = useRef<ISymbioteNode | null>(null)
   // JS-side focus state, mirrored from the focus/blur events for isFocused(). RN's
   // TextInputState holds the same — native exposes no synchronous focus getter.
   const focused = useRef(false)
@@ -331,7 +331,7 @@ export const TextInput = forwardRef<TextInputHandle, TextInputProps>((rawProps, 
   const lastNativeText = useRef<string | undefined>(foldText(value, defaultValue))
 
   const handleChange = useCallback(
-    (event: SymbioteEvent): void => {
+    (event: ISymbioteEvent): void => {
       // Event seam: the controlled handshake hinges on the change payload carrying
       // `text` (+ `eventCount`). iOS and Android Fabric can key these differently, so
       // log the actual shape here — a missing `text` means onChangeText never fires.
@@ -384,7 +384,7 @@ export const TextInput = forwardRef<TextInputHandle, TextInputProps>((rawProps, 
   }, [])
 
   const handleFocus = useCallback(
-    (event: SymbioteEvent): void => {
+    (event: ISymbioteEvent): void => {
       focused.current = true
       // Track focus app-wide so Keyboard.dismiss can blur this input without a ref.
       if (ref.current !== null) setInputFocused(ref.current)
@@ -394,7 +394,7 @@ export const TextInput = forwardRef<TextInputHandle, TextInputProps>((rawProps, 
   )
 
   const handleBlur = useCallback(
-    (event: SymbioteEvent): void => {
+    (event: ISymbioteEvent): void => {
       focused.current = false
       if (ref.current !== null) setInputBlurred(ref.current)
       onBlur?.(event)

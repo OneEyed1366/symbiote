@@ -16,21 +16,21 @@ import {
   getNativeTag,
   isSymbioteNode,
   dlog,
-  type SymbioteNode,
-  type MeasureOnSuccess,
-  type MeasureInWindowOnSuccess,
-  type MeasureLayoutOnSuccess,
+  type ISymbioteNode,
+  type IMeasureOnSuccess,
+  type IMeasureInWindowOnSuccess,
+  type IMeasureLayoutOnSuccess,
 } from '@symbiote/engine'
 
 const FOCUS_COMMAND = 'focus'
 const BLUR_COMMAND = 'blur'
 
-export interface HostInstance extends SymbioteNode {
-  measure(callback: MeasureOnSuccess): void
-  measureInWindow(callback: MeasureInWindowOnSuccess): void
+export interface IHostInstance extends ISymbioteNode {
+  measure(callback: IMeasureOnSuccess): void
+  measureInWindow(callback: IMeasureInWindowOnSuccess): void
   measureLayout(
-    relativeToNativeNode: HostInstance | number,
-    onSuccess: MeasureLayoutOnSuccess,
+    relativeToNativeNode: IHostInstance | number,
+    onSuccess: IMeasureLayoutOnSuccess,
     onFail?: () => void,
   ): void
   setNativeProps(nativeProps: Record<string, unknown>): void
@@ -38,25 +38,25 @@ export interface HostInstance extends SymbioteNode {
   blur(): void
 }
 
-function isHostInstance(node: SymbioteNode): node is HostInstance {
+function isHostInstance(node: ISymbioteNode): node is IHostInstance {
   return typeof Reflect.get(node, 'measure') === 'function'
 }
 
 // Augment the retained node with the public-instance methods, once. The same node
 // instance persists across commits, so attaching once is enough — every method reads
 // the live handle through shared on each call.
-export function toPublicInstance(node: SymbioteNode): HostInstance {
+export function toPublicInstance(node: ISymbioteNode): IHostInstance {
   if (isHostInstance(node)) return node
   return Object.assign(node, {
-    measure(callback: MeasureOnSuccess): void {
+    measure(callback: IMeasureOnSuccess): void {
       sharedMeasure(node, callback)
     },
-    measureInWindow(callback: MeasureInWindowOnSuccess): void {
+    measureInWindow(callback: IMeasureInWindowOnSuccess): void {
       sharedMeasureInWindow(node, callback)
     },
     measureLayout(
-      relativeToNativeNode: HostInstance | number,
-      onSuccess: MeasureLayoutOnSuccess,
+      relativeToNativeNode: IHostInstance | number,
+      onSuccess: IMeasureLayoutOnSuccess,
       onFail?: () => void,
     ): void {
       if (!isSymbioteNode(relativeToNativeNode)) {
@@ -81,7 +81,7 @@ export function toPublicInstance(node: SymbioteNode): HostInstance {
 // findNodeHandle: a ref/instance resolves to its reactTag, a number passes through,
 // null/undefined yields null. Undefined-until-committed surfaces as null.
 export function findNodeHandle(
-  componentOrHandle: HostInstance | SymbioteNode | number | null | undefined,
+  componentOrHandle: IHostInstance | ISymbioteNode | number | null | undefined,
 ): number | null {
   if (componentOrHandle === null || componentOrHandle === undefined) return null
   if (typeof componentOrHandle === 'number') return componentOrHandle

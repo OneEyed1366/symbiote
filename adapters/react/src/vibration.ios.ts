@@ -7,10 +7,10 @@
 import {
   createVibration,
   DEFAULT_VIBRATION_LENGTH,
-  type NativeVibration,
+  type INativeVibration,
 } from './vibration-shared'
 
-export type { NativeVibration, VibrationStatic } from './vibration-shared'
+export type { INativeVibration, IVibrationStatic } from './vibration-shared'
 
 // JS scheduler state, mirroring RN's _vibrating / _id. `scheduleId` guards against a
 // stale timer from a previous run firing into a new one.
@@ -20,7 +20,7 @@ let scheduleId = 0
 // Walk one pattern step: buzz, then arm the next step (or repeat / stop). Bails if
 // vibration was canceled (vibrating=false) or superseded by a newer run (id mismatch).
 function vibrateScheduler(
-  module: NativeVibration,
+  module: INativeVibration,
   id: number,
   pattern: number[],
   repeat: boolean,
@@ -44,7 +44,7 @@ function vibrateScheduler(
 
 // iOS pattern entry point — a leading 0 means "buzz immediately", otherwise the first
 // entry is the initial wait before the first buzz.
-function vibratePattern(module: NativeVibration, inputPattern: number[], repeat: boolean): void {
+function vibratePattern(module: INativeVibration, inputPattern: number[], repeat: boolean): void {
   if (vibrating) {
     return
   }

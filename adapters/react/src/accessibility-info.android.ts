@@ -13,30 +13,30 @@ import {
   getNativeModule,
   isSymbioteNode,
   sendAccessibilityEvent as sharedSendAccessibilityEvent,
-  type EventEmitterModule,
-  type EventSubscription,
+  type IEventEmitterModule,
+  type IEventSubscription,
   dlog,
 } from '@symbiote/engine'
 import {
   isBoolean,
-  type AccessibilityChangeEventName,
-  type AccessibilityChangeEventHandler,
-  type AccessibilityInfoStatic,
-  type AnnounceForAccessibilityOptions,
-  type AccessibilityEventType,
-  type AccessibilityHandle,
+  type IAccessibilityChangeEventName,
+  type IAccessibilityChangeEventHandler,
+  type IAccessibilityInfoStatic,
+  type IAnnounceForAccessibilityOptions,
+  type IAccessibilityEventType,
+  type IAccessibilityHandle,
 } from './accessibility-info-shared'
 export type {
-  AccessibilityChangeEvent,
-  AccessibilityChangeEventName,
-  AccessibilityChangeEventHandler,
-  AccessibilityAnnouncementFinishedEvent,
-  AnnounceForAccessibilityOptions,
-  AccessibilityEventType,
+  IAccessibilityChangeEvent,
+  IAccessibilityChangeEventName,
+  IAccessibilityChangeEventHandler,
+  IAccessibilityAnnouncementFinishedEvent,
+  IAnnounceForAccessibilityOptions,
+  IAccessibilityEventType,
 } from './accessibility-info-shared'
 
 // The Android native module name. This is the module the Android JS wrapper
-// (NativeAccessibilityInfoAndroid) resolves — the stock RN `AccessibilityInfo` Turbo/legacy
+// (INativeAccessibilityInfoAndroid) resolves — the stock RN `AccessibilityInfo` Turbo/legacy
 // module. Per the symbiote invariant, a module name is only provable on a real host (a
 // headless fake answers to any name); this Android name is DEVICE-VERIFY-PENDING. See
 // .docs/native-module-platform-routing.md.
@@ -45,7 +45,7 @@ const ACCESSIBILITY_MODULE = 'AccessibilityInfo'
 // Public event name -> the Android device event the native side emits. Android renames
 // most of them; events with no Android source (iOS-only) are absent and yield an inert
 // subscription. (RN maps both `change` and `screenReaderChanged` to touchExplorationDidChange.)
-const ANDROID_DEVICE_EVENT: Partial<Record<AccessibilityChangeEventName, string>> = {
+const ANDROID_DEVICE_EVENT: Partial<Record<IAccessibilityChangeEventName, string>> = {
   screenReaderChanged: 'touchExplorationDidChange',
   reduceMotionChanged: 'reduceMotionDidChange',
   highTextContrastChanged: 'highTextContrastDidChange',
@@ -54,19 +54,19 @@ const ANDROID_DEVICE_EVENT: Partial<Record<AccessibilityChangeEventName, string>
   grayscaleChanged: 'grayscaleModeDidChange',
 }
 
-type StateCallback = (enabled: boolean) => void
+type IStateCallback = (enabled: boolean) => void
 
 // The Android AccessibilityInfo native module: single-callback boolean getters, announce,
 // and the recommended-timeout query. Optional methods guard older hosts. No error callback
 // and no setAccessibilityFocus — focus is a 'focus' accessibility event routed through the
 // Fabric slot (see sendAccessibilityEvent below).
-interface NativeAccessibilityInfoAndroid extends EventEmitterModule {
-  isTouchExplorationEnabled(onSuccess: StateCallback): void
-  isReduceMotionEnabled(onSuccess: StateCallback): void
-  isInvertColorsEnabled?(onSuccess: StateCallback): void
-  isGrayscaleEnabled?(onSuccess: StateCallback): void
-  isHighTextContrastEnabled?(onSuccess: StateCallback): void
-  isAccessibilityServiceEnabled?(onSuccess: StateCallback): void
+interface INativeAccessibilityInfoAndroid extends IEventEmitterModule {
+  isTouchExplorationEnabled(onSuccess: IStateCallback): void
+  isReduceMotionEnabled(onSuccess: IStateCallback): void
+  isInvertColorsEnabled?(onSuccess: IStateCallback): void
+  isGrayscaleEnabled?(onSuccess: IStateCallback): void
+  isHighTextContrastEnabled?(onSuccess: IStateCallback): void
+  isAccessibilityServiceEnabled?(onSuccess: IStateCallback): void
   announceForAccessibility(announcement: string): void
   getRecommendedTimeoutMillis?(original: number, onSuccess: (timeout: number) => void): void
   addListener(eventType: string): void
@@ -74,12 +74,12 @@ interface NativeAccessibilityInfoAndroid extends EventEmitterModule {
 }
 
 // Lazily resolved so importing this module has no native side effect. `null` when unlinked.
-let accessibilityModule: NativeAccessibilityInfoAndroid | null | undefined
+let accessibilityModule: INativeAccessibilityInfoAndroid | null | undefined
 let emitter: NativeEventEmitter | undefined
 
-function getModule(): NativeAccessibilityInfoAndroid | null {
+function getModule(): INativeAccessibilityInfoAndroid | null {
   if (accessibilityModule === undefined) {
-    accessibilityModule = getNativeModule<NativeAccessibilityInfoAndroid>(ACCESSIBILITY_MODULE)
+    accessibilityModule = getNativeModule<INativeAccessibilityInfoAndroid>(ACCESSIBILITY_MODULE)
     dlog(`AccessibilityInfo(android): module ${accessibilityModule ? 'resolved' : 'NOT resolved (null)'}`)
   }
   return accessibilityModule
@@ -97,7 +97,7 @@ function getEmitter(): NativeEventEmitter {
 // unlinked OR the optional method is absent on this host — mirrors RN's "missing query ->
 // false" contract for the cross-platform getters. The dlog records the miss.
 function queryState(
-  pick: (module: NativeAccessibilityInfoAndroid) => ((s: StateCallback) => void) | undefined,
+  pick: (module: INativeAccessibilityInfoAndroid) => ((s: IStateCallback) => void) | undefined,
   label: string,
 ): Promise<boolean> {
   const module = getModule()
@@ -115,7 +115,7 @@ function queryState(
   })
 }
 
-class AccessibilityInfoAndroid implements AccessibilityInfoStatic {
+class AccessibilityInfoAndroid implements IAccessibilityInfoStatic {
   // Screen reader on Android == touch exploration (TalkBack).
   isScreenReaderEnabled(): Promise<boolean> {
     return queryState((m) => m.isTouchExplorationEnabled, 'isScreenReaderEnabled')
@@ -175,7 +175,7 @@ class AccessibilityInfoAndroid implements AccessibilityInfoStatic {
   // (RN parity).
   announceForAccessibilityWithOptions(
     announcement: string,
-    _options: AnnounceForAccessibilityOptions,
+    _options: IAnnounceForAccessibilityOptions,
   ): void {
     this.announceForAccessibility(announcement)
   }
@@ -206,7 +206,7 @@ class AccessibilityInfoAndroid implements AccessibilityInfoStatic {
   // STRING eventType; the C++ side maps it to the platform's AccessibilityEvent kind. The
   // handle here IS the SymbioteNode (symbiote augments the node in place as its public
   // instance), so resolve it with the runtime guard and route through shared.
-  sendAccessibilityEvent(handle: AccessibilityHandle, eventType: AccessibilityEventType): void {
+  sendAccessibilityEvent(handle: IAccessibilityHandle, eventType: IAccessibilityEventType): void {
     if (!isSymbioteNode(handle)) {
       dlog(`AccessibilityInfo(android).sendAccessibilityEvent("${eventType}") -> handle is not a node (no-op)`)
       return
@@ -219,9 +219,9 @@ class AccessibilityInfoAndroid implements AccessibilityInfoStatic {
   // Never throws — a public event with no Android device mapping yields an inert
   // subscription; a missing module yields a live-but-silent one.
   addEventListener(
-    eventName: AccessibilityChangeEventName,
-    handler: AccessibilityChangeEventHandler,
-  ): EventSubscription {
+    eventName: IAccessibilityChangeEventName,
+    handler: IAccessibilityChangeEventHandler,
+  ): IEventSubscription {
     const deviceEvent = ANDROID_DEVICE_EVENT[eventName]
     dlog(`AccessibilityInfo(android).addEventListener -> ${eventName} (device: ${deviceEvent ?? 'none'})`)
     if (deviceEvent === undefined) {
@@ -235,4 +235,4 @@ class AccessibilityInfoAndroid implements AccessibilityInfoStatic {
   }
 }
 
-export const AccessibilityInfo: AccessibilityInfoStatic = new AccessibilityInfoAndroid()
+export const AccessibilityInfo: IAccessibilityInfoStatic = new AccessibilityInfoAndroid()

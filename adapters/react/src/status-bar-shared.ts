@@ -9,33 +9,33 @@
 // native_module_name_is_platform_specific).
 
 import type { FC } from 'react'
-import type { ColorValue } from '@symbiote/engine'
+import type { IColorValue } from '@symbiote/engine'
 
 // The bar styles RN documents (statusBarStyles), as a closed union so a typo can't
 // reach the native call.
-export type StatusBarStyle = 'default' | 'light-content' | 'dark-content'
+export type IStatusBarStyle = 'default' | 'light-content' | 'dark-content'
 
 // The native `withAnimation` argument of iOS setHidden — 'none' | 'fade' | 'slide'.
-export type StatusBarAnimation = 'none' | 'fade' | 'slide'
+export type IStatusBarAnimation = 'none' | 'fade' | 'slide'
 
 export const STATUS_BAR_MANAGER = 'StatusBarManager'
 
 // RN's default hide/show transition when `animated` is true (showHideTransition
 // defaults to 'fade'); 'none' otherwise.
-export const ANIMATED_HIDE_TRANSITION: StatusBarAnimation = 'fade'
-export const STATIC_HIDE_TRANSITION: StatusBarAnimation = 'none'
+export const ANIMATED_HIDE_TRANSITION: IStatusBarAnimation = 'fade'
+export const STATIC_HIDE_TRANSITION: IStatusBarAnimation = 'none'
 
-export function hideTransition(animated: boolean): StatusBarAnimation {
+export function hideTransition(animated: boolean): IStatusBarAnimation {
   return animated ? ANIMATED_HIDE_TRANSITION : STATIC_HIDE_TRANSITION
 }
 
-export interface StatusBarProps {
-  barStyle?: StatusBarStyle
+export interface IStatusBarProps {
+  barStyle?: IStatusBarStyle
   hidden?: boolean
   animated?: boolean
   networkActivityIndicatorVisible?: boolean
   // Android-only — inert on iOS (RN's StatusBar has no iOS background color).
-  backgroundColor?: ColorValue
+  backgroundColor?: IColorValue
   translucent?: boolean
 }
 
@@ -43,11 +43,11 @@ export interface StatusBarProps {
 // Attached to the function object, mirroring RN. setBackgroundColor / setTranslucent
 // and currentHeight are Android-only; on iOS they are inert/absent per RN, but stay on
 // the contract so a typo can't pass and callers don't branch on platform.
-export interface StatusBarComponent extends FC<StatusBarProps> {
-  setBarStyle(style: StatusBarStyle, animated?: boolean): void
-  setHidden(hidden: boolean, animation?: StatusBarAnimation): void
+export interface IStatusBarComponent extends FC<IStatusBarProps> {
+  setBarStyle(style: IStatusBarStyle, animated?: boolean): void
+  setHidden(hidden: boolean, animation?: IStatusBarAnimation): void
   setNetworkActivityIndicatorVisible(visible: boolean): void
-  setBackgroundColor(color: ColorValue, animated?: boolean): void
+  setBackgroundColor(color: IColorValue, animated?: boolean): void
   setTranslucent(translucent: boolean): void
   currentHeight?: number
 }

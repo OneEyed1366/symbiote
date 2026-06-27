@@ -2,11 +2,11 @@
 // Libraries/Utilities/Dimensions.js. Native ships initial window/screen metrics in
 // the DeviceInfo module's getConstants().Dimensions, and pushes later updates (e.g.
 // rotation, font-scale change) through the device hub as a 'didUpdateDimensions'
-// event whose payload IS a fresh DimensionsPayload. We cache the metrics and notify
+// event whose payload IS a fresh IDimensionsPayload. We cache the metrics and notify
 // 'change' listeners on each update, exactly as RN does.
 //
 // The native contract is confirmed from RN's TurboModule spec at
-// .vendors/.../specs_DEPRECATED/modules/NativeDeviceInfo.js:
+// .vendors/.../specs_DEPRECATED/modules/INativeDeviceInfo.js:
 //   getConstants(): { Dimensions: { window?, screen?, windowPhysicalPixels?,
 //                     screenPhysicalPixels? } }
 // We resolve it through the same generic native-module bridge as Platform
@@ -18,14 +18,14 @@ import {
   installDeviceEventHub,
   NativeEventEmitter,
   dlog,
-  type EventSubscription,
+  type IEventSubscription,
 } from '@symbiote/engine'
 
 // The native module name RN registers device metrics under.
 const DEVICE_INFO_MODULE = 'DeviceInfo'
 
 // The device event native emits when metrics change; its payload is a fresh
-// DimensionsPayload (NativeDeviceInfo / Dimensions.js subscribe to this name).
+// IDimensionsPayload (INativeDeviceInfo / Dimensions.js subscribe to this name).
 const DID_UPDATE_DIMENSIONS = 'didUpdateDimensions'
 
 // Used when the native module is unresolvable (headless, or a binary without it):
@@ -33,7 +33,7 @@ const DID_UPDATE_DIMENSIONS = 'didUpdateDimensions'
 // A scale of 1 is the neutral "non-retina" default PixelRatio falls back to.
 const DEFAULT_SCALE = 1
 
-const ZERO_METRICS: DisplayMetrics = {
+const ZERO_METRICS: IDisplayMetrics = {
   width: 0,
   height: 0,
   scale: DEFAULT_SCALE,
@@ -42,7 +42,7 @@ const ZERO_METRICS: DisplayMetrics = {
 
 // One set of metrics for a display. iOS gives width/height in points plus the pixel
 // `scale` and the user's `fontScale`.
-export interface DisplayMetrics {
+export interface IDisplayMetrics {
   width: number
   height: number
   scale: number
@@ -50,33 +50,33 @@ export interface DisplayMetrics {
 }
 
 // Android additionally reports raw density. Kept for payload fidelity; iOS omits it.
-export interface DisplayMetricsAndroid extends DisplayMetrics {
+export interface IDisplayMetricsAndroid extends IDisplayMetrics {
   densityDpi: number
 }
 
 // What native sends, both in getConstants().Dimensions and in the
 // 'didUpdateDimensions' payload. iOS fills window/screen; Android sends the
 // *PhysicalPixels variants which we divide by scale into points (mirrors RN).
-export interface DimensionsPayload {
-  window?: DisplayMetrics
-  screen?: DisplayMetrics
-  windowPhysicalPixels?: DisplayMetricsAndroid
-  screenPhysicalPixels?: DisplayMetricsAndroid
+export interface IDimensionsPayload {
+  window?: IDisplayMetrics
+  screen?: IDisplayMetrics
+  windowPhysicalPixels?: IDisplayMetricsAndroid
+  screenPhysicalPixels?: IDisplayMetricsAndroid
 }
 
 // The resolved, point-space metrics Dimensions.get() hands back.
-export interface DimensionsSet {
-  window: DisplayMetrics
-  screen: DisplayMetrics
+export interface IDimensionsSet {
+  window: IDisplayMetrics
+  screen: IDisplayMetrics
 }
 
-export type DimensionsKey = keyof DimensionsSet
+export type IDimensionsKey = keyof IDimensionsSet
 
-export type DimensionsChangeListener = (set: DimensionsSet) => void
+export type IDimensionsChangeListener = (set: IDimensionsSet) => void
 
 // The native DeviceInfo module — the single method we consume.
-interface NativeDeviceInfo {
-  getConstants(): { Dimensions: DimensionsPayload }
+interface INativeDeviceInfo {
+  getConstants(): { Dimensions: IDimensionsPayload }
 }
 
 // The trust boundary: native getConstants() crosses from an untyped HostObject into
@@ -86,25 +86,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
-function isDimensionsConstants(value: unknown): value is { Dimensions: DimensionsPayload } {
+function isDimensionsConstants(value: unknown): value is { Dimensions: IDimensionsPayload } {
   return isRecord(value) && isRecord(value.Dimensions)
 }
 
-function isDimensionsPayload(value: unknown): value is DimensionsPayload {
+function isDimensionsPayload(value: unknown): value is IDimensionsPayload {
   return isRecord(value)
 }
 
-const changeListeners = new Set<DimensionsChangeListener>()
+const changeListeners = new Set<IDimensionsChangeListener>()
 
 // Cached, resolved metrics. `undefined` = not yet set, so we know to swallow the
 // first 'change' (RN's dimensionsInitialized flag: native pushes an initial set we
 // must not surface as a change).
-let cached: DimensionsSet | undefined
+let cached: IDimensionsSet | undefined
 
 // Derive point-space metrics from a payload, mirroring Dimensions.set(): the Android
 // *PhysicalPixels variants divide by scale into points; absent a screen, it mirrors
 // the window.
-function resolveMetrics(payload: DimensionsPayload): DimensionsSet {
+function resolveMetrics(payload: IDimensionsPayload): IDimensionsSet {
   let window = payload.window
   if (payload.windowPhysicalPixels !== undefined) {
     window = toPointSpace(payload.windowPhysicalPixels)
@@ -123,7 +123,7 @@ function resolveMetrics(payload: DimensionsPayload): DimensionsSet {
   }
 }
 
-function toPointSpace(pixels: DisplayMetricsAndroid): DisplayMetrics {
+function toPointSpace(pixels: IDisplayMetricsAndroid): IDisplayMetrics {
   return {
     width: pixels.width / pixels.scale,
     height: pixels.height / pixels.scale,
@@ -135,7 +135,7 @@ function toPointSpace(pixels: DisplayMetricsAndroid): DisplayMetrics {
 // Apply a fresh payload and notify 'change' subscribers — except the very first
 // set, which seeds the cache without firing (the initial native push is not a
 // "change"). This is the sink for both getConstants() and 'didUpdateDimensions'.
-function setDimensions(payload: DimensionsPayload): void {
+function setDimensions(payload: IDimensionsPayload): void {
   const isFirst = cached === undefined
   cached = resolveMetrics(payload)
   if (isFirst) return
@@ -146,15 +146,15 @@ function setDimensions(payload: DimensionsPayload): void {
 // Resolve initial metrics lazily and subscribe to native updates once. Re-attempts
 // on each call until a valid module is cached, so a later-installed DeviceInfo still
 // gets picked up (same pattern as platform.ts).
-let updateSubscription: EventSubscription | undefined
+let updateSubscription: IEventSubscription | undefined
 
-function ensureResolved(): DimensionsSet {
+function ensureResolved(): IDimensionsSet {
   if (cached !== undefined) return cached
 
   // Subscribe BEFORE reading constants so an update fired in between isn't missed
   // (RN orders the addListener before the getConstants call for the same reason).
   if (updateSubscription === undefined) {
-    const module = getNativeModule<NativeDeviceInfo>(DEVICE_INFO_MODULE)
+    const module = getNativeModule<INativeDeviceInfo>(DEVICE_INFO_MODULE)
     installDeviceEventHub()
     const emitter = new NativeEventEmitter(undefined)
     updateSubscription = emitter.addListener(DID_UPDATE_DIMENSIONS, (payload) => {
@@ -177,25 +177,25 @@ function ensureResolved(): DimensionsSet {
   return cached ?? { window: ZERO_METRICS, screen: ZERO_METRICS }
 }
 
-export interface DimensionsStatic {
-  get(dim: DimensionsKey): DisplayMetrics
-  set(dims: DimensionsPayload): void
-  addEventListener(type: 'change', listener: DimensionsChangeListener): EventSubscription
+export interface IDimensionsStatic {
+  get(dim: IDimensionsKey): IDisplayMetrics
+  set(dims: IDimensionsPayload): void
+  addEventListener(type: 'change', listener: IDimensionsChangeListener): IEventSubscription
 }
 
-export const Dimensions: DimensionsStatic = {
-  get(dim: DimensionsKey): DisplayMetrics {
+export const Dimensions: IDimensionsStatic = {
+  get(dim: IDimensionsKey): IDisplayMetrics {
     return ensureResolved()[dim]
   },
 
   // RN exposes this as a public static (Dimensions.js:63); native pushes metrics
   // through it. Delegates to the internal setter, which caches and fires 'change'.
-  set(dims: DimensionsPayload): void {
+  set(dims: IDimensionsPayload): void {
     setDimensions(dims)
   },
 
   // `_type` is fixed to 'change' for RN signature parity; Dimensions emits no other.
-  addEventListener(_type: 'change', listener: DimensionsChangeListener): EventSubscription {
+  addEventListener(_type: 'change', listener: IDimensionsChangeListener): IEventSubscription {
     // Resolve on first subscribe too, so the native update bridge is wired even if
     // get() was never called first.
     ensureResolved()

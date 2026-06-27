@@ -2,16 +2,21 @@
 // RN's StyleSheet is mostly identity + small helpers: `create` returns the object
 // untouched (no deep-freeze by default in modern RN), `flatten` collapses a style
 // array, `compose` picks/pairs two styles, plus the `hairlineWidth` / `absoluteFill`
-// constants. We keep it generic — the typed ViewStyle/TextStyle live in the react
-// adapter; here a style is any plain `Record`-shaped object.
+// constants. The typed ViewStyle/TextStyle live next door in styles.ts, so `create`
+// is typed against them like RN's — not left generic over a plain Record.
 
 import { dlog } from './debug'
 import { getNativeModule } from './native-modules'
 import { flattenStyle } from './style'
+import type { INamedStyles, IViewStyle, ITextStyle } from './styles'
+
+// RN constrains create with `T & NamedStyles<any>` to catch typos; we name the index
+// shape concretely instead of `any` — every value must be a real style object.
+type IStyleRecord = Record<string, IViewStyle | ITextStyle>
 
 // A single style object. Generic on purpose: shared is framework-agnostic and must
 // not depend on the adapter's typed style maps.
-type StyleObject = Record<string, unknown>
+type IStyleObject = Record<string, unknown>
 
 // RN's hairline factor: a "1 physical pixel" line is ~0.4 logical px, rounded to the
 // nearest device pixel. Named so the 0.4 isn't a bare magic number (RN source uses
@@ -28,12 +33,12 @@ const HAIRLINE_FALLBACK = 1
 // width/height, never scale). Both optional so a missing/renamed key degrades to the
 // hairline fallback instead of throwing mid-render. Narrowed at the native trust
 // boundary by getNativeModule<T>.
-interface DisplayMetrics {
+interface IDisplayMetrics {
   scale?: number
 }
-interface DeviceInfoModule {
+interface IDeviceInfoModule {
   getConstants(): {
-    Dimensions: { window?: DisplayMetrics; windowPhysicalPixels?: DisplayMetrics }
+    Dimensions: { window?: IDisplayMetrics; windowPhysicalPixels?: IDisplayMetrics }
   }
 }
 
@@ -41,7 +46,7 @@ interface DeviceInfoModule {
 // Lazy (not at import) so this module is importable headless before a fake
 // __turboModuleProxy exists — same precedent as StatusBar's in-effect resolve.
 function resolveScreenScale(): number | null {
-  const deviceInfo = getNativeModule<DeviceInfoModule>('DeviceInfo')
+  const deviceInfo = getNativeModule<IDeviceInfoModule>('DeviceInfo')
   if (deviceInfo === null) {
     dlog('StyleSheet: DeviceInfo not resolvable — hairlineWidth falls back')
     return null
@@ -67,7 +72,7 @@ export function computeHairlineWidth(scale: number): number {
 
 // RN freezes absoluteFill in __DEV__; we always freeze so `absoluteFill` and
 // `absoluteFillObject` can safely be the same shared object.
-const absoluteFill: Readonly<StyleObject> = Object.freeze({
+const absoluteFill: Readonly<IStyleObject> = Object.freeze({
   position: 'absolute',
   left: 0,
   right: 0,
@@ -87,13 +92,13 @@ function compose<A, B>(style1: A, style2: B): A | B | [A, B] {
 // ReactNativeStyleAttributes and runs them as a value passes to native; here the
 // registry is consulted by `flatten` (the one place a style collapses to the flat
 // payload before commit), so a registered process() rewrites the matching key.
-type StylePreprocessor = (value: unknown) => unknown
-const stylePreprocessors = new Map<string, StylePreprocessor>()
+type IStylePreprocessor = (value: unknown) => unknown
+const stylePreprocessors = new Map<string, IStylePreprocessor>()
 
 // Register a value-rewriter for one style property (RN's setStyleAttributePreprocessor,
 // StyleSheetExports.js:151). EXPERIMENTAL in RN; used internally for color/transform.
 // Overwriting an existing preprocessor warns, matching RN's __DEV__ guard.
-function setStyleAttributePreprocessor(property: string, process: StylePreprocessor): void {
+function setStyleAttributePreprocessor(property: string, process: IStylePreprocessor): void {
   if (stylePreprocessors.has(property)) {
     dlog(`StyleSheet.setStyleAttributePreprocessor: overwriting "${property}" preprocessor`)
   }
@@ -127,8 +132,10 @@ function roundToNearestPixel(value: number): number {
 }
 
 export const StyleSheet = {
-  // Identity, like RN: returns the same object, each key keeping its inferred type.
-  create<S extends Record<string, StyleObject>>(styles: S): S {
+  // Identity at runtime, like RN, but the NamedStyles constraint preserves each
+  // string-literal style value (flexDirection: 'row' stays 'row', not string) and
+  // validates entries — so `styles.box` is assignable to a ViewStyle prop.
+  create<T extends INamedStyles<T> | IStyleRecord>(styles: T & IStyleRecord): T {
     return styles
   },
 

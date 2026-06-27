@@ -14,11 +14,11 @@ import {
 
 // ---- fake JSI globals ---------------------------------------------------
 
-interface FakeStatusBar {
+interface IFakeStatusBar {
   setHidden(hidden: boolean): void
 }
 
-const fakeStatusBar: FakeStatusBar = { setHidden: () => {} }
+const fakeStatusBar: IFakeStatusBar = { setHidden: () => {} }
 const registeredModules: Record<string, unknown> = { StatusBarManager: fakeStatusBar }
 
 // The device hub our code registers, captured so the test can act as "native".
@@ -48,7 +48,7 @@ function isType<T>(value: unknown): value is T {
 // ---- case 1: getNativeModule resolves a registered module ---------------
 
 {
-  const statusBar = getNativeModule<FakeStatusBar>('StatusBarManager')
+  const statusBar = getNativeModule<IFakeStatusBar>('StatusBarManager')
   if (statusBar === null) throw new Error('StatusBarManager should resolve via __turboModuleProxy')
   if (typeof statusBar.setHidden !== 'function') {
     throw new Error('resolved module should carry its methods')
@@ -80,7 +80,7 @@ function isType<T>(value: unknown): value is T {
     __turboModuleProxy: undefined,
     nativeModuleProxy: { StatusBarManager: fakeStatusBar },
   })
-  const statusBar = getNativeModule<FakeStatusBar>('StatusBarManager')
+  const statusBar = getNativeModule<IFakeStatusBar>('StatusBarManager')
   if (statusBar === null) {
     throw new Error('bridgeless: StatusBarManager should resolve via global.nativeModuleProxy')
   }

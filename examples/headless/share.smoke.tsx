@@ -11,7 +11,7 @@
 // A failure here is in JS, not native.
 
 import { Share as IosShare } from '../../adapters/react/src/share.ios'
-import { Share as AndroidShare, type ShareContent } from '../../adapters/react/src/share.android'
+import { Share as AndroidShare, type IShareContent } from '../../adapters/react/src/share.android'
 
 // ---- fake native modules -------------------------------------------------
 
@@ -98,7 +98,7 @@ async function main(): Promise<void> {
 
   // Invalid content (neither message nor url) -> rejects. JSON.parse yields an
   // untyped value so we can feed the deliberately-invalid shape without a cast.
-  const invalidContent: ShareContent = JSON.parse('{"title":"only a title"}')
+  const invalidContent: IShareContent = JSON.parse('{"title":"only a title"}')
   let rejected = false
   await IosShare.share(invalidContent).catch(() => {
     rejected = true

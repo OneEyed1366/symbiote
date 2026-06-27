@@ -10,18 +10,17 @@
 // of the "addViewAt: failed to insert" crash.
 
 import { cloneElement, createElement, forwardRef, useImperativeHandle, useRef } from 'react'
-import { dlog, type SymbioteNode } from '@symbiote/engine'
+import { dlog, type ISymbioteNode } from '@symbiote/engine'
+import { buildScrollViewHandle, splitLayoutProps } from '@symbiote/components'
 import {
-  buildScrollViewHandle,
   prepareScrollView,
-  splitLayoutProps,
   useNativeStickyScrollAttach,
-  type ScrollViewHandle,
-  type ScrollViewProps,
+  type IScrollViewHandle,
+  type IScrollViewProps,
 } from './scroll-view-shared'
-export type { ScrollViewProps, ScrollViewHandle } from './scroll-view-shared'
+export type { IScrollViewProps, IScrollViewHandle } from './scroll-view-shared'
 
-export const ScrollView = forwardRef<ScrollViewHandle, ScrollViewProps>((props, forwardedRef) => {
+export const ScrollView = forwardRef<IScrollViewHandle, IScrollViewProps>((props, forwardedRef) => {
   const {
     scrollViewIntrinsic,
     scrollViewBaseStyle,
@@ -34,8 +33,10 @@ export const ScrollView = forwardRef<ScrollViewHandle, ScrollViewProps>((props, 
   } = prepareScrollView(props)
   // The node ref backs the imperative handle; it attaches to the inner scroll-view element
   // (the wrap shape leaves the scroll view as the command target, not the RefreshControl).
-  const ref = useRef<SymbioteNode | null>(null)
-  useImperativeHandle(forwardedRef, () => buildScrollViewHandle(ref), [])
+  const ref = useRef<ISymbioteNode | null>(null)
+  // Lazy getter, not the ref itself: the node is null until the element commits, so the handle
+  // must read ref.current on each command (ADR 0024 §3) — an eager capture would freeze null.
+  useImperativeHandle(forwardedRef, () => buildScrollViewHandle(() => ref.current), [])
   // Drive the sticky scroll value on the native UI thread (RN attachNativeEvent). No-op on a
   // host without the native animated module — the JS sticky path stays in effect.
   useNativeStickyScrollAttach(ref, scrollAnimatedValue, nativeStickyAvailable)
@@ -44,7 +45,7 @@ export const ScrollView = forwardRef<ScrollViewHandle, ScrollViewProps>((props, 
   if (refreshControl === undefined) {
     // Base style (flexDirection: row for horizontal) under user style; undefined base
     // (vertical) passes the user style through unchanged.
-    const scrollStyle = scrollViewBaseStyle ? { ...scrollViewBaseStyle, ...style } : style
+    const scrollStyle = scrollViewBaseStyle ? [scrollViewBaseStyle, style] : style
     return createElement(scrollViewIntrinsic, { ...outerProps, style: scrollStyle, ref }, content)
   }
 
@@ -55,7 +56,7 @@ export const ScrollView = forwardRef<ScrollViewHandle, ScrollViewProps>((props, 
   // (flexDirection/overflow) plus the visual `inner` composed over it — NOT a hardcoded flex:1
   // that would override an explicit user height/width.
   const { outer: outerStyle, inner: innerStyle } = splitLayoutProps(style)
-  const scrollStyle = scrollViewBaseStyle ? { ...scrollViewBaseStyle, ...innerStyle } : innerStyle
+  const scrollStyle = scrollViewBaseStyle ? [scrollViewBaseStyle, innerStyle] : innerStyle
   const scrollView = createElement(
     scrollViewIntrinsic,
     { ...outerProps, style: scrollStyle, nestedScrollEnabled: true, ref },

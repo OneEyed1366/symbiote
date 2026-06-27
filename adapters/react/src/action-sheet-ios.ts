@@ -4,7 +4,7 @@
 // the tapped row. We mirror RN faithfully.
 //
 // The native contract is confirmed from RN's TurboModule spec at
-// .vendors/react-native/.../src/private/specs_DEPRECATED/modules/NativeActionSheetManager.js:
+// .vendors/react-native/.../src/private/specs_DEPRECATED/modules/INativeActionSheetManager.js:
 //   showActionSheetWithOptions(options, callback: (buttonIndex: number) => void)
 //   showShareActionSheetWithOptions(options, failureCallback, successCallback)
 //   dismissActionSheet?()
@@ -21,7 +21,7 @@ import { dlog, getNativeModule } from '@symbiote/engine'
 
 const ACTION_SHEET_MANAGER = 'ActionSheetManager'
 
-export interface ActionSheetIOSOptions {
+export interface IActionSheetIOSOptions {
   title?: string
   message?: string
   options: string[]
@@ -39,7 +39,7 @@ export interface ActionSheetIOSOptions {
   disabledButtonIndices?: number[]
 }
 
-export interface ShareActionSheetIOSOptions {
+export interface IShareActionSheetIOSOptions {
   message?: string
   url?: string
   subject?: string
@@ -51,7 +51,7 @@ export interface ShareActionSheetIOSOptions {
   userInterfaceStyle?: string
 }
 
-export interface ShareActionSheetError {
+export interface IShareActionSheetError {
   domain: string
   code: string
   userInfo?: Record<string, unknown>
@@ -62,14 +62,14 @@ export interface ShareActionSheetError {
 // point (no per-call `as`); the generic on getNativeModule carries it. The
 // callback `buttonIndex`/`completed`/`activityType` arrive typed because we
 // declare them here.
-interface NativeActionSheetManager {
+interface INativeActionSheetManager {
   showActionSheetWithOptions(
-    options: ActionSheetIOSOptions,
+    options: IActionSheetIOSOptions,
     callback: (buttonIndex: number) => void,
   ): void
   showShareActionSheetWithOptions(
-    options: ShareActionSheetIOSOptions,
-    failureCallback: (error: ShareActionSheetError) => void,
+    options: IShareActionSheetIOSOptions,
+    failureCallback: (error: IShareActionSheetError) => void,
     successCallback: (completed: boolean, activityType?: string) => void,
   ): void
   dismissActionSheet?(): void
@@ -78,11 +78,11 @@ interface NativeActionSheetManager {
 // The static imperative API RN exposes, mirrored as a static-method object.
 export const ActionSheetIOS = {
   showActionSheetWithOptions(
-    options: ActionSheetIOSOptions,
+    options: IActionSheetIOSOptions,
     callback: (buttonIndex: number) => void,
   ): void {
     dlog('ActionSheetIOS.showActionSheetWithOptions')
-    const manager = getNativeModule<NativeActionSheetManager>(ACTION_SHEET_MANAGER)
+    const manager = getNativeModule<INativeActionSheetManager>(ACTION_SHEET_MANAGER)
     if (manager === null) {
       dlog(`ActionSheetIOS: "${ACTION_SHEET_MANAGER}" unresolved — no-op`)
       return
@@ -99,7 +99,7 @@ export const ActionSheetIOS = {
     } else if (typeof destructiveButtonIndex === 'number') {
       destructiveButtonIndices = [destructiveButtonIndex]
     }
-    const nativeOptions: ActionSheetIOSOptions = { ...remainingOptions, destructiveButtonIndices }
+    const nativeOptions: IActionSheetIOSOptions = { ...remainingOptions, destructiveButtonIndices }
     manager.showActionSheetWithOptions(nativeOptions, (buttonIndex) => {
       dlog(`ActionSheetIOS callback buttonIndex=${buttonIndex}`)
       callback(buttonIndex)
@@ -107,12 +107,12 @@ export const ActionSheetIOS = {
   },
 
   showShareActionSheetWithOptions(
-    options: ShareActionSheetIOSOptions,
-    failureCallback: (error: ShareActionSheetError) => void,
+    options: IShareActionSheetIOSOptions,
+    failureCallback: (error: IShareActionSheetError) => void,
     successCallback: (completed: boolean, activityType?: string) => void,
   ): void {
     dlog('ActionSheetIOS.showShareActionSheetWithOptions')
-    const manager = getNativeModule<NativeActionSheetManager>(ACTION_SHEET_MANAGER)
+    const manager = getNativeModule<INativeActionSheetManager>(ACTION_SHEET_MANAGER)
     if (manager === null) {
       dlog(`ActionSheetIOS: "${ACTION_SHEET_MANAGER}" unresolved — no-op`)
       return
@@ -132,7 +132,7 @@ export const ActionSheetIOS = {
 
   dismissActionSheet(): void {
     dlog('ActionSheetIOS.dismissActionSheet')
-    const manager = getNativeModule<NativeActionSheetManager>(ACTION_SHEET_MANAGER)
+    const manager = getNativeModule<INativeActionSheetManager>(ACTION_SHEET_MANAGER)
     if (manager === null) {
       dlog(`ActionSheetIOS: "${ACTION_SHEET_MANAGER}" unresolved — no-op`)
       return

@@ -29,44 +29,44 @@ export const Events = {
   interactionComplete: 'interactionComplete',
 } as const
 
-export type InteractionEvent = (typeof Events)[keyof typeof Events]
+export type IInteractionEvent = (typeof Events)[keyof typeof Events]
 
 // A plain callback, or an object task with either a sync `run` or an async `gen`.
-export type SimpleTask = {
+export type ISimpleTask = {
   name: string
   run: () => void
 }
-export type PromiseTask = {
+export type IPromiseTask = {
   name: string
   gen: () => Promise<unknown>
 }
-export type Task = SimpleTask | PromiseTask | (() => void)
+export type ITask = ISimpleTask | IPromiseTask | (() => void)
 
-export type Handle = number
+export type IHandle = number
 
 // The cancellable promise-like `runAfterInteractions` returns.
-export type Cancellable<T> = {
+export type ICancellable<T> = {
   then: Promise<T>['then']
   done: (onDone?: () => void) => void
   cancel: () => void
 }
 
-type EventListener = (...args: unknown[]) => void
+type IEventListener = (...args: unknown[]) => void
 
-function isSimpleTask(task: object): task is SimpleTask {
+function isSimpleTask(task: object): task is ISimpleTask {
   return typeof Reflect.get(task, 'run') === 'function'
 }
 
-function isPromiseTask(task: object): task is PromiseTask {
+function isPromiseTask(task: object): task is IPromiseTask {
   return typeof Reflect.get(task, 'gen') === 'function'
 }
 
 // Minimal string→listener-set emitter; we don't pull in events.ts to keep this module
 // self-contained, and the surface here is just on/off/emit over two event names.
 class Emitter {
-  private listeners = new Map<string, Set<EventListener>>()
+  private listeners = new Map<string, Set<IEventListener>>()
 
-  on(eventType: string, listener: EventListener): () => void {
+  on(eventType: string, listener: IEventListener): () => void {
     let set = this.listeners.get(eventType)
     if (set === undefined) {
       set = new Set()
@@ -107,20 +107,20 @@ class InteractionManagerImpl {
   readonly Events = Events
 
   private emitter = new Emitter()
-  private taskQueue: Task[] = []
+  private taskQueue: ITask[] = []
   private interactionHandleCount = 0
   private nextHandle = 1
   private deadline = DEFAULT_DEADLINE
   private flushScheduled = false
 
-  addListener(eventType: InteractionEvent, listener: EventListener): { remove: () => void } {
+  addListener(eventType: IInteractionEvent, listener: IEventListener): { remove: () => void } {
     const off = this.emitter.on(eventType, listener)
     return { remove: off }
   }
 
   // Schedule a task to run once all interaction handles have cleared and the queue
   // drains. Returns a cancellable promise-like.
-  runAfterInteractions(task?: Task): Cancellable<void> {
+  runAfterInteractions(task?: ITask): ICancellable<void> {
     let resolveTask: (() => void) | undefined
     let rejectTask: ((error: Error) => void) | undefined
     const promise = new Promise<void>((resolve, reject) => {
@@ -128,11 +128,11 @@ class InteractionManagerImpl {
       rejectTask = reject
     })
 
-    const queued: Task = () => {
+    const queued: ITask = () => {
       this.runTask(task, resolveTask, rejectTask)
     }
     let cancelled = false
-    const guarded: Task = () => {
+    const guarded: ITask = () => {
       if (cancelled) return
       queued()
     }
@@ -154,7 +154,7 @@ class InteractionManagerImpl {
 
   // Notify the manager an interaction has started; defers queued tasks. Returns a
   // handle to clear when the interaction ends.
-  createInteractionHandle(): Handle {
+  createInteractionHandle(): IHandle {
     dlog('InteractionManager.createInteractionHandle')
     const wasIdle = this.interactionHandleCount === 0
     this.interactionHandleCount += 1
@@ -165,7 +165,7 @@ class InteractionManagerImpl {
   }
 
   // Notify the manager an interaction has completed; the last clear resumes the queue.
-  clearInteractionHandle(handle: Handle): void {
+  clearInteractionHandle(handle: IHandle): void {
     if (!handle) throw new Error('InteractionManager: Must provide a handle to clear.')
     dlog(`InteractionManager.clearInteractionHandle(${handle})`)
     this.interactionHandleCount -= 1
@@ -183,7 +183,7 @@ class InteractionManagerImpl {
   }
 
   private runTask(
-    task: Task | undefined,
+    task: ITask | undefined,
     resolveTask: (() => void) | undefined,
     rejectTask: ((error: Error) => void) | undefined,
   ): void {

@@ -12,11 +12,11 @@
 // changed ones on `changedTouches`), so the centroid/velocity math here reads
 // those directly while keeping RN's accumulate-deltas-over-time behavior.
 
-import { dlog, type SymbioteEvent } from '@symbiote/engine'
+import { dlog, type ISymbioteEvent } from '@symbiote/engine'
 
 // gestureState fields the caller reads; `stateID` is a stable per-gesture id and
 // `_accountsForMovesUpTo` is the timestamp every field has been advanced through.
-export interface PanResponderGestureState {
+export interface IPanResponderGestureState {
   stateID: number
   moveX: number
   moveY: number
@@ -31,58 +31,58 @@ export interface PanResponderGestureState {
 }
 
 // (event, gestureState) -> boolean — the should-set / termination-request gate.
-type ActiveCallback = (event: SymbioteEvent, gestureState: PanResponderGestureState) => boolean
+type IActiveCallback = (event: ISymbioteEvent, gestureState: IPanResponderGestureState) => boolean
 // (event, gestureState) -> void — grant / move / release / terminate side effects.
-type PassiveCallback = (event: SymbioteEvent, gestureState: PanResponderGestureState) => void
+type IPassiveCallback = (event: ISymbioteEvent, gestureState: IPanResponderGestureState) => void
 
-export interface PanResponderCallbacks {
-  onStartShouldSetPanResponder?: ActiveCallback
-  onStartShouldSetPanResponderCapture?: ActiveCallback
-  onMoveShouldSetPanResponder?: ActiveCallback
-  onMoveShouldSetPanResponderCapture?: ActiveCallback
-  onPanResponderGrant?: PassiveCallback
-  onPanResponderStart?: PassiveCallback
-  onPanResponderMove?: PassiveCallback
-  onPanResponderEnd?: PassiveCallback
-  onPanResponderRelease?: PassiveCallback
-  onPanResponderReject?: PassiveCallback
-  onPanResponderTerminate?: PassiveCallback
-  onPanResponderTerminationRequest?: ActiveCallback
-  onShouldBlockNativeResponder?: ActiveCallback
+export interface IPanResponderCallbacks {
+  onStartShouldSetPanResponder?: IActiveCallback
+  onStartShouldSetPanResponderCapture?: IActiveCallback
+  onMoveShouldSetPanResponder?: IActiveCallback
+  onMoveShouldSetPanResponderCapture?: IActiveCallback
+  onPanResponderGrant?: IPassiveCallback
+  onPanResponderStart?: IPassiveCallback
+  onPanResponderMove?: IPassiveCallback
+  onPanResponderEnd?: IPassiveCallback
+  onPanResponderRelease?: IPassiveCallback
+  onPanResponderReject?: IPassiveCallback
+  onPanResponderTerminate?: IPassiveCallback
+  onPanResponderTerminationRequest?: IActiveCallback
+  onShouldBlockNativeResponder?: IActiveCallback
 }
 
 // The responder props PanResponder produces; spread onto a View as `panHandlers`.
-export interface GestureResponderHandlers {
-  onStartShouldSetResponder: (event: SymbioteEvent) => boolean
-  onStartShouldSetResponderCapture: (event: SymbioteEvent) => boolean
-  onMoveShouldSetResponder: (event: SymbioteEvent) => boolean
-  onMoveShouldSetResponderCapture: (event: SymbioteEvent) => boolean
-  onResponderGrant: (event: SymbioteEvent) => boolean
-  onResponderReject: (event: SymbioteEvent) => void
-  onResponderStart: (event: SymbioteEvent) => void
-  onResponderMove: (event: SymbioteEvent) => void
-  onResponderEnd: (event: SymbioteEvent) => void
-  onResponderRelease: (event: SymbioteEvent) => void
-  onResponderTerminate: (event: SymbioteEvent) => void
-  onResponderTerminationRequest: (event: SymbioteEvent) => boolean
+export interface IGestureResponderHandlers {
+  onStartShouldSetResponder: (event: ISymbioteEvent) => boolean
+  onStartShouldSetResponderCapture: (event: ISymbioteEvent) => boolean
+  onMoveShouldSetResponder: (event: ISymbioteEvent) => boolean
+  onMoveShouldSetResponderCapture: (event: ISymbioteEvent) => boolean
+  onResponderGrant: (event: ISymbioteEvent) => boolean
+  onResponderReject: (event: ISymbioteEvent) => void
+  onResponderStart: (event: ISymbioteEvent) => void
+  onResponderMove: (event: ISymbioteEvent) => void
+  onResponderEnd: (event: ISymbioteEvent) => void
+  onResponderRelease: (event: ISymbioteEvent) => void
+  onResponderTerminate: (event: ISymbioteEvent) => void
+  onResponderTerminationRequest: (event: ISymbioteEvent) => boolean
 }
 
-export interface PanResponderInstance {
-  panHandlers: GestureResponderHandlers
+export interface IPanResponderInstance {
+  panHandlers: IGestureResponderHandlers
   getInteractionHandle: () => number | null
 }
 
 // A single touch as it arrives inside the untyped nativeEvent record.
-interface TouchPoint {
+interface ITouchPoint {
   pageX: number
   pageY: number
   timestamp: number
 }
 
 // One slot of the touch-history bank shared synthesizes onto nativeEvent.touchHistory.
-// Mirrors RN's TouchRecord (ResponderTouchHistoryStore); PanResponder reads each touch's
+// Mirrors RN's ITouchRecord (ResponderTouchHistoryStore); PanResponder reads each touch's
 // own previous->current delta from here so multitouch dx/vx counts only moved touches.
-interface TouchRecord {
+interface ITouchRecord {
   touchActive: boolean
   currentPageX: number
   currentPageY: number
@@ -91,8 +91,8 @@ interface TouchRecord {
   previousPageY: number
 }
 
-interface TouchHistory {
-  touchBank: TouchRecord[]
+interface ITouchHistory {
+  touchBank: ITouchRecord[]
   numberActiveTouches: number
   indexOfSingleActiveTouch: number
   mostRecentTimeStamp: number
@@ -113,7 +113,7 @@ function toFiniteNumber(value: unknown): number | undefined {
 // Pull one touch out of an untyped array element, skipping anything that does not
 // carry numeric pageX/pageY. `timestamp` falls back to 0 when absent so a touch
 // with coordinates but no time still contributes to the centroid.
-function toTouchPoint(raw: unknown): TouchPoint | undefined {
+function toTouchPoint(raw: unknown): ITouchPoint | undefined {
   if (!isRecord(raw)) return undefined
   const pageX = toFiniteNumber(raw.pageX)
   const pageY = toFiniteNumber(raw.pageY)
@@ -122,10 +122,10 @@ function toTouchPoint(raw: unknown): TouchPoint | undefined {
 }
 
 // All current touches on screen, read off event.nativeEvent.touches.
-function readTouches(event: SymbioteEvent): TouchPoint[] {
+function readTouches(event: ISymbioteEvent): ITouchPoint[] {
   const raw = event.nativeEvent.touches
   if (!Array.isArray(raw)) return []
-  const points: TouchPoint[] = []
+  const points: ITouchPoint[] = []
   for (const entry of raw) {
     const point = toTouchPoint(entry)
     if (point !== undefined) points.push(point)
@@ -135,14 +135,14 @@ function readTouches(event: SymbioteEvent): TouchPoint[] {
 
 // Mean of a coordinate across the active touches — the gesture centroid. RN's
 // TouchHistoryMath does the same averaging over active touches.
-function centroidX(touches: TouchPoint[]): number {
+function centroidX(touches: ITouchPoint[]): number {
   if (touches.length === 0) return 0
   let sum = 0
   for (const touch of touches) sum += touch.pageX
   return sum / touches.length
 }
 
-function centroidY(touches: TouchPoint[]): number {
+function centroidY(touches: ITouchPoint[]): number {
   if (touches.length === 0) return 0
   let sum = 0
   for (const touch of touches) sum += touch.pageY
@@ -151,7 +151,7 @@ function centroidY(touches: TouchPoint[]): number {
 
 // The most recent touch timestamp in the current frame — the clock PanResponder
 // advances `_accountsForMovesUpTo` to and divides the velocity by.
-function mostRecentTimestamp(touches: TouchPoint[]): number {
+function mostRecentTimestamp(touches: ITouchPoint[]): number {
   let latest = 0
   for (const touch of touches) {
     if (touch.timestamp > latest) latest = touch.timestamp
@@ -167,7 +167,7 @@ function mostRecentTimestamp(touches: TouchPoint[]): number {
 // that invoke the handlers directly (no shared, no store) carry no touchHistory and fall
 // back to the centroid path below, preserving single-touch behavior.
 
-function isTouchRecord(value: unknown): value is TouchRecord {
+function isTouchRecord(value: unknown): value is ITouchRecord {
   return (
     isRecord(value) &&
     typeof value.touchActive === 'boolean' &&
@@ -179,7 +179,7 @@ function isTouchRecord(value: unknown): value is TouchRecord {
   )
 }
 
-function isTouchHistory(value: unknown): value is TouchHistory {
+function isTouchHistory(value: unknown): value is ITouchHistory {
   return (
     isRecord(value) &&
     Array.isArray(value.touchBank) &&
@@ -189,7 +189,7 @@ function isTouchHistory(value: unknown): value is TouchHistory {
   )
 }
 
-function touchHistoryOf(event: SymbioteEvent): TouchHistory | undefined {
+function touchHistoryOf(event: ISymbioteEvent): ITouchHistory | undefined {
   const raw = event.nativeEvent.touchHistory
   return isTouchHistory(raw) ? raw : undefined
 }
@@ -199,7 +199,7 @@ function touchHistoryOf(event: SymbioteEvent): TouchHistory | undefined {
 // touch's current or previous position. The single-active-touch fast path uses a strict
 // `>`; the multi-touch scan uses `>=` — faithfully preserved from RN.
 function centroidDimension(
-  touchHistory: TouchHistory,
+  touchHistory: ITouchHistory,
   touchesChangedAfter: number,
   isXAxis: boolean,
   ofCurrent: boolean,
@@ -235,27 +235,27 @@ function centroidDimension(
 
 const NO_CENTROID = -1
 
-function dimensionOf(record: TouchRecord, isXAxis: boolean, ofCurrent: boolean): number {
+function dimensionOf(record: ITouchRecord, isXAxis: boolean, ofCurrent: boolean): number {
   if (ofCurrent) return isXAxis ? record.currentPageX : record.currentPageY
   return isXAxis ? record.previousPageX : record.previousPageY
 }
 
-function currentCentroidXOfChanged(touchHistory: TouchHistory, after: number): number {
+function currentCentroidXOfChanged(touchHistory: ITouchHistory, after: number): number {
   return centroidDimension(touchHistory, after, true, true)
 }
-function currentCentroidYOfChanged(touchHistory: TouchHistory, after: number): number {
+function currentCentroidYOfChanged(touchHistory: ITouchHistory, after: number): number {
   return centroidDimension(touchHistory, after, false, true)
 }
-function previousCentroidXOfChanged(touchHistory: TouchHistory, after: number): number {
+function previousCentroidXOfChanged(touchHistory: ITouchHistory, after: number): number {
   return centroidDimension(touchHistory, after, true, false)
 }
-function previousCentroidYOfChanged(touchHistory: TouchHistory, after: number): number {
+function previousCentroidYOfChanged(touchHistory: ITouchHistory, after: number): number {
   return centroidDimension(touchHistory, after, false, false)
 }
-function currentCentroidXAll(touchHistory: TouchHistory): number {
+function currentCentroidXAll(touchHistory: ITouchHistory): number {
   return centroidDimension(touchHistory, 0, true, true)
 }
-function currentCentroidYAll(touchHistory: TouchHistory): number {
+function currentCentroidYAll(touchHistory: ITouchHistory): number {
   return centroidDimension(touchHistory, 0, false, true)
 }
 
@@ -264,8 +264,8 @@ function currentCentroidYAll(touchHistory: TouchHistory): number {
 // rather than tracking the absolute centroid of all touches. This is what makes a
 // stopped finger in a multi-finger drag stop contributing to dx.
 function updateGestureStateFromHistory(
-  gestureState: PanResponderGestureState,
-  touchHistory: TouchHistory,
+  gestureState: IPanResponderGestureState,
+  touchHistory: ITouchHistory,
 ): void {
   gestureState.numberActiveTouches = touchHistory.numberActiveTouches
   const movedAfter = gestureState._accountsForMovesUpTo
@@ -294,7 +294,7 @@ function updateGestureStateFromHistory(
 }
 // #endregion
 
-function initializeGestureState(gestureState: PanResponderGestureState): void {
+function initializeGestureState(gestureState: IPanResponderGestureState): void {
   gestureState.moveX = 0
   gestureState.moveY = 0
   gestureState.x0 = 0
@@ -309,7 +309,7 @@ function initializeGestureState(gestureState: PanResponderGestureState): void {
 
 // The timestamp this frame advances to: the touch-history clock when shared attached a
 // store, else the most recent of the live touches (headless direct-call path).
-function frameTimestampOf(event: SymbioteEvent, touches: TouchPoint[]): number {
+function frameTimestampOf(event: ISymbioteEvent, touches: ITouchPoint[]): number {
   return touchHistoryOf(event)?.mostRecentTimeStamp ?? mostRecentTimestamp(touches)
 }
 
@@ -319,9 +319,9 @@ function frameTimestampOf(event: SymbioteEvent, touches: TouchPoint[]): number {
 // pan-responder smoke exercises. Guards dt === 0 so a zero-gap frame reports zero
 // velocity instead of NaN.
 function updateGestureStateOnMove(
-  gestureState: PanResponderGestureState,
-  event: SymbioteEvent,
-  touches: TouchPoint[],
+  gestureState: IPanResponderGestureState,
+  event: ISymbioteEvent,
+  touches: ITouchPoint[],
 ): void {
   const touchHistory = touchHistoryOf(event)
   if (touchHistory !== undefined) {
@@ -355,8 +355,8 @@ function updateGestureStateOnMove(
 }
 
 const PanResponder = {
-  create(config: PanResponderCallbacks): PanResponderInstance {
-    const gestureState: PanResponderGestureState = {
+  create(config: IPanResponderCallbacks): IPanResponderInstance {
+    const gestureState: IPanResponderGestureState = {
       // Random per-gesture id, matching RN — useful only for debugging.
       stateID: Math.random(),
       moveX: 0,
@@ -371,20 +371,20 @@ const PanResponder = {
       _accountsForMovesUpTo: 0,
     }
 
-    const panHandlers: GestureResponderHandlers = {
-      onStartShouldSetResponder(event: SymbioteEvent): boolean {
+    const panHandlers: IGestureResponderHandlers = {
+      onStartShouldSetResponder(event: ISymbioteEvent): boolean {
         return config.onStartShouldSetPanResponder === undefined
           ? false
           : config.onStartShouldSetPanResponder(event, gestureState)
       },
 
-      onMoveShouldSetResponder(event: SymbioteEvent): boolean {
+      onMoveShouldSetResponder(event: ISymbioteEvent): boolean {
         return config.onMoveShouldSetPanResponder === undefined
           ? false
           : config.onMoveShouldSetPanResponder(event, gestureState)
       },
 
-      onStartShouldSetResponderCapture(event: SymbioteEvent): boolean {
+      onStartShouldSetResponderCapture(event: ISymbioteEvent): boolean {
         // A fresh single touch begins a new gesture, so reset the accumulator
         // before any should-set callback inspects it (RN does the same).
         const touches = readTouches(event)
@@ -398,7 +398,7 @@ const PanResponder = {
           : config.onStartShouldSetPanResponderCapture(event, gestureState)
       },
 
-      onMoveShouldSetResponderCapture(event: SymbioteEvent): boolean {
+      onMoveShouldSetResponderCapture(event: ISymbioteEvent): boolean {
         const touches = readTouches(event)
         // Skip a duplicate dispatch of the same frame: when two touches change at
         // once the responder system fires twice, but the geometry was already
@@ -412,7 +412,7 @@ const PanResponder = {
           : config.onMoveShouldSetPanResponderCapture(event, gestureState)
       },
 
-      onResponderGrant(event: SymbioteEvent): boolean {
+      onResponderGrant(event: ISymbioteEvent): boolean {
         dlog('PanResponder grant')
         const touches = readTouches(event)
         const touchHistory = touchHistoryOf(event)
@@ -431,17 +431,17 @@ const PanResponder = {
           : config.onShouldBlockNativeResponder(event, gestureState)
       },
 
-      onResponderReject(event: SymbioteEvent): void {
+      onResponderReject(event: ISymbioteEvent): void {
         config.onPanResponderReject?.(event, gestureState)
       },
 
-      onResponderStart(event: SymbioteEvent): void {
+      onResponderStart(event: ISymbioteEvent): void {
         gestureState.numberActiveTouches =
           touchHistoryOf(event)?.numberActiveTouches ?? readTouches(event).length
         config.onPanResponderStart?.(event, gestureState)
       },
 
-      onResponderMove(event: SymbioteEvent): void {
+      onResponderMove(event: ISymbioteEvent): void {
         const touches = readTouches(event)
         // Same duplicate-frame guard as the capture path.
         if (gestureState._accountsForMovesUpTo === frameTimestampOf(event, touches)) {
@@ -451,25 +451,25 @@ const PanResponder = {
         config.onPanResponderMove?.(event, gestureState)
       },
 
-      onResponderEnd(event: SymbioteEvent): void {
+      onResponderEnd(event: ISymbioteEvent): void {
         gestureState.numberActiveTouches =
           touchHistoryOf(event)?.numberActiveTouches ?? readTouches(event).length
         config.onPanResponderEnd?.(event, gestureState)
       },
 
-      onResponderRelease(event: SymbioteEvent): void {
+      onResponderRelease(event: ISymbioteEvent): void {
         dlog('PanResponder release')
         config.onPanResponderRelease?.(event, gestureState)
         initializeGestureState(gestureState)
       },
 
-      onResponderTerminate(event: SymbioteEvent): void {
+      onResponderTerminate(event: ISymbioteEvent): void {
         dlog('PanResponder terminate')
         config.onPanResponderTerminate?.(event, gestureState)
         initializeGestureState(gestureState)
       },
 
-      onResponderTerminationRequest(event: SymbioteEvent): boolean {
+      onResponderTerminationRequest(event: ISymbioteEvent): boolean {
         return config.onPanResponderTerminationRequest === undefined
           ? true
           : config.onPanResponderTerminationRequest(event, gestureState)

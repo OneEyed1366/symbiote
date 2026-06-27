@@ -23,27 +23,27 @@
 import { createElement, type ReactElement } from 'react'
 import { mount } from '@symbiote/react'
 import { FlatList } from '../../adapters/react/src/flat-list'
-import type { ViewableItemsChangedInfo } from '../../adapters/react/src/virtualized-list'
+import type { IViewableItemsChangedInfo } from '../../adapters/react/src/virtualized-list'
 
 // ---- fake Fabric slot ---------------------------------------------------
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
-type EventHandler = (
+type IEventHandler = (
   instanceHandle: unknown,
   topLevelType: string,
   nativeEvent: Record<string, unknown>,
 ) => void
 
-let committed: FakeNode[] = []
-let eventHandler: EventHandler | undefined
-const allCreated: FakeNode[] = []
+let committed: IFakeNode[] = []
+let eventHandler: IEventHandler | undefined
+const allCreated: IFakeNode[] = []
 
 const slot = {
   createNode(
@@ -52,32 +52,32 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
-    const node: FakeNode = { tag, viewName, props, children: [], instanceHandle }
+  ): IFakeNode {
+    const node: IFakeNode = { tag, viewName, props, children: [], instanceHandle }
     allCreated.push(node)
     return node
   },
-  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+  cloneNodeWithNewProps: (node: IFakeNode, newProps: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: newProps,
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     newProps: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props: newProps, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild(parent: FakeNode, child: FakeNode): FakeNode {
+  ): IFakeNode => ({ ...node, props: newProps, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild(parent: IFakeNode, child: IFakeNode): IFakeNode {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet(childSet: FakeNode[], child: FakeNode): void {
+  appendChildToSet(childSet: IFakeNode[], child: IFakeNode): void {
     childSet.push(child)
   },
-  completeRoot(_rootTag: number, childSet: FakeNode[]): void {
+  completeRoot(_rootTag: number, childSet: IFakeNode[]): void {
     committed = childSet
   },
-  registerEventHandler(handler: EventHandler): void {
+  registerEventHandler(handler: IEventHandler): void {
     eventHandler = handler
   },
 }
@@ -91,27 +91,27 @@ const ITEM_HEIGHT = 40
 const VIEWPORT_HEIGHT = 400
 const SCROLL_OFFSET = 80
 
-interface Row {
+interface IRow {
   id: number
   label: string
 }
 
-const DATA: Row[] = Array.from({ length: ITEM_COUNT }, (_unused, index) => ({
+const DATA: IRow[] = Array.from({ length: ITEM_COUNT }, (_unused, index) => ({
   id: index,
   label: `row-${index}`,
 }))
 
 // ---- helpers ------------------------------------------------------------
 
-function walk(nodes: FakeNode[], visit: (node: FakeNode) => void): void {
+function walk(nodes: IFakeNode[], visit: (node: IFakeNode) => void): void {
   for (const node of nodes) {
     visit(node)
     walk(node.children, visit)
   }
 }
 
-function findCommitted(viewName: string): FakeNode | undefined {
-  let found: FakeNode | undefined
+function findCommitted(viewName: string): IFakeNode | undefined {
+  let found: IFakeNode | undefined
   walk(committed, (node) => {
     if (found === undefined && node.viewName === viewName) found = node
   })
@@ -149,8 +149,8 @@ function hasInversionTransform(props: Record<string, unknown>): boolean {
 // for a single "row-N". Matching on a direct RCTText child skips the outer
 // root/scroll/content RCTViews (whose only child is another container view), which
 // also have a row far below them.
-function findCellWithRowText(): FakeNode | undefined {
-  let found: FakeNode | undefined
+function findCellWithRowText(): IFakeNode | undefined {
+  let found: IFakeNode | undefined
   walk(committed, (node) => {
     if (found !== undefined || node.viewName !== 'RCTView') return
     const textChild = node.children.find((child) => child.viewName === 'RCTText')
@@ -175,16 +175,16 @@ function fire(handle: unknown, type: string, nativeEvent: Record<string, unknown
 // =========================================================================
 
 function InvertedApp(): ReactElement {
-  return createElement(FlatList<Row>, {
+  return createElement(FlatList<IRow>, {
     data: DATA,
     inverted: true,
-    keyExtractor: (item: Row) => `k-${item.id}`,
+    keyExtractor: (item: IRow) => `k-${item.id}`,
     getItemLayout: (_data: unknown, index: number) => ({
       length: ITEM_HEIGHT,
       offset: ITEM_HEIGHT * index,
       index,
     }),
-    renderItem: ({ item }: { item: Row }) =>
+    renderItem: ({ item }: { item: IRow }) =>
       createElement('symbiote-text', { key: item.id }, item.label),
   })
 }
@@ -225,22 +225,22 @@ if (hasInversionTransform(contentNode.props)) {
 // PART 2 — waitForInteraction suppresses viewable items until first scroll
 // =========================================================================
 
-const viewableReports: ViewableItemsChangedInfo<Row>[] = []
+const viewableReports: IViewableItemsChangedInfo<IRow>[] = []
 
 function GatedApp(): ReactElement {
-  return createElement(FlatList<Row>, {
+  return createElement(FlatList<IRow>, {
     data: DATA,
-    keyExtractor: (item: Row) => `g-${item.id}`,
+    keyExtractor: (item: IRow) => `g-${item.id}`,
     getItemLayout: (_data: unknown, index: number) => ({
       length: ITEM_HEIGHT,
       offset: ITEM_HEIGHT * index,
       index,
     }),
     viewabilityConfig: { itemVisiblePercentThreshold: 50, waitForInteraction: true },
-    onViewableItemsChanged: (info: ViewableItemsChangedInfo<Row>) => {
+    onViewableItemsChanged: (info: IViewableItemsChangedInfo<IRow>) => {
       viewableReports.push(info)
     },
-    renderItem: ({ item }: { item: Row }) =>
+    renderItem: ({ item }: { item: IRow }) =>
       createElement('symbiote-text', { key: item.id }, item.label),
   })
 }

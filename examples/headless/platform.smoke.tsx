@@ -7,7 +7,7 @@
 
 // Reach the source directly — Platform isn't on the barrel yet (the parent wires
 // exports) and the headless harness has no built dist.
-import { Platform, type PlatformConstantsIOS } from '../../core/engine/src/platform'
+import { Platform, type IPlatformConstantsIOS } from '../../core/engine/src/platform'
 
 // The values we feed the fake native module and read back through Platform.
 const FAKE_OS_VERSION = '17.4'
@@ -19,7 +19,7 @@ function isType<T>(value: unknown): value is T {
 
 // ---- fake PlatformConstants native module + bridge globals --------------
 
-const fakeConstants: PlatformConstantsIOS = {
+const fakeConstants: IPlatformConstantsIOS = {
   forceTouchAvailable: false,
   interfaceIdiom: FAKE_IDIOM,
   isTesting: false,
@@ -29,7 +29,7 @@ const fakeConstants: PlatformConstantsIOS = {
 }
 
 const fakePlatformConstants = {
-  getConstants: (): PlatformConstantsIOS => fakeConstants,
+  getConstants: (): IPlatformConstantsIOS => fakeConstants,
 }
 
 const registeredModules: Record<string, unknown> = { PlatformConstants: fakePlatformConstants }

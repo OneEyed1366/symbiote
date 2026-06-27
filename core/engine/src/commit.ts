@@ -15,25 +15,25 @@
 
 import {
   getSlot,
-  type FabricNode,
-  type FabricProps,
-  type RootTag,
-  type MeasureOnSuccess,
-  type MeasureInWindowOnSuccess,
-  type MeasureLayoutOnSuccess,
+  type IFabricNode,
+  type IFabricProps,
+  type IRootTag,
+  type IMeasureOnSuccess,
+  type IMeasureInWindowOnSuccess,
+  type IMeasureLayoutOnSuccess,
 } from './fabric'
 import {
   createElement,
   isAnchor,
   RAW_TEXT_COMPONENT,
   VIRTUAL_TEXT_COMPONENT,
-  type SymbioteNode,
+  type ISymbioteNode,
 } from './node'
 import { dlog, isDebug } from './debug'
 import { flattenStyle } from './style'
 import { registeredProcessor } from './registry'
 import { nextTag } from './tags'
-import { isOpaqueColorValue, type ColorValue } from './platform-color'
+import { isOpaqueColorValue, type IColorValue } from './platform-color'
 import { processBoxShadow } from './process-box-shadow'
 import { processFilter } from './process-filter'
 import { processTransformOrigin } from './process-transform-origin'
@@ -93,7 +93,7 @@ function firstNonSerializablePath(
 
 // Name the offending prop before the JSI boundary throws. Gated, so the deep walk only
 // runs while debugging; in production the clone proceeds straight to native.
-function guardSerializable(propsDiff: FabricProps, viewName: string, tag: number): void {
+function guardSerializable(propsDiff: IFabricProps, viewName: string, tag: number): void {
   if (!isDebug()) return
   const bad = firstNonSerializablePath(propsDiff, '', 0, new WeakSet())
   if (bad !== undefined) dlog(`NON-SERIALIZABLE prop on ${viewName}#${tag}: ${bad}`)
@@ -150,9 +150,9 @@ const COLOR_PROPS: ReadonlySet<string> = new Set([
 // Accepts a CSS string or an opaque PlatformColor / DynamicColorIOS object — RN's
 // processColor (the value the canary injects) handles both, resolving the opaque
 // shapes to the platform ints/dicts iOS UIColor expects.
-let colorProcessor: (value: ColorValue) => unknown = (value) => value
+let colorProcessor: (value: IColorValue) => unknown = (value) => value
 
-export function setColorProcessor(process: (value: ColorValue) => unknown): void {
+export function setColorProcessor(process: (value: IColorValue) => unknown): void {
   colorProcessor = process
 }
 
@@ -160,14 +160,14 @@ export function setColorProcessor(process: (value: ColorValue) => unknown): void
 // processor (the canary wires RN's own). Off a real host it resolves CSS strings
 // and opaque PlatformColor objects to the platform ints Fabric expects; headless
 // (no processor wired) it is the identity, so smokes see the input unchanged.
-export function processColor(color: ColorValue): unknown {
+export function processColor(color: IColorValue): unknown {
   return colorProcessor(color)
 }
 
 // A color-keyed value the platform processor must convert before Fabric: a CSS
 // string, or an opaque PlatformColor / DynamicColorIOS object. Numbers (already
 // platform ints) and undefined are left untouched.
-function isProcessableColor(value: unknown): value is ColorValue {
+function isProcessableColor(value: unknown): value is IColorValue {
   return typeof value === 'string' || isOpaqueColorValue(value)
 }
 
@@ -255,7 +255,7 @@ function processValue(component: string, key: string, value: unknown): unknown {
   return value
 }
 
-function viewNameFor(node: SymbioteNode, hasTextAncestor: boolean): string {
+function viewNameFor(node: ISymbioteNode, hasTextAncestor: boolean): string {
   // The only position-dependent name: a <Text> inside another <Text> becomes a
   // virtual span. Everything else is the component string the adapter chose.
   return node.isText && hasTextAncestor ? VIRTUAL_TEXT_COMPONENT : node.component
@@ -264,7 +264,7 @@ function viewNameFor(node: SymbioteNode, hasTextAncestor: boolean): string {
 // Translate the retained node's logical props into the flat payload Fabric's C++
 // props expect: `style` keys are hoisted to the top level, event handlers and
 // undefined values are dropped.
-function fabricProps(node: SymbioteNode): FabricProps {
+function fabricProps(node: ISymbioteNode): IFabricProps {
   if (node.component === RAW_TEXT_COMPONENT) {
     return { text: node.props.text }
   }
@@ -293,7 +293,7 @@ function fabricProps(node: SymbioteNode): FabricProps {
 // setter recreates the whole ProgressBar via setStyle(), so re-sending it on an
 // animating-only toggle dropped and rebuilt the spinner each time, and it never came
 // back. Only matters for clones — a fresh createNode starts from nothing.
-function diffProps(previous: FabricProps, next: FabricProps): FabricProps {
+function diffProps(previous: IFabricProps, next: IFabricProps): IFabricProps {
   const out: Record<string, unknown> = {}
   for (const key of Object.keys(next)) {
     if (!jsonEqual(previous[key], next[key])) out[key] = next[key]
@@ -308,7 +308,7 @@ function diffProps(previous: FabricProps, next: FabricProps): FabricProps {
 // serializable: primitives, arrays, plain objects). Used to decide whether a
 // node's props actually changed — `fabricProps` builds a fresh object each
 // commit, so a reference check would report every node as dirty.
-function propsEqual(a: FabricProps, b: FabricProps): boolean {
+function propsEqual(a: IFabricProps, b: IFabricProps): boolean {
   return jsonEqual(a, b)
 }
 
@@ -332,23 +332,23 @@ function jsonEqual(a: unknown, b: unknown): boolean {
 // `tag` is the reactTag we minted at first create — stable across clone-on-write
 // (the clone keeps the family) — kept so the Animated native driver can bind to it
 // (ADR 0017). `rootTag` lets a targeted re-commit (setNativeProps) find the surface.
-interface Mirror {
-  handle: FabricNode
+interface IMirror {
+  handle: IFabricNode
   tag: number
-  rootTag: RootTag
-  props: FabricProps
-  children: readonly SymbioteNode[]
+  rootTag: IRootTag
+  props: IFabricProps
+  children: readonly ISymbioteNode[]
   viewName: string
 }
 
-const mirror = new WeakMap<SymbioteNode, Mirror>()
+const mirror = new WeakMap<ISymbioteNode, IMirror>()
 
-interface Reconciled {
-  handle: FabricNode
+interface IReconciled {
+  handle: IFabricNode
   changed: boolean
 }
 
-function renderableChildren(node: SymbioteNode): readonly SymbioteNode[] {
+function renderableChildren(node: ISymbioteNode): readonly ISymbioteNode[] {
   // Anchor nodes (Vue fragment/v-if/v-for placeholders) live in the retained tree for
   // sibling ordering but never become Fabric views — drop them before emitting the child
   // set. Fast path: no anchors (every React tree, most Vue subtrees) reuses the array, so
@@ -359,8 +359,8 @@ function renderableChildren(node: SymbioteNode): readonly SymbioteNode[] {
 }
 
 function childrenIdentical(
-  kids: readonly SymbioteNode[],
-  committed: readonly SymbioteNode[],
+  kids: readonly ISymbioteNode[],
+  committed: readonly ISymbioteNode[],
 ): boolean {
   if (kids.length !== committed.length) return false
   return kids.every((child, index) => child === committed[index])
@@ -371,7 +371,7 @@ function childrenIdentical(
 // host only one direct child". Logged after children reconcile so each child's
 // committed tag/view-name is resolved — a `MULTI!!` line names the exact extra
 // node (tag + view-name) that pushed the scroll view past one child.
-function logScrollChildren(node: SymbioteNode, viewName: string, selfTag: number | string): void {
+function logScrollChildren(node: ISymbioteNode, viewName: string, selfTag: number | string): void {
   if (!viewName.includes('Scroll') || viewName.includes('Content')) return
   const kids = node.children.map((child) => {
     const committed = mirror.get(child)
@@ -383,10 +383,10 @@ function logScrollChildren(node: SymbioteNode, viewName: string, selfTag: number
 
 function reconcile(
   slot: ReturnType<typeof getSlot>,
-  node: SymbioteNode,
-  rootTag: RootTag,
+  node: ISymbioteNode,
+  rootTag: IRootTag,
   hasTextAncestor: boolean,
-): Reconciled {
+): IReconciled {
   const viewName = viewNameFor(node, hasTextAncestor)
   const props = fabricProps(node)
   const childInText = node.isText || hasTextAncestor
@@ -412,7 +412,7 @@ function reconcile(
 
   // Reconcile children first; a child that re-cloned forces this node to re-clone
   // too, since Fabric parents point at specific child handles.
-  const childHandles: FabricNode[] = []
+  const childHandles: IFabricNode[] = []
   let descendantChanged = false
   for (const child of kids) {
     const result = reconcile(slot, child, rootTag, childInText)
@@ -429,7 +429,7 @@ function reconcile(
     return { handle: committed.handle, changed: false }
   }
 
-  let handle: FabricNode
+  let handle: IFabricNode
   if (childrenChanged) {
     stats.cloneChildren += 1
     if (propsChanged) {
@@ -472,9 +472,9 @@ const ROOT_VIEW_COMPONENT = 'RCTView'
 const ROOT_CONTAINER_STYLE = { flex: 1 }
 const ROOT_CONTAINER_POINTER_EVENTS = 'box-none'
 
-const rootContainers = new Map<RootTag, SymbioteNode>()
+const rootContainers = new Map<IRootTag, ISymbioteNode>()
 
-function rootContainerFor(rootTag: RootTag): SymbioteNode {
+function rootContainerFor(rootTag: IRootTag): ISymbioteNode {
   let container = rootContainers.get(rootTag)
   if (container === undefined) {
     container = createElement(ROOT_VIEW_COMPONENT)
@@ -494,11 +494,11 @@ function rootContainerFor(rootTag: RootTag): SymbioteNode {
 // surface (Fast Refresh, focus/lifecycle) reusing the same rootTag, and a stale root
 // container would re-clone dead handles into the new surface → a blank screen. The old
 // container's descendants fall out of every reference and their mirror entries GC.
-export function disposeRoot(rootTag: RootTag): void {
+export function disposeRoot(rootTag: IRootTag): void {
   if (rootContainers.delete(rootTag)) dlog(`root container disposed root=${rootTag}`)
 }
 
-export function commitChildren(rootTag: RootTag, children: readonly SymbioteNode[]): void {
+export function commitChildren(rootTag: IRootTag, children: readonly ISymbioteNode[]): void {
   // The wrapper holds the surface's top-level children; reconcile walks from it so the
   // whole tree, synthetic root included, goes through the same clone-on-write path.
   rootContainerFor(rootTag).children = children.slice()
@@ -508,7 +508,7 @@ export function commitChildren(rootTag: RootTag, children: readonly SymbioteNode
 // Re-run the scoped commit for a surface from its synthetic root container, reusing
 // whatever top-level children it currently holds. The shared half of the engine: both
 // a full mutation→commit and a single-node Animated frame (setNativeProps) funnel here.
-function commitContainer(rootTag: RootTag): void {
+function commitContainer(rootTag: IRootTag): void {
   const slot = getSlot()
   const container = rootContainerFor(rootTag)
 
@@ -556,7 +556,7 @@ function commitContainer(rootTag: RootTag): void {
 // node (props differ), bubbles the re-clone to the root, reuses every sibling subtree
 // by reference, and emits a single completeRoot. This is the "slow tier" — viable for a
 // single shallow animation; the native driver (ADR 0017) is the answer for scale.
-export function setNativeProps(node: SymbioteNode, partial: Record<string, unknown>): void {
+export function setNativeProps(node: ISymbioteNode, partial: Record<string, unknown>): void {
   const record = mirror.get(node)
   if (record === undefined) {
     dlog('setNativeProps skipped: node not committed')
@@ -579,13 +579,13 @@ export function setNativeProps(node: SymbioteNode, partial: Record<string, unkno
 // The committed reactTag of a node (stable across clone-on-write), for binding the
 // Animated native driver via connectAnimatedNodeToView (ADR 0017). Undefined until the
 // node has been committed at least once.
-export function getNativeTag(node: SymbioteNode): number | undefined {
+export function getNativeTag(node: ISymbioteNode): number | undefined {
   return mirror.get(node)?.tag
 }
 
 // The node's current Fabric handle (the createNode/clone return value) — identical in
 // kind to React's stateNode.node, for the native driver's ShadowNodeFamily path.
-export function getNativeNode(node: SymbioteNode): FabricNode | undefined {
+export function getNativeNode(node: ISymbioteNode): IFabricNode | undefined {
   return mirror.get(node)?.handle
 }
 
@@ -593,7 +593,7 @@ export function getNativeNode(node: SymbioteNode): FabricNode | undefined {
 // aimed at a node's CURRENT Fabric handle. Only valid once the node has been
 // committed at least once — its handle is read from the mirror.
 export function dispatchViewCommand(
-  node: SymbioteNode,
+  node: ISymbioteNode,
   commandName: string,
   args: readonly unknown[],
 ): void {
@@ -611,7 +611,7 @@ export function dispatchViewCommand(
 // Fabric path hands the public-instance handle to nativeFabricUIManager.sendAccessibilityEvent
 // with the STRING eventType; the C++ side maps it to the platform's accessibility-event kind.
 // A no-op (logged) until the node is committed — there is no handle yet.
-export function sendAccessibilityEvent(node: SymbioteNode, eventType: string): void {
+export function sendAccessibilityEvent(node: ISymbioteNode, eventType: string): void {
   const record = mirror.get(node)
   if (record === undefined) {
     dlog(`sendAccessibilityEvent "${eventType}" skipped: node not committed`)
@@ -624,7 +624,7 @@ export function sendAccessibilityEvent(node: SymbioteNode, eventType: string): v
 // Imperative measurement against a node's CURRENT Fabric handle (the public-instance
 // measure family that reanimated / gesture-handler / scroll-to reach through). A
 // no-op with a dlog until the node is committed — there is no handle to measure yet.
-export function measure(node: SymbioteNode, callback: MeasureOnSuccess): void {
+export function measure(node: ISymbioteNode, callback: IMeasureOnSuccess): void {
   const record = mirror.get(node)
   if (record === undefined) {
     dlog('measure skipped: node not committed')
@@ -633,7 +633,7 @@ export function measure(node: SymbioteNode, callback: MeasureOnSuccess): void {
   getSlot().measure(record.handle, callback)
 }
 
-export function measureInWindow(node: SymbioteNode, callback: MeasureInWindowOnSuccess): void {
+export function measureInWindow(node: ISymbioteNode, callback: IMeasureInWindowOnSuccess): void {
   const record = mirror.get(node)
   if (record === undefined) {
     dlog('measureInWindow skipped: node not committed')
@@ -646,9 +646,9 @@ export function measureInWindow(node: SymbioteNode, callback: MeasureInWindowOnS
 // signature is (relative, onSuccess, onFail) but the native slot wants the fail
 // callback before success, so the order is swapped here.
 export function measureLayout(
-  node: SymbioteNode,
-  relativeTo: SymbioteNode,
-  onSuccess: MeasureLayoutOnSuccess,
+  node: ISymbioteNode,
+  relativeTo: ISymbioteNode,
+  onSuccess: IMeasureLayoutOnSuccess,
   onFail: () => void = () => {},
 ): void {
   const record = mirror.get(node)

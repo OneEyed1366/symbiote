@@ -7,11 +7,11 @@
 import {
   createConstantsResolver,
   UNKNOWN_VERSION,
-  type PlatformSelectSpec,
-  type PlatformStatic,
+  type IPlatformSelectSpec,
+  type IPlatformStatic,
 } from './platform-shared'
 
-export type { PlatformOSType, PlatformSelectSpec, PlatformStatic } from './platform-shared'
+export type { IPlatformOSType, IPlatformSelectSpec, IPlatformStatic } from './platform-shared'
 
 // interfaceIdiom values RN compares against for the device-class getters.
 const IDIOM_PAD = 'pad'
@@ -23,7 +23,7 @@ const OS_IOS = 'ios'
 
 // The shape of PlatformConstants.getConstants() on iOS (mirrors the RN spec). Fields
 // optional-on-native stay optional so the runtime guard below is the only voucher.
-export interface PlatformConstantsIOS {
+export interface IPlatformConstantsIOS {
   forceTouchAvailable: boolean
   interfaceIdiom: string
   isTesting: boolean
@@ -39,7 +39,7 @@ export interface PlatformConstantsIOS {
   isMacCatalyst?: boolean
 }
 
-function isPlatformConstantsIOS(value: unknown): value is PlatformConstantsIOS {
+function isPlatformConstantsIOS(value: unknown): value is IPlatformConstantsIOS {
   if (typeof value !== 'object' || value === null) return false
   return 'osVersion' in value && 'interfaceIdiom' in value
 }
@@ -50,7 +50,7 @@ function idiomEquals(idiom: string): boolean {
   return resolveConstants()?.interfaceIdiom === idiom
 }
 
-export const Platform: PlatformStatic<PlatformConstantsIOS> = {
+export const Platform: IPlatformStatic<IPlatformConstantsIOS> = {
   OS: OS_IOS,
 
   get Version(): string {
@@ -59,7 +59,7 @@ export const Platform: PlatformStatic<PlatformConstantsIOS> = {
 
   // The whole getConstants() payload (RN exposes it as Platform.constants). May be
   // undefined headless — RN would have thrown; we return undefined so callers branch.
-  get constants(): PlatformConstantsIOS | undefined {
+  get constants(): IPlatformConstantsIOS | undefined {
     return resolveConstants()
   },
 
@@ -92,7 +92,7 @@ export const Platform: PlatformStatic<PlatformConstantsIOS> = {
 
   // RN's exact iOS precedence: ios -> native -> default. `in` (not truthiness) so an
   // explicit `undefined`/`false`/`0` under a present key still wins over default.
-  select<T>(spec: PlatformSelectSpec<T>): T | undefined {
+  select<T>(spec: IPlatformSelectSpec<T>): T | undefined {
     if ('ios' in spec) return spec.ios
     if ('native' in spec) return spec.native
     return spec.default

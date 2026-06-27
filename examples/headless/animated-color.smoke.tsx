@@ -95,11 +95,11 @@ if (leaf.commits !== 2) {
 
 // ---- native: a `color` node referencing the four channel tags -------------
 
-interface NativeCall {
+interface INativeCall {
   method: string
   args: unknown[]
 }
-const nativeCalls: NativeCall[] = []
+const nativeCalls: INativeCall[] = []
 function record(method: string): (...args: unknown[]) => void {
   return (...args: unknown[]) => {
     nativeCalls.push({ method, args })

@@ -7,7 +7,7 @@
 //
 // Native module name is `Vibration` on BOTH iOS and Android (see
 // .docs/native-module-platform-routing.md), so unlike Linking the module name is shared,
-// not divergent. The TurboModule spec lives at specs_DEPRECATED/modules/NativeVibration.js:
+// not divergent. The TurboModule spec lives at specs_DEPRECATED/modules/INativeVibration.js:
 //   vibrate(pattern: number)
 //   vibrateByPattern(pattern: number[], repeat: number)
 //   cancel()
@@ -27,14 +27,14 @@ export const DEFAULT_VIBRATION_LENGTH = 400
 
 // The Vibration native module typed as the interface we vouch for — the single point
 // that accepts the native shape (no per-call `as`).
-export interface NativeVibration {
+export interface INativeVibration {
   vibrate(pattern: number): void
   vibrateByPattern(pattern: number[], repeat: number): void
   cancel(): void
 }
 
 // What every platform's Vibration exposes to app code.
-export interface VibrationStatic {
+export interface IVibrationStatic {
   vibrate(pattern?: number | number[], repeat?: boolean): void
   cancel(): void
 }
@@ -44,20 +44,20 @@ export interface VibrationStatic {
 // JS-side with setTimeout. `stopPattern` is the iOS scheduler's chance to clear its own
 // JS state on cancel (Android's pattern is native, so it has nothing to stop). The
 // single-number path and the native cancel call itself are shared, not part of this.
-export interface VibrationPlatform {
-  vibratePattern(module: NativeVibration, pattern: number[], repeat: boolean): void
+export interface IVibrationPlatform {
+  vibratePattern(module: INativeVibration, pattern: number[], repeat: boolean): void
   stopPattern?(): void
 }
 
 // Build a platform's Vibration from its array-pattern strategy. Each call owns its own
 // lazy module cache, so importing both platform builds in a smoke keeps them independent.
 // On a real host only one platform file is ever bundled.
-export function createVibration(platform: VibrationPlatform): VibrationStatic {
-  let vibrationModule: NativeVibration | null | undefined
+export function createVibration(platform: IVibrationPlatform): IVibrationStatic {
+  let vibrationModule: INativeVibration | null | undefined
 
-  function getModule(): NativeVibration | null {
+  function getModule(): INativeVibration | null {
     if (vibrationModule === undefined) {
-      vibrationModule = getNativeModule<NativeVibration>(VIBRATION_MODULE)
+      vibrationModule = getNativeModule<INativeVibration>(VIBRATION_MODULE)
       dlog(`Vibration: Vibration module ${vibrationModule ? 'resolved' : 'NOT resolved (null)'}`)
     }
     return vibrationModule

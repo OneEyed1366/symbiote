@@ -7,7 +7,7 @@
 
 import { Dimensions } from './dimensions'
 
-export interface PixelRatioStatic {
+export interface IPixelRatioStatic {
   get(): number
   getFontScale(): number
   getPixelSizeForLayoutSize(layoutSize: number): number
@@ -15,7 +15,7 @@ export interface PixelRatioStatic {
   startDetecting(): void
 }
 
-export const PixelRatio: PixelRatioStatic = {
+export const PixelRatio: IPixelRatioStatic = {
   get(): number {
     return Dimensions.get('window').scale
   },

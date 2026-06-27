@@ -7,21 +7,21 @@
 
 import { dlog } from './debug'
 
-export type RootTag = number
+export type IRootTag = number
 
 // Opaque native handles. We never construct these — the slot mints and returns
 // them. The phantom brand fields make the two handle kinds non-interchangeable
 // and stop a raw object being passed where a handle is expected.
-export interface FabricNode {
+export interface IFabricNode {
   readonly __fabricNode: unique symbol
 }
-export interface FabricChildSet {
+export interface IFabricChildSet {
   readonly __fabricChildSet: unique symbol
 }
 
-export type FabricProps = Record<string, unknown>
+export type IFabricProps = Record<string, unknown>
 
-export type FabricEventHandler = (
+export type IFabricEventHandler = (
   instanceHandle: unknown,
   topLevelType: string,
   nativeEvent: Record<string, unknown>,
@@ -31,7 +31,7 @@ export type FabricEventHandler = (
 // measure family). `measure` reports the on-screen frame plus page offset;
 // `measureInWindow` the window-relative frame; `measureLayout` the frame relative to
 // another node. Libraries (reanimated, gesture-handler, scroll-to) read these.
-export type MeasureOnSuccess = (
+export type IMeasureOnSuccess = (
   x: number,
   y: number,
   width: number,
@@ -39,49 +39,49 @@ export type MeasureOnSuccess = (
   pageX: number,
   pageY: number,
 ) => void
-export type MeasureInWindowOnSuccess = (
+export type IMeasureInWindowOnSuccess = (
   x: number,
   y: number,
   width: number,
   height: number,
 ) => void
-export type MeasureLayoutOnSuccess = (
+export type IMeasureLayoutOnSuccess = (
   left: number,
   top: number,
   width: number,
   height: number,
 ) => void
 
-export interface FabricSlot {
+export interface IFabricSlot {
   createNode(
     reactTag: number,
     viewName: string,
-    rootTag: RootTag,
-    props: FabricProps,
+    rootTag: IRootTag,
+    props: IFabricProps,
     instanceHandle: unknown,
-  ): FabricNode
-  cloneNodeWithNewProps(node: FabricNode, newProps: FabricProps): FabricNode
-  cloneNodeWithNewChildren(node: FabricNode): FabricNode
-  cloneNodeWithNewChildrenAndProps(node: FabricNode, newProps: FabricProps): FabricNode
-  createChildSet(rootTag: RootTag): FabricChildSet
-  appendChild(parent: FabricNode, child: FabricNode): FabricNode
-  appendChildToSet(childSet: FabricChildSet, child: FabricNode): void
-  completeRoot(rootTag: RootTag, childSet: FabricChildSet): void
-  registerEventHandler(handler: FabricEventHandler): void
+  ): IFabricNode
+  cloneNodeWithNewProps(node: IFabricNode, newProps: IFabricProps): IFabricNode
+  cloneNodeWithNewChildren(node: IFabricNode): IFabricNode
+  cloneNodeWithNewChildrenAndProps(node: IFabricNode, newProps: IFabricProps): IFabricNode
+  createChildSet(rootTag: IRootTag): IFabricChildSet
+  appendChild(parent: IFabricNode, child: IFabricNode): IFabricNode
+  appendChildToSet(childSet: IFabricChildSet, child: IFabricNode): void
+  completeRoot(rootTag: IRootTag, childSet: IFabricChildSet): void
+  registerEventHandler(handler: IFabricEventHandler): void
   // Imperative view commands (e.g. TextInput setTextAndSelection, focus, blur).
-  dispatchCommand(node: FabricNode, commandName: string, args: readonly unknown[]): void
+  dispatchCommand(node: IFabricNode, commandName: string, args: readonly unknown[]): void
   // Emit an accessibility event (focus/click/…) at a node's CURRENT Fabric handle.
   // RN's Fabric binding passes the public-instance handle straight here; the C++ side
   // maps the string eventType to the platform's accessibility-event kind.
-  sendAccessibilityEvent(node: FabricNode, eventType: string): void
+  sendAccessibilityEvent(node: IFabricNode, eventType: string): void
   // Imperative measurement, against a node's CURRENT (committed) Fabric handle.
-  measure(node: FabricNode, callback: MeasureOnSuccess): void
-  measureInWindow(node: FabricNode, callback: MeasureInWindowOnSuccess): void
+  measure(node: IFabricNode, callback: IMeasureOnSuccess): void
+  measureInWindow(node: IFabricNode, callback: IMeasureInWindowOnSuccess): void
   measureLayout(
-    node: FabricNode,
-    relativeToNode: FabricNode,
+    node: IFabricNode,
+    relativeToNode: IFabricNode,
     onFail: () => void,
-    onSuccess: MeasureLayoutOnSuccess,
+    onSuccess: IMeasureLayoutOnSuccess,
   ): void
 }
 
@@ -92,12 +92,12 @@ export interface FabricSlot {
 // Accessed via globalThis to match how RN itself reads it (global.nativeFabricUIManager).
 declare global {
   // eslint-disable-next-line no-var
-  var nativeFabricUIManager: FabricSlot | undefined
+  var nativeFabricUIManager: IFabricSlot | undefined
 }
 
-let cached: FabricSlot | undefined
+let cached: IFabricSlot | undefined
 
-export function getSlot(): FabricSlot {
+export function getSlot(): IFabricSlot {
   if (cached) return cached
 
   const host = globalThis.nativeFabricUIManager

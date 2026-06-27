@@ -12,15 +12,15 @@ import { createElement, type ReactElement } from 'react'
 import { mount } from '@symbiote/react'
 import { VirtualizedSectionList } from '../../adapters/react/src/virtualized-section-list'
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
-const allCreated: FakeNode[] = []
+const allCreated: IFakeNode[] = []
 
 const slot = {
   createNode(
@@ -29,26 +29,26 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
-    const node: FakeNode = { tag, viewName, props, children: [], instanceHandle }
+  ): IFakeNode {
+    const node: IFakeNode = { tag, viewName, props, children: [], instanceHandle }
     allCreated.push(node)
     return node
   },
-  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+  cloneNodeWithNewProps: (node: IFakeNode, newProps: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: newProps,
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     newProps: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props: newProps, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild(parent: FakeNode, child: FakeNode): FakeNode {
+  ): IFakeNode => ({ ...node, props: newProps, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild(parent: IFakeNode, child: IFakeNode): IFakeNode {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet(childSet: FakeNode[], child: FakeNode): void {
+  appendChildToSet(childSet: IFakeNode[], child: IFakeNode): void {
     childSet.push(child)
   },
   completeRoot(): void {},
@@ -57,7 +57,7 @@ const slot = {
 
 Object.assign(globalThis, { nativeFabricUIManager: slot })
 
-interface Row {
+interface IRow {
   id: number
 }
 
@@ -72,7 +72,7 @@ function reset(): void {
 
 // A sticky-header wrapper is the only node carrying a `transform` (its translateY); regular
 // cells and the content container don't. So transform-bearing nodes count the wrapped headers.
-function stickyWrappers(): FakeNode[] {
+function stickyWrappers(): IFakeNode[] {
   return allCreated.filter((n) => Array.isArray(n.props.transform))
 }
 
@@ -80,7 +80,7 @@ function renderSection(props: {
   sections: typeof SECTIONS
   stickySectionHeadersEnabled?: boolean
 }): ReactElement {
-  return createElement(VirtualizedSectionList<Row>, {
+  return createElement(VirtualizedSectionList<IRow>, {
     sections: props.sections,
     stickySectionHeadersEnabled: props.stickySectionHeadersEnabled,
     renderSectionHeader: ({ section }) => createElement('symbiote-text', {}, section.title),

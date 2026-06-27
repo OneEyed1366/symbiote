@@ -6,14 +6,14 @@
 import { createElement, type FC } from 'react'
 import { Text } from './components'
 import { TouchableOpacity } from './touchable'
-import type { SymbioteEvent } from '@symbiote/engine'
-import type { AccessibilityProps, AriaProps } from './accessibility-props'
-import type { TextStyle } from './styles'
+import type { ISymbioteEvent } from '@symbiote/engine'
+import type { IAccessibilityProps, IAriaProps } from '@symbiote/components'
+import type { ITextStyle } from './styles'
 
 const IOS_BUTTON_BLUE = '#007AFF'
 const IOS_DISABLED_GREY = '#cdcdcd'
 
-const buttonTextStyle: TextStyle = {
+const buttonTextStyle: ITextStyle = {
   color: IOS_BUTTON_BLUE,
   textAlign: 'center',
   padding: 8,
@@ -24,9 +24,9 @@ const buttonTextStyle: TextStyle = {
 // accessibility enum value, fine inline.
 const BUTTON_ACCESSIBILITY_ROLE = 'button'
 
-export interface ButtonProps extends AccessibilityProps, AriaProps {
+export interface IButtonProps extends IAccessibilityProps, IAriaProps {
   title: string
-  onPress?: (event: SymbioteEvent) => void
+  onPress?: (event: ISymbioteEvent) => void
   color?: string
   disabled?: boolean
   // Suppress the native tap sound (Button.js:50). Forwarded to the pressable, which
@@ -44,7 +44,7 @@ export interface ButtonProps extends AccessibilityProps, AriaProps {
   nextFocusUp?: number
 }
 
-export const Button: FC<ButtonProps> = (props) => {
+export const Button: FC<IButtonProps> = (props) => {
   const {
     title,
     onPress,
@@ -61,7 +61,7 @@ export const Button: FC<ButtonProps> = (props) => {
     ...accessibilityRest
   } = props
 
-  const textStyle: TextStyle = { ...buttonTextStyle }
+  const textStyle: ITextStyle = { ...buttonTextStyle }
   if (color !== undefined) textStyle.color = color
   if (disabled === true) textStyle.color = IOS_DISABLED_GREY
 

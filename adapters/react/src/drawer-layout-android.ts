@@ -10,23 +10,23 @@ import { createElement, forwardRef, useImperativeHandle } from 'react'
 import { dlog } from '@symbiote/engine'
 import { View } from './components'
 import type {
-  DrawerLayoutAndroidHandle,
-  DrawerLayoutAndroidProps,
+  IDrawerLayoutAndroidHandle,
+  IDrawerLayoutAndroidProps,
 } from './drawer-layout-android-shared'
 
 export type {
-  DrawerPosition,
-  DrawerLockMode,
-  KeyboardDismissMode,
-  DrawerState,
-  DrawerSlideEvent,
-  DrawerLayoutAndroidProps,
-  DrawerLayoutAndroidHandle,
+  IDrawerPosition,
+  IDrawerLockMode,
+  IKeyboardDismissMode,
+  IDrawerState,
+  IDrawerSlideEvent,
+  IDrawerLayoutAndroidProps,
+  IDrawerLayoutAndroidHandle,
 } from './drawer-layout-android-shared'
 
 export const DrawerLayoutAndroid = forwardRef<
-  DrawerLayoutAndroidHandle,
-  DrawerLayoutAndroidProps
+  IDrawerLayoutAndroidHandle,
+  IDrawerLayoutAndroidProps
 >((props, ref) => {
   const { style, children } = props
 

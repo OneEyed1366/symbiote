@@ -5,21 +5,21 @@
 // orchestrate those. Vector (XY/Color) handling, tracking, AnimatedEvent and
 // every native-loop branch are dropped.
 
-import type { EndCallback, EndResult } from '../animation'
+import type { IEndCallback, IEndResult } from '../animation'
 import { dlog } from '../../debug'
 import { isNativeAnimatedAvailable } from '../native/native-animated'
 import { AnimatedNode } from '../graph'
 import { AnimatedValue } from '../value'
 import { AnimatedTracking } from './tracking'
-import { TimingAnimation, type TimingAnimationConfig } from './timing'
-import { SpringAnimation, type SpringAnimationConfig } from './spring'
-import { DecayAnimation, type DecayAnimationConfig } from './decay'
+import { TimingAnimation, type ITimingAnimationConfig } from './timing'
+import { SpringAnimation, type ISpringAnimationConfig } from './spring'
+import { DecayAnimation, type IDecayAnimationConfig } from './decay'
 
 // A started animation that can be stopped or reset. `start` takes an optional
 // completion callback; `isLooping` is threaded through sequences so an inner
 // timing knows it is part of an infinite loop.
-export interface CompositeAnimation {
-  start(callback?: EndCallback, isLooping?: boolean): void
+export interface ICompositeAnimation {
+  start(callback?: IEndCallback, isLooping?: boolean): void
   stop(): void
   reset(): void
   // Offload an N-iteration loop to the native driver: a single native animation
@@ -27,7 +27,7 @@ export interface CompositeAnimation {
   // per cycle. Returns true when it took over. Present only on drivers that CAN
   // offload (a single timing/spring) — a sequence/parallel has no native loop, so
   // loop() falls back to JS restart. Internal (loop()'s use only).
-  _nativeLoop?(iterations: number, callback?: EndCallback): boolean
+  _nativeLoop?(iterations: number, callback?: IEndCallback): boolean
 }
 
 // A loop offloads to native only when the driver was asked for the native path AND
@@ -37,16 +37,16 @@ function canOffloadLoop(config: { useNativeDriver?: boolean }): boolean {
   return config.useNativeDriver === true && isNativeAnimatedAvailable()
 }
 
-interface WithOnComplete {
-  onComplete?: EndCallback
+interface IWithOnComplete {
+  onComplete?: IEndCallback
 }
 
 // Fold a config's onComplete into the caller's callback so both fire. Mirrors
 // RN's _combineCallbacks.
 function combineCallbacks(
-  callback: EndCallback | undefined,
-  config: WithOnComplete,
-): EndCallback | undefined {
+  callback: IEndCallback | undefined,
+  config: IWithOnComplete,
+): IEndCallback | undefined {
   if (callback !== undefined && config.onComplete !== undefined) {
     const onComplete = config.onComplete
     return (result) => {
@@ -60,17 +60,17 @@ function combineCallbacks(
 // `toValue` may be a moving target (another AnimatedNode): the driver still needs a
 // concrete number, so the target is widened here at the composition layer and
 // resolved per-launch by AnimatedTracking, while the driver config keeps toValue:number.
-export type TimingConfig = Omit<TimingAnimationConfig, 'toValue'> & {
+export type ITimingConfig = Omit<ITimingAnimationConfig, 'toValue'> & {
   toValue: number | AnimatedNode
-} & WithOnComplete
-export type SpringConfig = Omit<SpringAnimationConfig, 'toValue'> & {
+} & IWithOnComplete
+export type ISpringConfig = Omit<ISpringAnimationConfig, 'toValue'> & {
   toValue: number | AnimatedNode
-} & WithOnComplete
-export type DecayConfig = DecayAnimationConfig & WithOnComplete
+} & IWithOnComplete
+export type IDecayConfig = IDecayAnimationConfig & IWithOnComplete
 
-export function timing(value: AnimatedValue, config: TimingConfig): CompositeAnimation {
+export function timing(value: AnimatedValue, config: ITimingConfig): ICompositeAnimation {
   return {
-    start(callback?: EndCallback): void {
+    start(callback?: IEndCallback): void {
       const onEnd = combineCallbacks(callback, config)
       const target = config.toValue
       if (target instanceof AnimatedNode) {
@@ -87,7 +87,7 @@ export function timing(value: AnimatedValue, config: TimingConfig): CompositeAni
     reset(): void {
       value.resetAnimation()
     },
-    _nativeLoop(iterations: number, callback?: EndCallback): boolean {
+    _nativeLoop(iterations: number, callback?: IEndCallback): boolean {
       const target = config.toValue
       if (target instanceof AnimatedNode || !canOffloadLoop(config)) return false
       // One native animation carrying `iterations` runs the loop in native; the
@@ -101,9 +101,9 @@ export function timing(value: AnimatedValue, config: TimingConfig): CompositeAni
   }
 }
 
-export function spring(value: AnimatedValue, config: SpringConfig): CompositeAnimation {
+export function spring(value: AnimatedValue, config: ISpringConfig): ICompositeAnimation {
   return {
-    start(callback?: EndCallback): void {
+    start(callback?: IEndCallback): void {
       const onEnd = combineCallbacks(callback, config)
       const target = config.toValue
       if (target instanceof AnimatedNode) {
@@ -114,7 +114,7 @@ export function spring(value: AnimatedValue, config: SpringConfig): CompositeAni
         value.animate(new SpringAnimation({ ...config, toValue: target }), onEnd)
       }
     },
-    _nativeLoop(iterations: number, callback?: EndCallback): boolean {
+    _nativeLoop(iterations: number, callback?: IEndCallback): boolean {
       const target = config.toValue
       if (target instanceof AnimatedNode || !canOffloadLoop(config)) return false
       value.animate(
@@ -132,9 +132,9 @@ export function spring(value: AnimatedValue, config: SpringConfig): CompositeAni
   }
 }
 
-export function decay(value: AnimatedValue, config: DecayConfig): CompositeAnimation {
+export function decay(value: AnimatedValue, config: IDecayConfig): ICompositeAnimation {
   return {
-    start(callback?: EndCallback): void {
+    start(callback?: IEndCallback): void {
       value.animate(new DecayAnimation(config), combineCallbacks(callback, config))
     },
     stop(): void {
@@ -146,29 +146,29 @@ export function decay(value: AnimatedValue, config: DecayConfig): CompositeAnima
   }
 }
 
-export interface ParallelConfig {
+export interface IParallelConfig {
   // If one animation is stopped, stop all of them. Default: true.
   stopTogether?: boolean
 }
 
 export function parallel(
-  animations: CompositeAnimation[],
-  config?: ParallelConfig,
-): CompositeAnimation {
+  animations: ICompositeAnimation[],
+  config?: IParallelConfig,
+): ICompositeAnimation {
   let doneCount = 0
   // Track per-animation completion so stop() calls each at most once.
   const hasEnded: Record<number, boolean> = {}
   const stopTogether = !(config !== undefined && config.stopTogether === false)
 
-  const result: CompositeAnimation = {
-    start(callback?: EndCallback, isLooping?: boolean): void {
+  const result: ICompositeAnimation = {
+    start(callback?: IEndCallback, isLooping?: boolean): void {
       if (doneCount === animations.length) {
         callback?.({ finished: true })
         return
       }
 
       animations.forEach((animation, idx) => {
-        const cb = (endResult: EndResult): void => {
+        const cb = (endResult: IEndResult): void => {
           hasEnded[idx] = true
           doneCount++
           if (doneCount === animations.length) {
@@ -203,11 +203,11 @@ export function parallel(
   return result
 }
 
-export function sequence(animations: CompositeAnimation[]): CompositeAnimation {
+export function sequence(animations: ICompositeAnimation[]): ICompositeAnimation {
   let current = 0
   return {
-    start(callback?: EndCallback, isLooping?: boolean): void {
-      const onComplete = (result: EndResult): void => {
+    start(callback?: IEndCallback, isLooping?: boolean): void {
+      const onComplete = (result: IEndResult): void => {
         if (!result.finished) {
           callback?.(result)
           return
@@ -244,7 +244,7 @@ export function sequence(animations: CompositeAnimation[]): CompositeAnimation {
   }
 }
 
-export function delay(time: number): CompositeAnimation {
+export function delay(time: number): ICompositeAnimation {
   return timing(new AnimatedValue(0), {
     toValue: 0,
     delay: time,
@@ -252,27 +252,27 @@ export function delay(time: number): CompositeAnimation {
   })
 }
 
-export function stagger(time: number, animations: CompositeAnimation[]): CompositeAnimation {
+export function stagger(time: number, animations: ICompositeAnimation[]): ICompositeAnimation {
   return parallel(
     animations.map((animation, i) => sequence([delay(time * i), animation])),
   )
 }
 
-export interface LoopAnimationConfig {
+export interface ILoopAnimationConfig {
   iterations?: number
   resetBeforeIteration?: boolean
 }
 
 export function loop(
-  animation: CompositeAnimation,
-  config: LoopAnimationConfig = {},
-): CompositeAnimation {
+  animation: ICompositeAnimation,
+  config: ILoopAnimationConfig = {},
+): ICompositeAnimation {
   const iterations = config.iterations ?? -1
   const resetBeforeIteration = config.resetBeforeIteration ?? true
   let isFinished = false
   let iterationsSoFar = 0
   return {
-    start(callback?: EndCallback): void {
+    start(callback?: IEndCallback): void {
       if (iterations === 0) {
         callback?.({ finished: true })
         return
@@ -284,7 +284,7 @@ export function loop(
         dlog(`loop: offloaded ${iterations} iterations to native`)
         return
       }
-      const restart = (result: EndResult = { finished: true }): void => {
+      const restart = (result: IEndResult = { finished: true }): void => {
         if (isFinished || iterationsSoFar === iterations || result.finished === false) {
           callback?.(result)
         } else {

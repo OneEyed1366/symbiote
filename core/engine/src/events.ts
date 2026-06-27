@@ -9,7 +9,7 @@
 import { dlog } from './debug'
 import { runWrapped } from './dispatch'
 import { getSlot } from './fabric'
-import { isSymbioteNode, type SymbioteEvent, type SymbioteNode } from './node'
+import { isSymbioteNode, type ISymbioteEvent, type ISymbioteNode } from './node'
 import { registeredNativeEvent } from './registry'
 
 // Raw Fabric event name -> listener name. Generic bubbling events live here; press
@@ -107,7 +107,7 @@ const LONG_PRESS_DEACTIVATION_DISTANCE = 10
 // ResponderEventPlugin.js sets `*.touchHistory`.
 
 // One slot per active touch identifier. Mirrors RN's TouchRecord field-for-field.
-interface TouchRecord {
+interface ITouchRecord {
   touchActive: boolean
   startPageX: number
   startPageY: number
@@ -120,8 +120,8 @@ interface TouchRecord {
   previousTimeStamp: number
 }
 
-interface TouchHistory {
-  touchBank: TouchRecord[]
+interface ITouchHistory {
+  touchBank: ITouchRecord[]
   numberActiveTouches: number
   // The single active touch's identifier, so TouchHistoryMath skips the bank scan in
   // the common one-finger case (-1 when not exactly one touch is down).
@@ -133,8 +133,8 @@ interface TouchHistory {
 // events may carry larger or absent ids), we just skip anything out of a sane range.
 const MAX_TOUCH_BANK = 20
 
-const touchBank: TouchRecord[] = []
-const touchHistory: TouchHistory = {
+const touchBank: ITouchRecord[] = []
+const touchHistory: ITouchHistory = {
   touchBank,
   numberActiveTouches: 0,
   indexOfSingleActiveTouch: -1,
@@ -145,7 +145,7 @@ const touchHistory: TouchHistory = {
 // identifier/timestamp; we narrow each defensively so a malformed or coordinate-less
 // touch (e.g. the negotiation smoke's `{ target }`-only touches) is skipped, never
 // throwing — recording must not perturb the responder negotiation.
-interface NormalizedTouch {
+interface INormalizedTouch {
   identifier: number
   pageX: number
   pageY: number
@@ -159,7 +159,7 @@ function toFiniteNumber(value: unknown): number | undefined {
 // Pull a recordable touch out of an untyped entry, or undefined when it lacks a usable
 // identifier or coordinates. RN's getTouchIdentifier throws on a null id; we skip
 // instead, so events without touch geometry leave the bank untouched.
-function normalizeTouch(raw: unknown): NormalizedTouch | undefined {
+function normalizeTouch(raw: unknown): INormalizedTouch | undefined {
   if (!isRecord(raw)) return undefined
   const identifier = toFiniteNumber(raw.identifier)
   const pageX = toFiniteNumber(raw.pageX)
@@ -170,10 +170,10 @@ function normalizeTouch(raw: unknown): NormalizedTouch | undefined {
 }
 
 // The changed touches for this frame (start/move/end), defensively read.
-function changedTouchesOf(nativeEvent: Record<string, unknown>): NormalizedTouch[] {
+function changedTouchesOf(nativeEvent: Record<string, unknown>): INormalizedTouch[] {
   const raw = nativeEvent.changedTouches
   if (!Array.isArray(raw)) return []
-  const out: NormalizedTouch[] = []
+  const out: INormalizedTouch[] = []
   for (const entry of raw) {
     const touch = normalizeTouch(entry)
     if (touch !== undefined) out.push(touch)
@@ -187,7 +187,7 @@ function activeTouchCount(nativeEvent: Record<string, unknown>): number {
   return Array.isArray(raw) ? raw.length : 0
 }
 
-function recordTouchStart(touch: NormalizedTouch): void {
+function recordTouchStart(touch: INormalizedTouch): void {
   const record = touchBank[touch.identifier]
   if (record) {
     record.touchActive = true
@@ -218,7 +218,7 @@ function recordTouchStart(touch: NormalizedTouch): void {
 }
 
 // Move and end share the previous<-current shift; only `touchActive` differs.
-function shiftTouchRecord(touch: NormalizedTouch, active: boolean): void {
+function shiftTouchRecord(touch: INormalizedTouch, active: boolean): void {
   const record = touchBank[touch.identifier]
   if (!record) return
   record.touchActive = active
@@ -289,11 +289,11 @@ let installed = false
 
 // Target of the in-flight touch, remembered at topTouchStart and consumed (or
 // cleared) at topTouchEnd / topTouchCancel.
-let pressStart: SymbioteNode | undefined
+let pressStart: ISymbioteNode | undefined
 
 // The node that claimed the responder for the in-flight touch (PanResponder), or
 // undefined when nobody claimed it. Receives move and release/terminate.
-let currentResponder: SymbioteNode | undefined
+let currentResponder: ISymbioteNode | undefined
 
 // Long-press synthesis: armed at touch start when some node in the press path listens
 // for it, fired once after the hold delay, disarmed on end/cancel — the same arm/clear
@@ -350,7 +350,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 // release fires, preserving single-touch behavior. (ResponderEventPlugin.noResponder-
 // Touches + isAncestor.)
 function hasRemainingResponderTouch(
-  responder: SymbioteNode,
+  responder: ISymbioteNode,
   nativeEvent: Record<string, unknown>,
 ): boolean {
   const touches = nativeEvent.touches
@@ -365,8 +365,8 @@ function hasRemainingResponderTouch(
 
 // Whether any node from `target` up to the root listens for `listenerName` — used to
 // arm the long-press timer only when a handler would actually receive it.
-function hasListenerInPath(target: SymbioteNode, listenerName: string): boolean {
-  for (let node: SymbioteNode | undefined = target; node; node = node.parent) {
+function hasListenerInPath(target: ISymbioteNode, listenerName: string): boolean {
+  for (let node: ISymbioteNode | undefined = target; node; node = node.parent) {
     if (node.listeners?.has(listenerName) === true) return true
   }
   return false
@@ -375,7 +375,7 @@ function hasListenerInPath(target: SymbioteNode, listenerName: string): boolean 
 // Invoke one node's own listener (no bubbling) and hand back its return value, so
 // the responder negotiation can read the boolean from onStartShouldSetResponder.
 function callOwnListener(
-  node: SymbioteNode,
+  node: ISymbioteNode,
   listenerName: string,
   nativeEvent: Record<string, unknown>,
 ): unknown {
@@ -392,17 +392,17 @@ function callOwnListener(
 
 // The node chain from `from` up to the root, deepest first. The single allocation
 // the two-phase walk indexes both ways (capture reads it reversed).
-function pathToRoot(from: SymbioteNode): SymbioteNode[] {
-  const path: SymbioteNode[] = []
-  for (let node: SymbioteNode | undefined = from; node; node = node.parent) path.push(node)
+function pathToRoot(from: ISymbioteNode): ISymbioteNode[] {
+  const path: ISymbioteNode[] = []
+  for (let node: ISymbioteNode | undefined = from; node; node = node.parent) path.push(node)
   return path
 }
 
 // Depth of a node below the root (root = 0). Aligns two nodes before the lockstep
 // climb to their lowest common ancestor.
-function depthOf(node: SymbioteNode): number {
+function depthOf(node: ISymbioteNode): number {
   let depth = 0
-  for (let n: SymbioteNode | undefined = node.parent; n; n = n.parent) depth++
+  for (let n: ISymbioteNode | undefined = node.parent; n; n = n.parent) depth++
   return depth
 }
 
@@ -410,13 +410,13 @@ function depthOf(node: SymbioteNode): number {
 // shallower one's depth, then climb both in lockstep until they meet (ResponderEvent-
 // Plugin.getLowestCommonAncestor). Used to scope the move re-negotiation.
 function lowestCommonAncestor(
-  a: SymbioteNode,
-  b: SymbioteNode,
-): SymbioteNode | undefined {
+  a: ISymbioteNode,
+  b: ISymbioteNode,
+): ISymbioteNode | undefined {
   let da = depthOf(a)
   let db = depthOf(b)
-  let na: SymbioteNode | undefined = a
-  let nb: SymbioteNode | undefined = b
+  let na: ISymbioteNode | undefined = a
+  let nb: ISymbioteNode | undefined = b
   while (na && da > db) {
     na = na.parent
     da--
@@ -440,12 +440,12 @@ function lowestCommonAncestor(
 // its own onResponderMove (PanResponder folds geometry in the should-set-capture
 // handler, so asking the responder again would zero its move).
 function findWantsResponder(
-  path: SymbioteNode[],
+  path: ISymbioteNode[],
   captureName: string,
   bubbleName: string,
   nativeEvent: Record<string, unknown>,
-  skip: SymbioteNode | undefined,
-): SymbioteNode | undefined {
+  skip: ISymbioteNode | undefined,
+): ISymbioteNode | undefined {
   for (let i = path.length - 1; i >= 0; i--) {
     if (path[i] !== skip && callOwnListener(path[i], captureName, nativeEvent) === true) {
       return path[i]
@@ -462,7 +462,7 @@ function findWantsResponder(
 // via onResponderTerminationRequest (absent listener = implicit yes); on yes it is
 // terminated and the taker granted, on no the taker is rejected.
 function negotiateResponder(
-  target: SymbioteNode,
+  target: ISymbioteNode,
   phase: 'start' | 'move',
   nativeEvent: Record<string, unknown>,
 ): void {
@@ -688,8 +688,8 @@ export function installEventHandler(): void {
 // descendant of it: walk parent pointers up from the end target looking for the
 // start target. The start node may have been unmounted mid-touch (parent pointer
 // cleared) — the walk simply runs out and returns false, no throw.
-function endsWithin(endTarget: SymbioteNode, start: SymbioteNode): boolean {
-  let node: SymbioteNode | undefined = endTarget
+function endsWithin(endTarget: ISymbioteNode, start: ISymbioteNode): boolean {
+  let node: ISymbioteNode | undefined = endTarget
   while (node) {
     if (node === start) return true
     node = node.parent
@@ -704,7 +704,7 @@ function endsWithin(endTarget: SymbioteNode, start: SymbioteNode): boolean {
 // in capture halts before bubble ever runs. `target` stays the original node;
 // `currentTarget` tracks whose listener runs.
 function bubble(
-  target: SymbioteNode,
+  target: ISymbioteNode,
   listenerName: string,
   nativeEvent: Record<string, unknown>,
 ): void {
@@ -736,12 +736,12 @@ function bubble(
   }
 
   // Bubble phase: target -> root, invoking each ancestor's plain listener.
-  let node: SymbioteNode | undefined = target
+  let node: ISymbioteNode | undefined = target
   while (node) {
     const listener = node.listeners?.get(listenerName)
     if (listener) {
       // engine owner adds currentTarget + stopPropagation to SymbioteEvent
-      const event: SymbioteEvent = {
+      const event: ISymbioteEvent = {
         type: listenerName,
         target,
         currentTarget: node,
@@ -757,7 +757,7 @@ function bubble(
 
 // Direct (non-bubbling) delivery: only the target's own listener fires.
 function deliverDirect(
-  target: SymbioteNode,
+  target: ISymbioteNode,
   listenerName: string,
   nativeEvent: Record<string, unknown>,
 ): void {

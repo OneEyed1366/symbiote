@@ -14,30 +14,30 @@ import { TextInput } from '../../adapters/react/src/text-input'
 
 // ---- fake Fabric slot ---------------------------------------------------
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
-type EventHandler = (
+type IEventHandler = (
   instanceHandle: unknown,
   topLevelType: string,
   nativeEvent: Record<string, unknown>,
 ) => void
 
-interface CommandCall {
+interface ICommandCall {
   handle: unknown
   name: string
   args: readonly unknown[]
 }
 
-let committed: FakeNode[] = []
-let eventHandler: EventHandler | undefined
-const allCreated: FakeNode[] = []
-const commands: CommandCall[] = []
+let committed: IFakeNode[] = []
+let eventHandler: IEventHandler | undefined
+const allCreated: IFakeNode[] = []
+const commands: ICommandCall[] = []
 
 const slot = {
   createNode(
@@ -46,32 +46,32 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
-    const node: FakeNode = { tag, viewName, props, children: [], instanceHandle }
+  ): IFakeNode {
+    const node: IFakeNode = { tag, viewName, props, children: [], instanceHandle }
     allCreated.push(node)
     return node
   },
-  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+  cloneNodeWithNewProps: (node: IFakeNode, newProps: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: newProps,
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     newProps: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props: newProps, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild(parent: FakeNode, child: FakeNode): FakeNode {
+  ): IFakeNode => ({ ...node, props: newProps, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild(parent: IFakeNode, child: IFakeNode): IFakeNode {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet(childSet: FakeNode[], child: FakeNode): void {
+  appendChildToSet(childSet: IFakeNode[], child: IFakeNode): void {
     childSet.push(child)
   },
-  completeRoot(_rootTag: number, childSet: FakeNode[]): void {
+  completeRoot(_rootTag: number, childSet: IFakeNode[]): void {
     committed = childSet
   },
-  registerEventHandler(handler: EventHandler): void {
+  registerEventHandler(handler: IEventHandler): void {
     eventHandler = handler
   },
   dispatchCommand(handle: unknown, name: string, args: readonly unknown[]): void {
@@ -83,7 +83,7 @@ Object.assign(globalThis, { nativeFabricUIManager: slot })
 
 // ---- helpers ------------------------------------------------------------
 
-function inputNode(viewName: string): FakeNode {
+function inputNode(viewName: string): IFakeNode {
   const node = allCreated.find((n) => n.viewName === viewName)
   if (!node) throw new Error(`no ${viewName} was created`)
   return node
@@ -97,7 +97,7 @@ function reset(): void {
   commands.length = 0
 }
 
-function fireChange(node: FakeNode, nativeEvent: Record<string, unknown>): void {
+function fireChange(node: IFakeNode, nativeEvent: Record<string, unknown>): void {
   if (!eventHandler) throw new Error('no event handler was registered')
   eventHandler(node.instanceHandle, 'topChange', nativeEvent)
 }

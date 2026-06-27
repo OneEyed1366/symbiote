@@ -4,11 +4,11 @@
 // setters straight to the native module. Constants are read at import time, so the
 // fake native module is installed BEFORE the module is loaded (dynamic import).
 
-interface NativeCall {
+interface INativeCall {
   method: string
   args: unknown[]
 }
-const nativeCalls: NativeCall[] = []
+const nativeCalls: INativeCall[] = []
 function record(method: string): (...args: unknown[]) => void {
   return (...args: unknown[]) => {
     nativeCalls.push({ method, args })
@@ -25,7 +25,7 @@ Object.assign(globalThis, {
   nativeModuleProxy: { I18nManager: fakeI18nManager },
 })
 
-function callsOf(method: string): NativeCall[] {
+function callsOf(method: string): INativeCall[] {
   return nativeCalls.filter((call) => call.method === method)
 }
 

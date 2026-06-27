@@ -16,15 +16,15 @@ import { AnimatedValueXY } from '../../core/engine/src/animated/value-xy'
 
 // ---- fake Fabric slot (keeps the real props so the commit is checkable) ----
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
-let committed: FakeNode[] = []
+let committed: IFakeNode[] = []
 
 const slot = {
   createNode(
@@ -33,27 +33,27 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
+  ): IFakeNode {
     return { tag, viewName, props, children: [], instanceHandle }
   },
-  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+  cloneNodeWithNewProps: (node: IFakeNode, newProps: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: newProps,
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     newProps: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props: newProps, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild(parent: FakeNode, child: FakeNode): FakeNode {
+  ): IFakeNode => ({ ...node, props: newProps, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild(parent: IFakeNode, child: IFakeNode): IFakeNode {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet(childSet: FakeNode[], child: FakeNode): void {
+  appendChildToSet(childSet: IFakeNode[], child: IFakeNode): void {
     childSet.push(child)
   },
-  completeRoot(_rootTag: number, childSet: FakeNode[]): void {
+  completeRoot(_rootTag: number, childSet: IFakeNode[]): void {
     committed = childSet
   },
   registerEventHandler(): void {},
@@ -67,7 +67,7 @@ function assert(condition: boolean, message: string): void {
 }
 
 // Walk the committed tree to the first node of a given view name.
-function findByViewName(nodes: FakeNode[], viewName: string): FakeNode | undefined {
+function findByViewName(nodes: IFakeNode[], viewName: string): IFakeNode | undefined {
   for (const node of nodes) {
     if (node.viewName === viewName) return node
     const found = findByViewName(node.children, viewName)
@@ -77,7 +77,7 @@ function findByViewName(nodes: FakeNode[], viewName: string): FakeNode | undefin
 }
 
 // translateY read off a committed view's transform.
-function committedTranslateY(node: FakeNode): number {
+function committedTranslateY(node: IFakeNode): number {
   const transform = Reflect.get(node.props, 'transform')
   if (!Array.isArray(transform)) {
     throw new Error(`expected a transform array, got ${JSON.stringify(node.props)}`)
@@ -136,7 +136,7 @@ assert(
   `scroll event should drive translateY to 88, got ${committedTranslateY(boundViewAfter)}`,
 )
 
-function findTransformView(nodes: FakeNode[]): FakeNode | undefined {
+function findTransformView(nodes: IFakeNode[]): IFakeNode | undefined {
   for (const node of nodes) {
     if (Reflect.get(node.props, 'transform') !== undefined) return node
     const found = findTransformView(node.children)

@@ -11,14 +11,14 @@
 // light/dark text). See render.ts installStopSurfaceGlobal + native-module-platform-routing.
 
 import { useEffect } from 'react'
-import { dlog, getNativeModule, processColor, type ColorValue } from '@symbiote/engine'
-import { STATUS_BAR_MANAGER, type StatusBarComponent } from './status-bar-shared'
-export type { StatusBarProps, StatusBarStyle } from './status-bar-shared'
+import { dlog, getNativeModule, processColor, type IColorValue } from '@symbiote/engine'
+import { STATUS_BAR_MANAGER, type IStatusBarComponent } from './status-bar-shared'
+export type { IStatusBarProps, IStatusBarStyle } from './status-bar-shared'
 
 // The native module typed as the interface we vouch for — only the Android setters we
 // call. Single point that accepts the native shape (no per-call `as`). setColor takes a
 // processed platform color int; getConstants().HEIGHT is the status-bar height (dp).
-interface NativeStatusBarManagerAndroid {
+interface INativeStatusBarManagerAndroid {
   setHidden(hidden: boolean): void
   setStyle(statusBarStyle?: string): void
   setColor(color: number, animated: boolean): void
@@ -30,8 +30,8 @@ interface NativeStatusBarManagerAndroid {
 // number Fabric/native expects, like RN's invariant before setColor. A non-number
 // (null for an unparseable color, headless identity passthrough of a string) is dropped.
 function applyBackgroundColor(
-  manager: NativeStatusBarManagerAndroid,
-  color: ColorValue,
+  manager: INativeStatusBarManagerAndroid,
+  color: IColorValue,
   animated: boolean,
 ): void {
   const processed = processColor(color)
@@ -47,11 +47,11 @@ function applyBackgroundColor(
 
 // Renders null and applies its props to the native module in an effect, on mount and on
 // every prop change — same contract as iOS, with the single-arg Android setters.
-const StatusBarAndroid: StatusBarComponent = (props) => {
+const StatusBarAndroid: IStatusBarComponent = (props) => {
   const { barStyle, hidden, animated = false, backgroundColor, translucent } = props
 
   useEffect(() => {
-    const manager = getNativeModule<NativeStatusBarManagerAndroid>(STATUS_BAR_MANAGER)
+    const manager = getNativeModule<INativeStatusBarManagerAndroid>(STATUS_BAR_MANAGER)
     if (manager === null) {
       dlog('StatusBar android: StatusBarManager not resolvable — skipping')
       return
@@ -70,11 +70,11 @@ const StatusBarAndroid: StatusBarComponent = (props) => {
 
 StatusBarAndroid.setBarStyle = (style) => {
   dlog(`StatusBar.setBarStyle android ${style}`)
-  getNativeModule<NativeStatusBarManagerAndroid>(STATUS_BAR_MANAGER)?.setStyle(style)
+  getNativeModule<INativeStatusBarManagerAndroid>(STATUS_BAR_MANAGER)?.setStyle(style)
 }
 StatusBarAndroid.setHidden = (hidden) => {
   dlog(`StatusBar.setHidden android ${hidden}`)
-  getNativeModule<NativeStatusBarManagerAndroid>(STATUS_BAR_MANAGER)?.setHidden(hidden)
+  getNativeModule<INativeStatusBarManagerAndroid>(STATUS_BAR_MANAGER)?.setHidden(hidden)
 }
 StatusBarAndroid.setNetworkActivityIndicatorVisible = () => {
   // No Android equivalent — an iOS-only concept.
@@ -82,14 +82,14 @@ StatusBarAndroid.setNetworkActivityIndicatorVisible = () => {
 }
 StatusBarAndroid.setBackgroundColor = (color, animated = false) => {
   dlog(`StatusBar.setBackgroundColor android ${String(color)}`)
-  const manager = getNativeModule<NativeStatusBarManagerAndroid>(STATUS_BAR_MANAGER)
+  const manager = getNativeModule<INativeStatusBarManagerAndroid>(STATUS_BAR_MANAGER)
   if (manager === null) return
   applyBackgroundColor(manager, color, animated)
 }
 StatusBarAndroid.setTranslucent = (translucent) => {
   // RISK: window translucent flag is device-verify-pending (may blank the surface).
   dlog(`StatusBar.setTranslucent android ${translucent}`)
-  getNativeModule<NativeStatusBarManagerAndroid>(STATUS_BAR_MANAGER)?.setTranslucent(translucent)
+  getNativeModule<INativeStatusBarManagerAndroid>(STATUS_BAR_MANAGER)?.setTranslucent(translucent)
 }
 
 // Android exposes the bar height as a native constant; undefined if the module or the
@@ -97,7 +97,7 @@ StatusBarAndroid.setTranslucent = (translucent) => {
 // (getter, not a value) so nothing touches native at import time.
 Object.defineProperty(StatusBarAndroid, 'currentHeight', {
   get(): number | undefined {
-    return getNativeModule<NativeStatusBarManagerAndroid>(STATUS_BAR_MANAGER)?.getConstants?.().HEIGHT
+    return getNativeModule<INativeStatusBarManagerAndroid>(STATUS_BAR_MANAGER)?.getConstants?.().HEIGHT
   },
   enumerable: true,
 })

@@ -3,11 +3,11 @@
 // the snapshot, and a `watchKeys` watcher fires only when its key's value actually
 // changes — never for an unrelated key.
 
-interface NativeCall {
+interface INativeCall {
   method: string
   args: unknown[]
 }
-const nativeCalls: NativeCall[] = []
+const nativeCalls: INativeCall[] = []
 
 const fakeSettingsManager = {
   getConstants() {

@@ -11,18 +11,18 @@ import { ActionSheetIOS } from '../../adapters/react/src/action-sheet-ios'
 
 // ---- fake ActionSheetManager native module ------------------------------
 
-interface CapturedOptions {
+interface ICapturedOptions {
   options: string[]
   cancelButtonIndex?: number
   destructiveButtonIndex?: number | number[]
   destructiveButtonIndices?: number[]
 }
 
-let captured: CapturedOptions | null = null
+let captured: ICapturedOptions | null = null
 
 const fakeActionSheetManager = {
   showActionSheetWithOptions(
-    options: CapturedOptions,
+    options: ICapturedOptions,
     callback: (buttonIndex: number) => void,
   ): void {
     captured = options

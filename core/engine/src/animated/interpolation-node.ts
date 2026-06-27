@@ -7,16 +7,16 @@ import { AnimatedNode, AnimatedWithChildren } from './graph'
 import {
   checkValidRanges,
   createInterpolation,
-  type InterpolationConfig,
+  type IInterpolationConfig,
 } from './interpolation'
-import type { NativeNodeConfig, PlatformConfig } from './native/native-animated'
+import type { INativeNodeConfig, IPlatformConfig } from './native/native-animated'
 
 export class AnimatedInterpolation extends AnimatedWithChildren {
   private readonly parent: AnimatedNode
-  private readonly config: InterpolationConfig
+  private readonly config: IInterpolationConfig
   private interpolation: ((input: number) => number | string) | undefined
 
-  constructor(parent: AnimatedNode, config: InterpolationConfig) {
+  constructor(parent: AnimatedNode, config: IInterpolationConfig) {
     super()
     this.parent = parent
     this.config = config
@@ -39,7 +39,7 @@ export class AnimatedInterpolation extends AnimatedWithChildren {
     return this.getInterpolation()(parentValue)
   }
 
-  interpolate(config: InterpolationConfig): AnimatedInterpolation {
+  interpolate(config: IInterpolationConfig): AnimatedInterpolation {
     return new AnimatedInterpolation(this, config)
   }
 
@@ -55,12 +55,12 @@ export class AnimatedInterpolation extends AnimatedWithChildren {
 
   // Make the upstream value native first, so the parent->interpolation edge can be
   // wired when this node is reached from a leaf rather than from the value.
-  override __makeNative(platformConfig?: PlatformConfig): void {
+  override __makeNative(platformConfig?: IPlatformConfig): void {
     this.parent.__makeNative(platformConfig)
     super.__makeNative(platformConfig)
   }
 
-  override __getNativeConfig(): NativeNodeConfig {
+  override __getNativeConfig(): INativeNodeConfig {
     return {
       type: 'interpolation',
       inputRange: this.config.inputRange,

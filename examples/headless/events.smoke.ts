@@ -3,20 +3,20 @@
 // tree and assert press correlation, bubbling + stopPropagation, and direct layout
 // delivery — no simulator, all in JS.
 
-import { appendChild, createElement, routeProp, type SymbioteEvent } from '@symbiote/engine'
+import { appendChild, createElement, routeProp, type ISymbioteEvent } from '@symbiote/engine'
 // installEventHandler is not on the public barrel (surface.ts calls it internally);
 // reach it directly so the smoke can drive the handler without standing up a surface.
 import { installEventHandler } from '../../core/engine/src/events'
 
 // ---- fake Fabric slot (captures the event handler) ----------------------
 
-type EventHandler = (
+type IEventHandler = (
   instanceHandle: unknown,
   topLevelType: string,
   nativeEvent: Record<string, unknown>,
 ) => void
 
-let eventHandler: EventHandler | undefined
+let eventHandler: IEventHandler | undefined
 
 const slot = {
   createNode: (
@@ -32,7 +32,7 @@ const slot = {
   appendChild: (parent: unknown): unknown => parent,
   appendChildToSet: (): void => {},
   completeRoot: (): void => {},
-  registerEventHandler(handler: EventHandler): void {
+  registerEventHandler(handler: IEventHandler): void {
     eventHandler = handler
   },
 }
@@ -95,7 +95,7 @@ let stopAtChild = false
 routeProp(button, 'onPress', () => {
   order.push('parent')
 })
-routeProp(child, 'onPress', (event: SymbioteEvent) => {
+routeProp(child, 'onPress', (event: ISymbioteEvent) => {
   order.push('child')
   if (stopAtChild) event.stopPropagation()
 })
@@ -122,10 +122,10 @@ if (order.join(',') !== 'child') {
 order.length = 0
 stopAtChild = false
 let seenCurrentTargets = 0
-routeProp(child, 'onPress', (event: SymbioteEvent) => {
+routeProp(child, 'onPress', (event: ISymbioteEvent) => {
   if (event.target === child && event.currentTarget === child) seenCurrentTargets += 1
 })
-routeProp(button, 'onPress', (event: SymbioteEvent) => {
+routeProp(button, 'onPress', (event: ISymbioteEvent) => {
   if (event.target === child && event.currentTarget === button) seenCurrentTargets += 1
 })
 fire(child, 'topTouchStart')
@@ -137,7 +137,7 @@ if (seenCurrentTargets !== 2) {
 // ---- 4. layout is direct, delivered only to the target's own listener ----
 
 let layoutPayload: unknown
-routeProp(sibling, 'onLayout', (event: SymbioteEvent) => {
+routeProp(sibling, 'onLayout', (event: ISymbioteEvent) => {
   layoutPayload = event.nativeEvent.layout
 })
 // Fabric only emits layout events when the node is flagged: a layout listener must

@@ -8,29 +8,29 @@ import {
   installDeviceEventHub,
   NativeEventEmitter,
   getNativeModule,
-  type EventEmitterModule,
-  type EventSubscription,
-  type NativeEventListener,
+  type IEventEmitterModule,
+  type IEventSubscription,
+  type INativeEventListener,
   dlog,
 } from '@symbiote/engine'
 import { blurTextInput, currentlyFocusedInput } from './text-input-state'
-import { LayoutAnimation, type LayoutAnimationType } from './layout-animation'
+import { LayoutAnimation, type ILayoutAnimationType } from './layout-animation'
 
 // RN's scheduleLayoutAnimation falls back to the 'keyboard' animation type when the
 // event's easing string isn't a known LayoutAnimation type (Keyboard.js:200).
 const KEYBOARD_ANIMATION_TYPE = 'keyboard'
 
-// Map a raw easing string onto a LayoutAnimationType without a cast: RN does
+// Map a raw easing string onto a ILayoutAnimationType without a cast: RN does
 // `LayoutAnimation.Types[easing] || 'keyboard'`, which only yields a real type when
 // the string is a key of the Types table. We mirror that by checking membership in
 // the frozen table before trusting the value.
-function easingToAnimationType(easing: string): LayoutAnimationType {
-  const types: Readonly<Record<string, LayoutAnimationType>> = LayoutAnimation.Types
+function easingToAnimationType(easing: string): ILayoutAnimationType {
+  const types: Readonly<Record<string, ILayoutAnimationType>> = LayoutAnimation.Types
   return types[easing] ?? KEYBOARD_ANIMATION_TYPE
 }
 
 // The native module name RN registers the keyboard observer under — confirmed
-// from its spec (specs_DEPRECATED/modules/NativeKeyboardObserver.js:20,
+// from its spec (specs_DEPRECATED/modules/INativeKeyboardObserver.js:20,
 // `TurboModuleRegistry.get('KeyboardObserver')`).
 const KEYBOARD_OBSERVER_MODULE = 'KeyboardObserver'
 
@@ -44,29 +44,29 @@ export const KEYBOARD_EVENT = {
   didChangeFrame: 'keyboardDidChangeFrame',
 } as const
 
-export type KeyboardEventName = (typeof KEYBOARD_EVENT)[keyof typeof KEYBOARD_EVENT]
+export type IKeyboardEventName = (typeof KEYBOARD_EVENT)[keyof typeof KEYBOARD_EVENT]
 
-// The soft-keyboard frame in screen coordinates. RN's KeyboardMetrics — the shape
-// carried by a KeyboardEvent's endCoordinates (and iOS startCoordinates).
-export interface KeyboardMetrics {
+// The soft-keyboard frame in screen coordinates. RN's IKeyboardMetrics — the shape
+// carried by a IKeyboardEvent's endCoordinates (and iOS startCoordinates).
+export interface IKeyboardMetrics {
   screenX: number
   screenY: number
   width: number
   height: number
 }
 
-// The payload native delivers with each keyboard notification. RN's KeyboardEvent;
+// The payload native delivers with each keyboard notification. RN's IKeyboardEvent;
 // the iOS-only fields (startCoordinates / isEventFromThisApp) are optional so the one
 // type covers both platforms. The consumer narrows beyond endCoordinates as needed.
-export interface KeyboardEvent {
+export interface IKeyboardEvent {
   duration: number
   easing: string
-  endCoordinates: KeyboardMetrics
-  startCoordinates?: KeyboardMetrics
+  endCoordinates: IKeyboardMetrics
+  startCoordinates?: IKeyboardMetrics
   isEventFromThisApp?: boolean
 }
 
-function isKeyboardEvent(payload: unknown): payload is KeyboardEvent {
+function isKeyboardEvent(payload: unknown): payload is IKeyboardEvent {
   return (
     typeof payload === 'object' &&
     payload !== null &&
@@ -80,7 +80,7 @@ function isKeyboardEvent(payload: unknown): payload is KeyboardEvent {
 // (so native starts/stops watching the keyboard as JS subscribes); it satisfies
 // EventEmitterModule. The spec carries no dismiss() — RN dismisses via a separate
 // utility — so dismiss() here is a no-op for the first cut (see Keyboard.dismiss).
-interface NativeKeyboardObserver extends EventEmitterModule {
+interface INativeKeyboardObserver extends IEventEmitterModule {
   addListener(eventType: string): void
   removeListeners(count: number): void
 }
@@ -88,25 +88,25 @@ interface NativeKeyboardObserver extends EventEmitterModule {
 // Lazily resolved so importing this module has no native side effect: a headless
 // run without a fake __turboModuleProxy still loads it; resolution happens on the
 // first addListener. Null when the module isn't linked.
-let observer: NativeKeyboardObserver | null | undefined
+let observer: INativeKeyboardObserver | null | undefined
 let emitter: NativeEventEmitter | undefined
 
 // The latest keyboardDidShow event, or null when the keyboard is hidden — RN's
 // `_currentlyShowing`. Kept fresh by an internal self-subscription (see getEmitter):
 // Keyboard listens to its OWN show/hide events and caches the event so the synchronous
 // isVisible() / metrics() reads need no native round-trip.
-let currentlyShowing: KeyboardEvent | null = null
+let currentlyShowing: IKeyboardEvent | null = null
 
 // Every live subscription this module handed out, grouped by event type, so
 // removeAllListeners(eventType) can tear them all down — the shared NativeEventEmitter
 // exposes only per-listener remove(), so Keyboard tracks the set itself (mirrors RN's
 // _emitter.removeAllListeners, which we cannot reach through the shared emitter).
-const subscriptions = new Map<KeyboardEventName, Set<EventSubscription>>()
+const subscriptions = new Map<IKeyboardEventName, Set<IEventSubscription>>()
 
 function trackSubscription(
-  eventType: KeyboardEventName,
-  subscription: EventSubscription,
-): EventSubscription {
+  eventType: IKeyboardEventName,
+  subscription: IEventSubscription,
+): IEventSubscription {
   let set = subscriptions.get(eventType)
   if (set === undefined) {
     set = new Set()
@@ -124,7 +124,7 @@ function trackSubscription(
 function getEmitter(): NativeEventEmitter {
   if (emitter === undefined) {
     if (observer === undefined) {
-      observer = getNativeModule<NativeKeyboardObserver>(KEYBOARD_OBSERVER_MODULE)
+      observer = getNativeModule<INativeKeyboardObserver>(KEYBOARD_OBSERVER_MODULE)
       dlog(`Keyboard: KeyboardObserver module ${observer ? 'resolved' : 'NOT resolved (null)'}`)
     }
     // WHY lazy: install on the first subscribe rather than at module load, so the
@@ -145,7 +145,7 @@ function getEmitter(): NativeEventEmitter {
 }
 
 export const Keyboard = {
-  addListener(eventType: KeyboardEventName, listener: NativeEventListener): EventSubscription {
+  addListener(eventType: IKeyboardEventName, listener: INativeEventListener): IEventSubscription {
     dlog(`Keyboard.addListener -> ${eventType}`)
     return trackSubscription(eventType, getEmitter().addListener(eventType, listener))
   },
@@ -153,7 +153,7 @@ export const Keyboard = {
   // Tear down every listener this module added for one event type. The self-subscription
   // that feeds the cache is untracked, so it survives (RN parity: removeAllListeners only
   // clears caller subscriptions). No-op when nobody's listening for that event.
-  removeAllListeners(eventType: KeyboardEventName): void {
+  removeAllListeners(eventType: IKeyboardEventName): void {
     dlog(`Keyboard.removeAllListeners -> ${eventType}`)
     const set = subscriptions.get(eventType)
     if (set === undefined) return
@@ -168,7 +168,7 @@ export const Keyboard = {
 
   // The soft-keyboard frame if visible (the cached event's endCoordinates), else
   // undefined. RN's metrics().
-  metrics(): KeyboardMetrics | undefined {
+  metrics(): IKeyboardMetrics | undefined {
     return currentlyShowing?.endCoordinates
   },
 
@@ -176,7 +176,7 @@ export const Keyboard = {
   // commit to animate over the keyboard's own duration/easing. RN's
   // scheduleLayoutAnimation (Keyboard.js:193) — skipped when duration is absent or 0,
   // since a zero-length animation is a no-op.
-  scheduleLayoutAnimation(event: KeyboardEvent): void {
+  scheduleLayoutAnimation(event: IKeyboardEvent): void {
     const { duration, easing } = event
     if (duration === 0) return
     dlog(`Keyboard.scheduleLayoutAnimation -> duration ${duration}, easing ${easing}`)

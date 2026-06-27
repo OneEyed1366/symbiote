@@ -15,30 +15,30 @@ import { Switch } from '../../adapters/react/src/switch'
 
 // ---- fake Fabric slot ---------------------------------------------------
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
-type EventHandler = (
+type IEventHandler = (
   instanceHandle: unknown,
   topLevelType: string,
   nativeEvent: Record<string, unknown>,
 ) => void
 
-interface CommandCall {
+interface ICommandCall {
   handle: unknown
   name: string
   args: readonly unknown[]
 }
 
-let committed: FakeNode[] = []
-let eventHandler: EventHandler | undefined
-const allCreated: FakeNode[] = []
-const commands: CommandCall[] = []
+let committed: IFakeNode[] = []
+let eventHandler: IEventHandler | undefined
+const allCreated: IFakeNode[] = []
+const commands: ICommandCall[] = []
 
 const slot = {
   createNode(
@@ -47,44 +47,44 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
-    const node: FakeNode = { tag, viewName, props, children: [], instanceHandle }
+  ): IFakeNode {
+    const node: IFakeNode = { tag, viewName, props, children: [], instanceHandle }
     allCreated.push(node)
     return node
   },
-  cloneNode(node: FakeNode): FakeNode {
-    const clone: FakeNode = { ...node, props: { ...node.props }, children: [...node.children] }
+  cloneNode(node: IFakeNode): IFakeNode {
+    const clone: IFakeNode = { ...node, props: { ...node.props }, children: [...node.children] }
     allCreated.push(clone)
     return clone
   },
-  cloneNodeWithNewChildren(node: FakeNode): FakeNode {
-    const clone: FakeNode = { ...node, props: { ...node.props }, children: [] }
+  cloneNodeWithNewChildren(node: IFakeNode): IFakeNode {
+    const clone: IFakeNode = { ...node, props: { ...node.props }, children: [] }
     allCreated.push(clone)
     return clone
   },
-  cloneNodeWithNewProps(node: FakeNode, props: Record<string, unknown>): FakeNode {
-    const clone: FakeNode = { ...node, props: { ...node.props, ...props }, children: [...node.children] }
+  cloneNodeWithNewProps(node: IFakeNode, props: Record<string, unknown>): IFakeNode {
+    const clone: IFakeNode = { ...node, props: { ...node.props, ...props }, children: [...node.children] }
     allCreated.push(clone)
     return clone
   },
-  cloneNodeWithNewChildrenAndProps(node: FakeNode, props: Record<string, unknown>): FakeNode {
-    const clone: FakeNode = { ...node, props: { ...node.props, ...props }, children: [] }
+  cloneNodeWithNewChildrenAndProps(node: IFakeNode, props: Record<string, unknown>): IFakeNode {
+    const clone: IFakeNode = { ...node, props: { ...node.props, ...props }, children: [] }
     allCreated.push(clone)
     return clone
   },
-  createChildSet(): FakeNode[] {
+  createChildSet(): IFakeNode[] {
     return []
   },
-  appendChild(parent: FakeNode, child: FakeNode): void {
+  appendChild(parent: IFakeNode, child: IFakeNode): void {
     parent.children.push(child)
   },
-  appendChildToSet(childSet: FakeNode[], child: FakeNode): void {
+  appendChildToSet(childSet: IFakeNode[], child: IFakeNode): void {
     childSet.push(child)
   },
-  completeRoot(_rootTag: number, childSet: FakeNode[]): void {
+  completeRoot(_rootTag: number, childSet: IFakeNode[]): void {
     committed = childSet
   },
-  registerEventHandler(handler: EventHandler): void {
+  registerEventHandler(handler: IEventHandler): void {
     eventHandler = handler
   },
   dispatchCommand(handle: unknown, name: string, args: readonly unknown[]): void {
@@ -98,7 +98,7 @@ Object.assign(globalThis, { nativeFabricUIManager: slot })
 
 const SWITCH_VIEW = 'Switch'
 
-function switchNode(): FakeNode {
+function switchNode(): IFakeNode {
   const node = allCreated.find((n) => n.viewName === SWITCH_VIEW)
   if (!node) throw new Error(`no ${SWITCH_VIEW} was created`)
   return node
@@ -112,7 +112,7 @@ function reset(): void {
   commands.length = 0
 }
 
-function fireChange(node: FakeNode, nativeEvent: Record<string, unknown>): void {
+function fireChange(node: IFakeNode, nativeEvent: Record<string, unknown>): void {
   if (!eventHandler) throw new Error('no event handler was registered')
   eventHandler(node.instanceHandle, 'topChange', nativeEvent)
 }

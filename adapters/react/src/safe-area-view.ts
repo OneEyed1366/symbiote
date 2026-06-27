@@ -4,19 +4,19 @@
 // the inset math — so this maps style + children straight onto the intrinsic.
 
 import { createElement, type FC, type ReactNode } from 'react'
-import { dlog, type SymbioteEvent } from '@symbiote/engine'
-import { resolveAccessibilityProps, type AccessibilityProps, type AriaProps } from './accessibility-props'
-import type { ViewStyle } from './styles'
+import { dlog, type ISymbioteEvent } from '@symbiote/engine'
+import { resolveAccessibilityProps, type IAccessibilityProps, type IAriaProps } from '@symbiote/components'
+import type { IStyleProp, IViewStyle } from './styles'
 
-export interface SafeAreaViewProps extends AccessibilityProps, AriaProps {
-  style?: ViewStyle
+export interface ISafeAreaViewProps extends IAccessibilityProps, IAriaProps {
+  style?: IStyleProp<IViewStyle>
   children?: ReactNode
   // Standard ViewProps, forwarded onto the native safe-area node.
   testID?: string
-  onLayout?: (event: SymbioteEvent) => void
+  onLayout?: (event: ISymbioteEvent) => void
 }
 
-export const SafeAreaView: FC<SafeAreaViewProps> = (rawProps) => {
+export const SafeAreaView: FC<ISafeAreaViewProps> = (rawProps) => {
   // Owns its host element (symbiote-safe-area-view), so it folds aria/role here;
   // the resolved accessibility* surface rides the node via `...accessibilityRest`.
   const props = resolveAccessibilityProps(rawProps)

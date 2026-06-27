@@ -10,13 +10,13 @@ import {
   installDeviceEventHub,
   NativeEventEmitter,
   getNativeModule,
-  type EventEmitterModule,
-  type EventSubscription,
+  type IEventEmitterModule,
+  type IEventSubscription,
   dlog,
 } from '@symbiote/engine'
 
 // The native module name RN registers AppState under — confirmed from its spec
-// (specs_DEPRECATED/modules/NativeAppState.js, `TurboModuleRegistry.getEnforcing('AppState')`).
+// (specs_DEPRECATED/modules/INativeAppState.js, `TurboModuleRegistry.getEnforcing('AppState')`).
 const APP_STATE_MODULE = 'AppState'
 
 // The device events native emits. RN's NativeAppStateEventDefinitions.
@@ -26,7 +26,7 @@ const NATIVE_EVENT = {
   memoryWarning: 'memoryWarning',
 } as const
 
-// The public event names callers subscribe to. RN's AppStateEvent.
+// The public event names callers subscribe to. RN's IAppStateEvent.
 const APP_STATE_EVENT = {
   change: 'change',
   memoryWarning: 'memoryWarning',
@@ -34,11 +34,11 @@ const APP_STATE_EVENT = {
   blur: 'blur',
 } as const
 
-export type AppStateStatus = 'inactive' | 'background' | 'active' | 'extension' | 'unknown'
-export type AppStateEvent = (typeof APP_STATE_EVENT)[keyof typeof APP_STATE_EVENT]
+export type IAppStateStatus = 'inactive' | 'background' | 'active' | 'extension' | 'unknown'
+export type IAppStateEvent = (typeof APP_STATE_EVENT)[keyof typeof APP_STATE_EVENT]
 
 // The AppState native module: getConstants (initial state) plus the observe-counters.
-interface NativeAppState extends EventEmitterModule {
+interface INativeAppState extends IEventEmitterModule {
   getConstants(): { initialAppState: string }
   addListener(eventType: string): void
   removeListeners(count: number): void
@@ -51,13 +51,13 @@ function isStateChangePayload(value: unknown): value is { app_state: string } {
 // Lazily resolved so importing this module has no native side effect: a headless
 // run without a fake __turboModuleProxy still loads it; resolution happens on first
 // use. `null` when the module isn't linked.
-let appStateModule: NativeAppState | null | undefined
+let appStateModule: INativeAppState | null | undefined
 let emitter: NativeEventEmitter | undefined
 let currentState: string | null = null
 
-function getModule(): NativeAppState | null {
+function getModule(): INativeAppState | null {
   if (appStateModule === undefined) {
-    appStateModule = getNativeModule<NativeAppState>(APP_STATE_MODULE)
+    appStateModule = getNativeModule<INativeAppState>(APP_STATE_MODULE)
     dlog(`AppState: module ${appStateModule ? 'resolved' : 'NOT resolved (null)'}`)
   }
   return appStateModule
@@ -102,7 +102,7 @@ class AppStateImpl {
   // `memoryWarning`, and `appStateFocusChange`; this maps each onto the requested
   // public event. Never throws — a missing module yields a live-but-silent
   // subscription (the counters are no-ops without a module).
-  addEventListener(type: AppStateEvent, handler: (...args: unknown[]) => void): EventSubscription {
+  addEventListener(type: IAppStateEvent, handler: (...args: unknown[]) => void): IEventSubscription {
     const eventEmitter = getEmitter()
     dlog(`AppState.addEventListener -> ${type}`)
     switch (type) {

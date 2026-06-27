@@ -6,7 +6,9 @@
 // (ScrollView.js ~line 1095). The native Fabric scroll view does NOT honor the index array on
 // its own — forwarding `stickyHeaderIndices` to native is a silent no-op. So we replicate the
 // JS layer: subscribe each flagged child to the scroll offset and translate it to stay pinned.
-// The interpolation mirrors ScrollViewStickyHeader.js (non-inverted + inverted branches).
+// The interpolation mirrors ScrollViewStickyHeader.js (non-inverted + inverted branches) and now
+// lives, framework-agnostic, in @symbiote/components (computeStickyInterpolation, ADR 0024); this
+// file holds the React component shell, the layout state, and the child-wrapping.
 
 import {
   Children,
@@ -20,45 +22,27 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react'
-import { AnimatedInterpolation, AnimatedValue, Platform, dlog, type SymbioteEvent } from '@symbiote/engine'
+import { AnimatedInterpolation, AnimatedValue, Platform, dlog, type ISymbioteEvent } from '@symbiote/engine'
+import {
+  computeStickyInterpolation,
+  nextStickyHeaderY,
+  readLayoutNumber,
+  stickyDebounceMs,
+  STICKY_HEADER_Z_INDEX,
+  type IStickyHeaderProps,
+} from '@symbiote/components'
 import { Animated } from './animated'
 
-// RN gives the sticky wrapper zIndex:10 (ScrollViewStickyHeader.js styles.header) so the
-// pinned header paints OVER the rows that scroll up under it. Without it the next rows (later
-// siblings) paint on top and bleed through the header.
-const STICKY_HEADER_Z_INDEX = 10
-
-// RN debounces the Fabric ShadowTree transform sync (ScrollViewStickyHeader.js): the smooth pin
-// rides the native driver, but the committed transform must catch up for hit-testing. Android
-// needs the tighter window because its tap hit-detection moves to JS on finger-move.
-const STICKY_DEBOUNCE_ANDROID_MS = 15
-const STICKY_DEBOUNCE_IOS_MS = 64
-
-// The props RN passes a sticky header wrapper (ScrollViewStickyHeader.js). A custom
-// StickyHeaderComponent must accept the same shape.
-export interface StickyHeaderProps {
+// The props RN passes a sticky header wrapper (ScrollViewStickyHeader.js): the framework-agnostic
+// fields (IStickyHeaderProps) plus the React children slot. A custom StickyHeaderComponent must
+// accept the same shape.
+export type IStickyHeaderComponentProps = IStickyHeaderProps & {
   children?: ReactNode
-  // y of the NEXT sticky header in content space — the collision point past which this header
-  // stops translating and scrolls off to make room. undefined when there is no next header.
-  nextHeaderLayoutY: number | undefined
-  onLayout: (event: SymbioteEvent) => void
-  scrollAnimatedValue: AnimatedValue
-  // Stick to the bottom instead of the top.
-  inverted: boolean | undefined
-  // Parent scroll view height — only needed (and only set) when inverted.
-  scrollViewHeight: number | undefined
 }
 
-export type StickyHeaderComponentType = ComponentType<StickyHeaderProps>
+export type IStickyHeaderComponentType = ComponentType<IStickyHeaderComponentProps>
 
-export function readLayoutNumber(event: SymbioteEvent, key: 'y' | 'height'): number | undefined {
-  const layout = event.nativeEvent.layout
-  if (typeof layout !== 'object' || layout === null) return undefined
-  const value = Reflect.get(layout, key)
-  return typeof value === 'number' ? value : undefined
-}
-
-function readChildOnLayout(child: ReactElement): ((event: SymbioteEvent) => void) | undefined {
+function readChildOnLayout(child: ReactElement): ((event: ISymbioteEvent) => void) | undefined {
   const childProps = child.props
   if (typeof childProps !== 'object' || childProps === null) return undefined
   const handler = Reflect.get(childProps, 'onLayout')
@@ -75,7 +59,7 @@ function firstChild(children: ReactNode): ReactElement | undefined {
 // header collides with it, and drives that translate through the native driver when available so
 // the pin tracks scroll on the UI thread (no JS jitter). Ported faithfully from
 // ScrollViewStickyHeader.js, including the Fabric ShadowTree debounce path.
-export const ScrollViewStickyHeader: StickyHeaderComponentType = (props) => {
+export const ScrollViewStickyHeader: IStickyHeaderComponentType = (props) => {
   const { inverted, scrollViewHeight, scrollAnimatedValue, nextHeaderLayoutY, children } = props
   const [measured, setMeasured] = useState(false)
   const [layoutY, setLayoutY] = useState(0)
@@ -101,7 +85,7 @@ export const ScrollViewStickyHeader: StickyHeaderComponentType = (props) => {
   // issue — symbiote is always Fabric — and worse on Android).
   const animatedValueListener = useCallback(({ value }: { value: number | string }): void => {
     if (typeof value !== 'number') return
-    const timeout = Platform.OS === 'android' ? STICKY_DEBOUNCE_ANDROID_MS : STICKY_DEBOUNCE_IOS_MS
+    const timeout = stickyDebounceMs(Platform.OS)
     // A freshly-rebuilt interpolation re-emits 0 to its listeners; swallow that first zero (RN).
     if (value === 0 && !haveReceivedInitialZeroTranslateY.current) {
       haveReceivedInitialZeroTranslateY.current = true
@@ -112,40 +96,14 @@ export const ScrollViewStickyHeader: StickyHeaderComponentType = (props) => {
   }, [])
 
   useEffect(() => {
-    const inputRange: number[] = [-1, 0]
-    const outputRange: number[] = [0, 0]
-    if (measured) {
-      if (inverted === true) {
-        // Inverted: the header sticks at the BOTTOM of the viewport. It starts sticking once
-        // its bottom edge reaches the viewport bottom (stickStartPoint), then tracks scroll up
-        // to the next header's collision point.
-        if (scrollViewHeight !== undefined) {
-          const stickStartPoint = layoutY + layoutHeight - scrollViewHeight
-          if (stickStartPoint > 0) {
-            inputRange.push(stickStartPoint, stickStartPoint + 1)
-            outputRange.push(0, 1)
-            const collisionPoint = (nextHeaderLayoutY ?? 0) - layoutHeight - scrollViewHeight
-            if (collisionPoint > stickStartPoint) {
-              inputRange.push(collisionPoint, collisionPoint + 1)
-              outputRange.push(collisionPoint - stickStartPoint, collisionPoint - stickStartPoint)
-            }
-          }
-        }
-      } else {
-        // Top: no translation until the header reaches the top (layoutY), then it tracks the
-        // scroll 1:1 to stay pinned, until the next header pushes it back off.
-        inputRange.push(layoutY)
-        outputRange.push(0)
-        const collisionPoint = (nextHeaderLayoutY ?? 0) - layoutHeight
-        if (collisionPoint >= layoutY) {
-          inputRange.push(collisionPoint, collisionPoint + 1)
-          outputRange.push(collisionPoint - layoutY, collisionPoint - layoutY)
-        } else {
-          inputRange.push(layoutY + 1)
-          outputRange.push(1)
-        }
-      }
-    }
+    const { inputRange, outputRange } = computeStickyInterpolation({
+      measured,
+      inverted,
+      scrollViewHeight,
+      layoutY,
+      layoutHeight,
+      nextHeaderLayoutY,
+    })
     const newAnimatedTranslateY = scrollAnimatedValue.interpolate({ inputRange, outputRange })
     // symbiote is always Fabric: listen to the settled value to keep the ShadowTree transform
     // current for hit-testing (RN attaches this listener only under Fabric).
@@ -157,7 +115,7 @@ export const ScrollViewStickyHeader: StickyHeaderComponentType = (props) => {
     }
   }, [measured, layoutY, layoutHeight, scrollViewHeight, nextHeaderLayoutY, inverted, scrollAnimatedValue, animatedValueListener])
 
-  const onLayout = (event: SymbioteEvent): void => {
+  const onLayout = (event: ISymbioteEvent): void => {
     const y = readLayoutNumber(event, 'y')
     const height = readLayoutNumber(event, 'height')
     if (y !== undefined) setLayoutY(y)
@@ -206,7 +164,7 @@ export function wrapStickyHeaders(
   scrollAnimatedValue: AnimatedValue,
   invertStickyHeaders: boolean | undefined,
   scrollViewHeight: number | undefined,
-  StickyHeaderComponent: StickyHeaderComponentType | undefined,
+  StickyHeaderComponent: IStickyHeaderComponentType | undefined,
   headerLayoutYs: ReadonlyMap<number, number>,
   onHeaderLayoutY: (index: number, y: number) => void,
 ): ReactNode {
@@ -218,7 +176,7 @@ export function wrapStickyHeaders(
     // The next flagged header's measured y, by index order in stickyHeaderIndices (RN
     // ScrollView.js:1695 nextIndex). undefined until that header has measured (or for the last).
     const nextIndex = stickyHeaderIndices[indexOfIndex + 1]
-    const nextHeaderLayoutY = nextIndex === undefined ? undefined : headerLayoutYs.get(nextIndex)
+    const nextHeaderLayoutY = nextStickyHeaderY(stickyHeaderIndices, indexOfIndex, headerLayoutYs)
     dlog(`ScrollView sticky-header wrap index=${index} next=${nextIndex} nextY=${nextHeaderLayoutY}`)
     return createElement(
       Wrapper,
@@ -228,7 +186,7 @@ export function wrapStickyHeaders(
         // RN _onStickyHeaderLayout: record this header's own y, then push it to the previous
         // header as its nextHeaderLayoutY. We record into the parent map; the lookup above feeds
         // it forward on the resulting re-render.
-        onLayout: (event: SymbioteEvent): void => {
+        onLayout: (event: ISymbioteEvent): void => {
           const y = readLayoutNumber(event, 'y')
           if (y !== undefined) onHeaderLayoutY(index, y)
         },

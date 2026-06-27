@@ -3,7 +3,7 @@
 // re-exports it) for headless / web. See ADR 0020.
 
 import { createActivityIndicator } from './activity-indicator-shared'
-export type { ActivityIndicatorProps } from './activity-indicator-shared'
+export type { IActivityIndicatorProps } from './activity-indicator-shared'
 
 // RN's iOS default spinner color (Libraries/.../ActivityIndicator.js GRAY).
 const IOS_DEFAULT_COLOR = '#999999'

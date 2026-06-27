@@ -13,7 +13,7 @@ import {
   removeChild,
   routeProp,
   setText,
-  type SymbioteNode,
+  type ISymbioteNode,
   type SymbioteSurface,
 } from '@symbiote/engine'
 import {
@@ -21,31 +21,18 @@ import {
   DiscreteEventPriority,
   NoEventPriority,
 } from './reconciler-constants'
-import { toPublicInstance, type HostInstance } from './host-instance'
-// Intrinsic JSX type -> Fabric component name. The name is platform-specific, so the
-// table is Metro-split (component-names.ios/.android.ts + base); the filename selects,
-// no Platform.OS read (ADR 0020). Adding a primitive is one entry in each name table
-// plus its thin component in components.ts — no host-config logic per primitive.
-import { COMPONENT_DESCRIPTORS, type ComponentDescriptor } from './component-names'
+import { toPublicInstance, type IHostInstance } from './host-instance'
+// Intrinsic JSX type -> Fabric component name. The name table + resolver live once in
+// @symbiote/components, shared by every adapter so the names can't drift (one engine, one
+// Fabric). The table is Metro-split (.ios/.android, filename selects, no Platform.OS read
+// — ADR 0020). Adding a primitive is one entry in each name table there, plus its thin
+// component in components.ts — no host-config logic per primitive.
+import { descriptorFor } from '@symbiote/components'
 
-type Props = Record<string, unknown>
+type IProps = Record<string, unknown>
 
-interface HostContext {
+interface IHostContext {
   isInsideText: boolean
-}
-
-function descriptorFor(type: string): ComponentDescriptor {
-  const descriptor = COMPONENT_DESCRIPTORS[type]
-  if (descriptor !== undefined) return descriptor
-  // A `symbiote-*` type with no entry is a typo in our own code — surface it.
-  if (type.startsWith('symbiote-')) {
-    throw new Error(`Unknown symbiote component type: ${type}`)
-  }
-  // Any other type is a raw Fabric view name straight from a library's codegen
-  // component (`requireNativeComponent` returns the name string, so <RNCSlider/>
-  // arrives here as 'RNCSlider'). It flows through untouched: shared derives its
-  // events and processors from the view's ViewConfig — no per-library glue.
-  return { component: type, isText: false }
 }
 
 // React-reserved prop keys that must never reach Fabric. `children` is the element
@@ -58,14 +45,14 @@ function isReservedProp(key: string): boolean {
   return key === 'children' || key === 'ref' || key === 'key'
 }
 
-function applyProps(node: SymbioteNode, props: Props): void {
+function applyProps(node: ISymbioteNode, props: IProps): void {
   for (const [key, value] of Object.entries(props)) {
     if (isReservedProp(key)) continue
     routeProp(node, key, value)
   }
 }
 
-function applyUpdate(node: SymbioteNode, oldProps: Props, newProps: Props): void {
+function applyUpdate(node: ISymbioteNode, oldProps: IProps, newProps: IProps): void {
   for (const key of Object.keys(oldProps)) {
     if (isReservedProp(key)) continue
     if (!Object.hasOwn(newProps, key)) routeProp(node, key, undefined)
@@ -92,15 +79,15 @@ export function withDiscretePriority(run: () => void): void {
 
 const reconciler = createReconciler<
   string, // Type
-  Props, // Props
+  IProps, // IProps
   SymbioteSurface, // Container
-  SymbioteNode, // Instance
-  SymbioteNode, // TextInstance
+  ISymbioteNode, // Instance
+  ISymbioteNode, // TextInstance
   never, // SuspenseInstance
   unknown, // HydratableInstance
   unknown, // FormInstance
-  HostInstance, // PublicInstance
-  HostContext, // HostContext
+  IHostInstance, // PublicInstance
+  IHostContext, // IHostContext
   unknown, // ChildSet
   number, // TimeoutHandle
   number, // NoTimeout

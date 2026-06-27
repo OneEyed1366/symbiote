@@ -34,11 +34,12 @@ import { ScrollView } from '../scroll-view'
 import { FlatList } from '../flat-list'
 import { SectionList } from '../section-list'
 import { createAnimatedComponent } from './create-animated-component'
-import { AnimatedMock } from './mock'
+import { AnimatedMock } from '@symbiote/engine'
 
 export { createAnimatedComponent } from './create-animated-component'
-export { AnimatedProps } from './props'
-export { AnimatedStyle, AnimatedTransform } from './style'
+// The pure graph leaves now live in @symbiote/engine (they extend AnimatedWithChildren,
+// no React); re-exported here so @symbiote/react's Animated surface is unchanged.
+export { AnimatedProps, AnimatedStyle, AnimatedTransform } from '@symbiote/engine'
 
 // View/Text/Image are pure host primitives — wrap them eagerly.
 const AnimatedView = createAnimatedComponent(View)

@@ -10,39 +10,39 @@ import { type ReactElement } from 'react'
 import { mount, View } from '@symbiote/react'
 import { setColorProcessor } from '@symbiote/engine'
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
 }
 
-let committed: FakeNode[] = []
+let committed: IFakeNode[] = []
 const slot = {
   createNode: (
     tag: number,
     viewName: string,
     _rootTag: number,
     props: Record<string, unknown>,
-  ): FakeNode => ({ tag, viewName, props, children: [] }),
-  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+  ): IFakeNode => ({ tag, viewName, props, children: [] }),
+  cloneNodeWithNewProps: (node: IFakeNode, newProps: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: { ...node.props, ...newProps },
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     newProps: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props: { ...node.props, ...newProps }, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild: (parent: FakeNode, child: FakeNode): FakeNode => {
+  ): IFakeNode => ({ ...node, props: { ...node.props, ...newProps }, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild: (parent: IFakeNode, child: IFakeNode): IFakeNode => {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet: (childSet: FakeNode[], child: FakeNode): void => {
+  appendChildToSet: (childSet: IFakeNode[], child: IFakeNode): void => {
     childSet.push(child)
   },
-  completeRoot: (_rootTag: number, childSet: FakeNode[]): void => {
+  completeRoot: (_rootTag: number, childSet: IFakeNode[]): void => {
     committed = childSet
   },
   registerEventHandler: (): void => {},
@@ -77,7 +77,7 @@ mount(13, <App />)
 
 // The first RCTView carrying a color key is the app's View — NOT the synthetic root
 // container shared wraps every surface in (which only holds flex/pointerEvents).
-function find(node: FakeNode, predicate: (n: FakeNode) => boolean): FakeNode | undefined {
+function find(node: IFakeNode, predicate: (n: IFakeNode) => boolean): IFakeNode | undefined {
   if (predicate(node)) return node
   for (const child of node.children) {
     const hit = find(child, predicate)

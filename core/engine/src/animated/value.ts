@@ -4,22 +4,22 @@
 // AnimatedValue.js with the native-driver branches removed (ADR 0016); tracking
 // (animating toward another animated node) is deferred.
 
-import type { Animation, EndCallback } from './animation'
-import { AnimatedWithChildren, flushValue, type ValueListener } from './graph'
+import type { IAnimation, IEndCallback } from './animation'
+import { AnimatedWithChildren, flushValue, type IValueListener } from './graph'
 import type { AnimatedTracking } from './animations/tracking'
 import { AnimatedInterpolation } from './interpolation-node'
-import type { InterpolationConfig } from './interpolation'
+import type { IInterpolationConfig } from './interpolation'
 import {
   nativeAnimated,
-  type NativeNodeConfig,
-  type PlatformConfig,
+  type INativeNodeConfig,
+  type IPlatformConfig,
 } from './native/native-animated'
 
 export class AnimatedValue extends AnimatedWithChildren {
   private value: number
   private readonly startingValue: number
   private offset: number
-  private animation: Animation | null
+  private animation: IAnimation | null
   // True while we are streaming native value updates back to JS listeners (only
   // meaningful when the value is native-driven and has at least one JS listener).
   private nativeListening = false
@@ -47,7 +47,7 @@ export class AnimatedValue extends AnimatedWithChildren {
   // streams updates back, so adding the first listener starts that stream and
   // removing the last stops it. When the value isn't native, these are no-ops and
   // the base listener machinery alone fires (JS owns the frames).
-  override addListener(callback: ValueListener): string {
+  override addListener(callback: IValueListener): string {
     const id = super.addListener(callback)
     if (this.isNative) this.startListeningToNativeValueUpdates()
     return id
@@ -64,7 +64,7 @@ export class AnimatedValue extends AnimatedWithChildren {
   }
 
   // A value made native while listeners already exist must start streaming now.
-  override __makeNative(platformConfig?: PlatformConfig): void {
+  override __makeNative(platformConfig?: IPlatformConfig): void {
     super.__makeNative(platformConfig)
     if (this.hasListeners()) this.startListeningToNativeValueUpdates()
   }
@@ -139,7 +139,7 @@ export class AnimatedValue extends AnimatedWithChildren {
     }
   }
 
-  override __getNativeConfig(): NativeNodeConfig {
+  override __getNativeConfig(): INativeNodeConfig {
     return { type: 'value', value: this.value, offset: this.offset }
   }
 
@@ -178,13 +178,13 @@ export class AnimatedValue extends AnimatedWithChildren {
   }
 
   // Map the value before it reaches a prop, e.g. 0..1 -> 0..10.
-  interpolate(config: InterpolationConfig): AnimatedInterpolation {
+  interpolate(config: IInterpolationConfig): AnimatedInterpolation {
     return new AnimatedInterpolation(this, config)
   }
 
   // Drive this value with an animation. Typically called by Animated.timing /
   // spring / decay rather than directly.
-  animate(animation: Animation, callback?: EndCallback): void {
+  animate(animation: IAnimation, callback?: IEndCallback): void {
     const previousAnimation = this.animation
     if (this.animation) {
       this.animation.stop()

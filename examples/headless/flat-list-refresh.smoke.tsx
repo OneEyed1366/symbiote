@@ -18,23 +18,23 @@ import { FlatList } from '../../adapters/react/src/flat-list'
 
 // ---- fake Fabric slot ---------------------------------------------------
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
-type EventHandler = (
+type IEventHandler = (
   instanceHandle: unknown,
   topLevelType: string,
   nativeEvent: Record<string, unknown>,
 ) => void
 
-let committed: FakeNode[] = []
-let eventHandler: EventHandler | undefined
-const allCreated: FakeNode[] = []
+let committed: IFakeNode[] = []
+let eventHandler: IEventHandler | undefined
+const allCreated: IFakeNode[] = []
 
 const slot = {
   createNode(
@@ -43,32 +43,32 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
-    const node: FakeNode = { tag, viewName, props, children: [], instanceHandle }
+  ): IFakeNode {
+    const node: IFakeNode = { tag, viewName, props, children: [], instanceHandle }
     allCreated.push(node)
     return node
   },
-  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+  cloneNodeWithNewProps: (node: IFakeNode, newProps: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: newProps,
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     newProps: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props: newProps, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild(parent: FakeNode, child: FakeNode): FakeNode {
+  ): IFakeNode => ({ ...node, props: newProps, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild(parent: IFakeNode, child: IFakeNode): IFakeNode {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet(childSet: FakeNode[], child: FakeNode): void {
+  appendChildToSet(childSet: IFakeNode[], child: IFakeNode): void {
     childSet.push(child)
   },
-  completeRoot(_rootTag: number, childSet: FakeNode[]): void {
+  completeRoot(_rootTag: number, childSet: IFakeNode[]): void {
     committed = childSet
   },
-  registerEventHandler(handler: EventHandler): void {
+  registerEventHandler(handler: IEventHandler): void {
     eventHandler = handler
   },
 }
@@ -82,27 +82,27 @@ const ITEM_HEIGHT = 40
 const VIEWPORT_HEIGHT = 400
 const REFRESH_VIEW_NAME = 'PullToRefreshView'
 
-interface Row {
+interface IRow {
   id: number
   label: string
 }
 
-const DATA: Row[] = Array.from({ length: ITEM_COUNT }, (_unused, index) => ({
+const DATA: IRow[] = Array.from({ length: ITEM_COUNT }, (_unused, index) => ({
   id: index,
   label: `row-${index}`,
 }))
 
 // ---- helpers ------------------------------------------------------------
 
-function walk(nodes: FakeNode[], visit: (node: FakeNode) => void): void {
+function walk(nodes: IFakeNode[], visit: (node: IFakeNode) => void): void {
   for (const node of nodes) {
     visit(node)
     walk(node.children, visit)
   }
 }
 
-function findCommitted(viewName: string): FakeNode | undefined {
-  let found: FakeNode | undefined
+function findCommitted(viewName: string): IFakeNode | undefined {
+  let found: IFakeNode | undefined
   walk(committed, (node) => {
     if (found === undefined && node.viewName === viewName) found = node
   })
@@ -111,8 +111,8 @@ function findCommitted(viewName: string): FakeNode | undefined {
 
 // The scroll node whose own children contain a PullToRefreshView — proves the
 // refresh control is a child of the scroll view, not stranded elsewhere.
-function findScrollWithRefreshChild(): FakeNode | undefined {
-  let found: FakeNode | undefined
+function findScrollWithRefreshChild(): IFakeNode | undefined {
+  let found: IFakeNode | undefined
   walk(committed, (node) => {
     if (found !== undefined || node.viewName !== 'RCTScrollView') return
     if (node.children.some((child) => child.viewName === REFRESH_VIEW_NAME)) found = node
@@ -127,20 +127,20 @@ function findScrollWithRefreshChild(): FakeNode | undefined {
 let refreshCalls = 0
 
 function RefreshApp(): ReactElement {
-  return createElement(FlatList<Row>, {
+  return createElement(FlatList<IRow>, {
     data: DATA,
     refreshing: true,
     onRefresh: () => {
       refreshCalls += 1
     },
     progressViewOffset: 12,
-    keyExtractor: (item: Row) => `r-${item.id}`,
+    keyExtractor: (item: IRow) => `r-${item.id}`,
     getItemLayout: (_data: unknown, index: number) => ({
       length: ITEM_HEIGHT,
       offset: ITEM_HEIGHT * index,
       index,
     }),
-    renderItem: ({ item }: { item: Row }) =>
+    renderItem: ({ item }: { item: IRow }) =>
       createElement('symbiote-text', { key: item.id }, item.label),
   })
 }
@@ -185,15 +185,15 @@ allCreated.length = 0
 refreshCalls = 0
 
 function PlainApp(): ReactElement {
-  return createElement(FlatList<Row>, {
+  return createElement(FlatList<IRow>, {
     data: DATA,
-    keyExtractor: (item: Row) => `p-${item.id}`,
+    keyExtractor: (item: IRow) => `p-${item.id}`,
     getItemLayout: (_data: unknown, index: number) => ({
       length: ITEM_HEIGHT,
       offset: ITEM_HEIGHT * index,
       index,
     }),
-    renderItem: ({ item }: { item: Row }) =>
+    renderItem: ({ item }: { item: IRow }) =>
       createElement('symbiote-text', { key: item.id }, item.label),
   })
 }

@@ -12,50 +12,50 @@ import { AccessibilityInfo } from '../../adapters/react/src/accessibility-info.a
 
 // ---- fake Fabric slot ---------------------------------------------------
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
 }
 
-interface AccessibilityCall {
-  node: FakeNode
+interface IAccessibilityCall {
+  node: IFakeNode
   eventType: string
 }
 
-let committed: FakeNode[] = []
-const a11yEvents: AccessibilityCall[] = []
+let committed: IFakeNode[] = []
+const a11yEvents: IAccessibilityCall[] = []
 const slot = {
   createNode: (
     tag: number,
     viewName: string,
     _rootTag: number,
     props: Record<string, unknown>,
-  ): FakeNode => ({ tag, viewName, props, children: [] }),
-  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+  ): IFakeNode => ({ tag, viewName, props, children: [] }),
+  cloneNodeWithNewProps: (node: IFakeNode, newProps: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: { ...node.props, ...newProps },
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     newProps: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props: { ...node.props, ...newProps }, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild: (parent: FakeNode, child: FakeNode): FakeNode => {
+  ): IFakeNode => ({ ...node, props: { ...node.props, ...newProps }, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild: (parent: IFakeNode, child: IFakeNode): IFakeNode => {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet: (childSet: FakeNode[], child: FakeNode): void => {
+  appendChildToSet: (childSet: IFakeNode[], child: IFakeNode): void => {
     childSet.push(child)
   },
-  completeRoot: (_rootTag: number, childSet: FakeNode[]): void => {
+  completeRoot: (_rootTag: number, childSet: IFakeNode[]): void => {
     committed = childSet
   },
   registerEventHandler: (): void => {},
   dispatchCommand: (): void => {},
-  sendAccessibilityEvent: (node: FakeNode, eventType: string): void => {
+  sendAccessibilityEvent: (node: IFakeNode, eventType: string): void => {
     a11yEvents.push({ node, eventType })
   },
 }
@@ -73,7 +73,7 @@ if (box == null) throw new Error('host ref handed back nothing')
 const boxTag = findNodeHandle(box)
 if (typeof boxTag !== 'number') throw new Error('findNodeHandle(ref) returned no tag')
 
-function lastEvent(): AccessibilityCall {
+function lastEvent(): IAccessibilityCall {
   const call = a11yEvents[a11yEvents.length - 1]
   if (!call) throw new Error('expected a slot.sendAccessibilityEvent call')
   return call

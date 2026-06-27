@@ -23,15 +23,15 @@ declare global {
   var RN$Bridgeless: boolean | undefined
 }
 
-type DeviceListener = (...args: unknown[]) => void
+type IDeviceListener = (...args: unknown[]) => void
 
-export interface EventSubscription {
+export interface IEventSubscription {
   remove(): void
 }
 
 // The single device-event bus. Native pushes into `emit`; subscribers (wrapped by
 // NativeEventEmitter) live in `listeners`, keyed by event name.
-const listeners = new Map<string, Set<DeviceListener>>()
+const listeners = new Map<string, Set<IDeviceListener>>()
 
 function emit(eventType: string, ...args: unknown[]): void {
   const set = listeners.get(eventType)
@@ -48,7 +48,7 @@ function emit(eventType: string, ...args: unknown[]): void {
   })
 }
 
-function addRawListener(eventType: string, listener: DeviceListener): void {
+function addRawListener(eventType: string, listener: IDeviceListener): void {
   let set = listeners.get(eventType)
   if (set === undefined) {
     set = new Set()
@@ -57,7 +57,7 @@ function addRawListener(eventType: string, listener: DeviceListener): void {
   set.add(listener)
 }
 
-function removeRawListener(eventType: string, listener: DeviceListener): void {
+function removeRawListener(eventType: string, listener: IDeviceListener): void {
   listeners.get(eventType)?.delete(listener)
 }
 
@@ -84,23 +84,23 @@ export function installDeviceEventHub(): void {
 
 // The host event bus the app injects — RN's DeviceEventEmitter, the JS module
 // native actually invokes. Its `addListener` returns a removable subscription.
-export interface DeviceEventSource {
-  addListener(eventType: string, listener: (payload: unknown) => void): EventSubscription
+export interface IDeviceEventSource {
+  addListener(eventType: string, listener: (payload: unknown) => void): IEventSubscription
 }
 
-let injectedSource: DeviceEventSource | undefined
+let injectedSource: IDeviceEventSource | undefined
 
 // Inject the host's device-event bus (e.g. RN's DeviceEventEmitter). Once set,
 // NativeEventEmitter subscribes through it instead of the built-in fallback hub.
 // Called by the app at bootstrap, where importing the host bus is allowed.
-export function setDeviceEventSource(source: DeviceEventSource): void {
+export function setDeviceEventSource(source: IDeviceEventSource): void {
   injectedSource = source
 }
 
 // A module that emits events tells native when JS starts/stops observing via these
 // counters, so native can lazily begin/end its own observation. Optional: a plain
 // device event (no owning module) needs none.
-export interface EventEmitterModule {
+export interface IEventEmitterModule {
   addListener(eventType: string): void
   removeListeners(count: number): void
 }
@@ -109,19 +109,19 @@ export interface EventEmitterModule {
 // cannot know an event's shape — so the listener receives `unknown` and the
 // consumer narrows it with a runtime guard (the shape is the consumer's knowledge,
 // not ours). Mirrors how FabricEventHandler hands back a raw native event.
-export type NativeEventListener = (payload: unknown) => void
+export type INativeEventListener = (payload: unknown) => void
 
 // Subscribe to events for one native module. Mirrors RN's NativeEventEmitter: each
 // `addListener` also pings the module's `addListener` counter, and removal pings
 // `removeListeners`, so native observes only while someone is listening.
 export class NativeEventEmitter {
-  private readonly module?: EventEmitterModule
+  private readonly module?: IEventEmitterModule
 
-  constructor(module?: EventEmitterModule) {
+  constructor(module?: IEventEmitterModule) {
     this.module = module
   }
 
-  addListener(eventType: string, listener: NativeEventListener): EventSubscription {
+  addListener(eventType: string, listener: INativeEventListener): IEventSubscription {
     // The module counter tells native to START observing; without it (module
     // unresolved) native may never emit. Logged to pinpoint a silent native side.
     const via = injectedSource !== undefined ? 'host-bus' : 'fallback-hub'
@@ -149,7 +149,7 @@ export class NativeEventEmitter {
     }
 
     // Fallback bus (headless / non-RN host): the internal hub. Its `emit` wraps.
-    const raw: DeviceListener = (...args) => listener(args[0])
+    const raw: IDeviceListener = (...args) => listener(args[0])
     addRawListener(eventType, raw)
     let removed = false
     return {

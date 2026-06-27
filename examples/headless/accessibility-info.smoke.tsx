@@ -15,45 +15,45 @@ import { AccessibilityInfo } from '../../adapters/react/src/accessibility-info'
 // iOS now routes non-'click' accessibility events through the Fabric slot (RN's Fabric
 // path), so case 6 needs a slot + a committed host ref, not just the native module.
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
 }
 
-interface AccessibilityCall {
-  node: FakeNode
+interface IAccessibilityCall {
+  node: IFakeNode
   eventType: string
 }
 
-const a11yEvents: AccessibilityCall[] = []
+const a11yEvents: IAccessibilityCall[] = []
 const slot = {
   createNode: (
     tag: number,
     viewName: string,
     _rootTag: number,
     props: Record<string, unknown>,
-  ): FakeNode => ({ tag, viewName, props, children: [] }),
-  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+  ): IFakeNode => ({ tag, viewName, props, children: [] }),
+  cloneNodeWithNewProps: (node: IFakeNode, newProps: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: { ...node.props, ...newProps },
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     newProps: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props: { ...node.props, ...newProps }, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild: (parent: FakeNode, child: FakeNode): FakeNode => {
+  ): IFakeNode => ({ ...node, props: { ...node.props, ...newProps }, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild: (parent: IFakeNode, child: IFakeNode): IFakeNode => {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet: (_childSet: FakeNode[], _child: FakeNode): void => {},
+  appendChildToSet: (_childSet: IFakeNode[], _child: IFakeNode): void => {},
   completeRoot: (): void => {},
   registerEventHandler: (): void => {},
   dispatchCommand: (): void => {},
-  sendAccessibilityEvent: (node: FakeNode, eventType: string): void => {
+  sendAccessibilityEvent: (node: IFakeNode, eventType: string): void => {
     a11yEvents.push({ node, eventType })
   },
 }

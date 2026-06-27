@@ -12,43 +12,43 @@ import {
   setHostRegistrar,
   View,
   Text,
-  type Runnable,
-  type AppParameters,
+  type IRunnable,
+  type IAppParameters,
 } from '@symbiote/react'
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
 }
 
-let committed: FakeNode[] = []
+let committed: IFakeNode[] = []
 const slot = {
   createNode: (
     tag: number,
     viewName: string,
     _rootTag: number,
     props: Record<string, unknown>,
-  ): FakeNode => ({ tag, viewName, props, children: [] }),
-  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+  ): IFakeNode => ({ tag, viewName, props, children: [] }),
+  cloneNodeWithNewProps: (node: IFakeNode, newProps: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: { ...node.props, ...newProps },
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     newProps: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props: { ...node.props, ...newProps }, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild: (parent: FakeNode, child: FakeNode): FakeNode => {
+  ): IFakeNode => ({ ...node, props: { ...node.props, ...newProps }, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild: (parent: IFakeNode, child: IFakeNode): IFakeNode => {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet: (childSet: FakeNode[], child: FakeNode): void => {
+  appendChildToSet: (childSet: IFakeNode[], child: IFakeNode): void => {
     childSet.push(child)
   },
-  completeRoot: (_rootTag: number, childSet: FakeNode[]): void => {
+  completeRoot: (_rootTag: number, childSet: IFakeNode[]): void => {
     committed = childSet
   },
   registerEventHandler: (): void => {},
@@ -58,9 +58,9 @@ Object.assign(globalThis, { nativeFabricUIManager: slot })
 
 // ---- the host registrar the native side drives (RN's AppRegistry stand-in) ----
 
-const hostRunnables = new Map<string, Runnable>()
+const hostRunnables = new Map<string, IRunnable>()
 setHostRegistrar({
-  registerRunnable: (appKey: string, run: Runnable): string => {
+  registerRunnable: (appKey: string, run: IRunnable): string => {
     hostRunnables.set(appKey, run)
     return appKey
   },
@@ -87,7 +87,7 @@ if (hostRun === undefined) {
   throw new Error('registerComponent did not bridge the runnable to the host registrar')
 }
 
-function find(nodes: FakeNode[], viewName: string): FakeNode | undefined {
+function find(nodes: IFakeNode[], viewName: string): IFakeNode | undefined {
   for (const node of nodes) {
     if (node.viewName === viewName) return node
     const hit = find(node.children, viewName)
@@ -98,7 +98,7 @@ function find(nodes: FakeNode[], viewName: string): FakeNode | undefined {
 
 // ---- native invokes the runnable with the surface's rootTag → mount --------
 
-const nativeParams: AppParameters = { rootTag: 11 }
+const nativeParams: IAppParameters = { rootTag: 11 }
 hostRun(nativeParams)
 if (find(committed, 'RCTText') === undefined) {
   throw new Error('the host runnable did not mount the app tree')

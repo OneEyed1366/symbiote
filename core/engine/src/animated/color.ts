@@ -7,31 +7,31 @@
 
 import { AnimatedWithChildren, flushValue } from './graph'
 import { AnimatedValue } from './value'
-import type { NativeNodeConfig, PlatformConfig } from './native/native-animated'
+import type { INativeNodeConfig, IPlatformConfig } from './native/native-animated'
 
-export interface RgbaValue {
+export interface IRgbaValue {
   r: number
   g: number
   b: number
   a: number
 }
 
-type Channel = number | AnimatedValue
-interface RgbaInput {
-  r: Channel
-  g: Channel
-  b: Channel
-  a: Channel
+type IChannel = number | AnimatedValue
+interface IRgbaInput {
+  r: IChannel
+  g: IChannel
+  b: IChannel
+  a: IChannel
 }
-export type ColorInput = RgbaInput | RgbaValue | string | number
+export type IColorInput = IRgbaInput | IRgbaValue | string | number
 
-const DEFAULT_COLOR: RgbaValue = { r: 0, g: 0, b: 0, a: 1 }
+const DEFAULT_COLOR: IRgbaValue = { r: 0, g: 0, b: 0, a: 1 }
 
-function isRgbaInput(value: ColorInput): value is RgbaInput {
+function isRgbaInput(value: IColorInput): value is IRgbaInput {
   return typeof value === 'object' && value !== null && 'r' in value && 'g' in value
 }
 
-function toChannel(value: Channel): AnimatedValue {
+function toChannel(value: IChannel): AnimatedValue {
   return value instanceof AnimatedValue ? value : new AnimatedValue(value)
 }
 
@@ -39,7 +39,7 @@ function toChannel(value: Channel): AnimatedValue {
 // undefined when unparseable (a named/platform color), so the caller falls back to
 // the default rather than throwing inside a render. Exported so interpolation's
 // color path parses through the same RGBA decoder (DRY) rather than duplicating it.
-export function normalizeColor(color: string | number): RgbaValue | undefined {
+export function normalizeColor(color: string | number): IRgbaValue | undefined {
   if (typeof color === 'number') {
     const c = color >>> 0
     return { r: (c >>> 24) & 255, g: (c >>> 16) & 255, b: (c >>> 8) & 255, a: (c & 255) / 255 }
@@ -50,7 +50,7 @@ export function normalizeColor(color: string | number): RgbaValue | undefined {
   return undefined
 }
 
-function parseHex(hex: string): RgbaValue | undefined {
+function parseHex(hex: string): IRgbaValue | undefined {
   let body = hex.slice(1)
   if (body.length === 3 || body.length === 4) {
     body = body
@@ -68,7 +68,7 @@ function parseHex(hex: string): RgbaValue | undefined {
   return { r: (c >>> 24) & 255, g: (c >>> 16) & 255, b: (c >>> 8) & 255, a: (c & 255) / 255 }
 }
 
-function parseRgb(str: string): RgbaValue | undefined {
+function parseRgb(str: string): IRgbaValue | undefined {
   const match = /^rgba?\(([^)]+)\)$/i.exec(str)
   if (match === null) return undefined
   const parts = match[1].split(',').map((part) => Number.parseFloat(part.trim()))
@@ -78,7 +78,7 @@ function parseRgb(str: string): RgbaValue | undefined {
 
 // Resolve any input form to four concrete channel values (numbers or pre-built
 // AnimatedValues), so the constructor can wrap each in an AnimatedValue.
-function resolveInput(value?: ColorInput): RgbaInput {
+function resolveInput(value?: IColorInput): IRgbaInput {
   if (value === undefined) return DEFAULT_COLOR
   if (typeof value === 'string' || typeof value === 'number') {
     return normalizeColor(value) ?? DEFAULT_COLOR
@@ -93,7 +93,7 @@ export class AnimatedColor extends AnimatedWithChildren {
   readonly b: AnimatedValue
   readonly a: AnimatedValue
 
-  constructor(value?: ColorInput) {
+  constructor(value?: IColorInput) {
     super()
     const input = resolveInput(value)
     this.r = toChannel(input.r)
@@ -120,7 +120,7 @@ export class AnimatedColor extends AnimatedWithChildren {
   // ONE listener fire with the final composed color (RN's _withSuspendedCallbacks
   // pattern). flushValue dedupes by leaf identity, so a single flush rebuilds
   // every bound prop once even though four channels changed.
-  setValue(value: RgbaValue | string | number): void {
+  setValue(value: IRgbaValue | string | number): void {
     const rgba = typeof value === 'object' ? value : normalizeColor(value) ?? DEFAULT_COLOR
     this.withSuspendedCallbacks(() => {
       this.r.setValue(rgba.r)
@@ -135,7 +135,7 @@ export class AnimatedColor extends AnimatedWithChildren {
   // setOffset / flattenOffset / extractOffset do NOT flush or fire listeners in
   // symbiote's per-channel AnimatedValue (offset writes are silent), so there is
   // no 4×-fire to suspend here — matching RN, where only setValue suspends.
-  setOffset(offset: RgbaValue): void {
+  setOffset(offset: IRgbaValue): void {
     this.r.setOffset(offset.r)
     this.g.setOffset(offset.g)
     this.b.setOffset(offset.b)
@@ -189,7 +189,7 @@ export class AnimatedColor extends AnimatedWithChildren {
     super.__detach()
   }
 
-  override __makeNative(platformConfig?: PlatformConfig): void {
+  override __makeNative(platformConfig?: IPlatformConfig): void {
     this.r.__makeNative(platformConfig)
     this.g.__makeNative(platformConfig)
     this.b.__makeNative(platformConfig)
@@ -197,7 +197,7 @@ export class AnimatedColor extends AnimatedWithChildren {
     super.__makeNative(platformConfig)
   }
 
-  override __getNativeConfig(): NativeNodeConfig {
+  override __getNativeConfig(): INativeNodeConfig {
     return {
       type: 'color',
       r: this.r.__getNativeTag(),

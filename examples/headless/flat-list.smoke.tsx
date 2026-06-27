@@ -9,27 +9,27 @@
 import { createElement, createRef, type ReactElement } from 'react'
 import { mount } from '@symbiote/react'
 // Not on the barrel yet (the integrator wires exports), so reach the source.
-import { FlatList, type FlatListHandle } from '../../adapters/react/src/flat-list'
+import { FlatList, type IFlatListHandle } from '../../adapters/react/src/flat-list'
 
 // ---- fake Fabric slot ---------------------------------------------------
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
-type EventHandler = (
+type IEventHandler = (
   instanceHandle: unknown,
   topLevelType: string,
   nativeEvent: Record<string, unknown>,
 ) => void
 
-let committed: FakeNode[] = []
-let eventHandler: EventHandler | undefined
-const allCreated: FakeNode[] = []
+let committed: IFakeNode[] = []
+let eventHandler: IEventHandler | undefined
+const allCreated: IFakeNode[] = []
 const endReachedDistances: number[] = []
 const startReachedDistances: number[] = []
 // Read the count through a function so control-flow analysis can't pin .length to a
@@ -37,7 +37,7 @@ const startReachedDistances: number[] = []
 const endReachedCount = (): number => endReachedDistances.length
 const startReachedCount = (): number => startReachedDistances.length
 
-const listRef = createRef<FlatListHandle>()
+const listRef = createRef<IFlatListHandle>()
 
 const slot = {
   createNode(
@@ -46,32 +46,32 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
-    const node: FakeNode = { tag, viewName, props, children: [], instanceHandle }
+  ): IFakeNode {
+    const node: IFakeNode = { tag, viewName, props, children: [], instanceHandle }
     allCreated.push(node)
     return node
   },
-  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+  cloneNodeWithNewProps: (node: IFakeNode, newProps: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: newProps,
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     newProps: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props: newProps, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild(parent: FakeNode, child: FakeNode): FakeNode {
+  ): IFakeNode => ({ ...node, props: newProps, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild(parent: IFakeNode, child: IFakeNode): IFakeNode {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet(childSet: FakeNode[], child: FakeNode): void {
+  appendChildToSet(childSet: IFakeNode[], child: IFakeNode): void {
     childSet.push(child)
   },
-  completeRoot(_rootTag: number, childSet: FakeNode[]): void {
+  completeRoot(_rootTag: number, childSet: IFakeNode[]): void {
     committed = childSet
   },
-  registerEventHandler(handler: EventHandler): void {
+  registerEventHandler(handler: IEventHandler): void {
     eventHandler = handler
   },
 }
@@ -84,12 +84,12 @@ const ITEM_COUNT = 1000
 const ITEM_HEIGHT = 40
 const VIEWPORT_HEIGHT = 400
 
-interface Row {
+interface IRow {
   id: number
   label: string
 }
 
-const DATA: Row[] = Array.from({ length: ITEM_COUNT }, (_unused, index) => ({
+const DATA: IRow[] = Array.from({ length: ITEM_COUNT }, (_unused, index) => ({
   id: index,
   label: `row-${index}`,
 }))
@@ -99,10 +99,10 @@ const Header = (): ReactElement => createElement('symbiote-text', {}, 'HEADER')
 const Footer = (): ReactElement => createElement('symbiote-text', {}, 'FOOTER')
 
 function App(): ReactElement {
-  return createElement(FlatList<Row>, {
+  return createElement(FlatList<IRow>, {
     ref: listRef,
     data: DATA,
-    keyExtractor: (item: Row) => `k-${item.id}`,
+    keyExtractor: (item: IRow) => `k-${item.id}`,
     getItemLayout: (_data: unknown, index: number) => ({
       length: ITEM_HEIGHT,
       offset: ITEM_HEIGHT * index,
@@ -117,7 +117,7 @@ function App(): ReactElement {
     onStartReached: ({ distanceFromStart }: { distanceFromStart: number }) => {
       startReachedDistances.push(distanceFromStart)
     },
-    renderItem: ({ item }: { item: Row }) =>
+    renderItem: ({ item }: { item: IRow }) =>
       createElement('symbiote-text', { key: item.id }, item.label),
   })
 }
@@ -143,14 +143,14 @@ function hasText(target: string): boolean {
   return found
 }
 
-function walk(nodes: FakeNode[], visit: (node: FakeNode) => void): void {
+function walk(nodes: IFakeNode[], visit: (node: IFakeNode) => void): void {
   for (const node of nodes) {
     visit(node)
     walk(node.children, visit)
   }
 }
 
-function findScrollView(): FakeNode {
+function findScrollView(): IFakeNode {
   const node = allCreated.find((n) => n.viewName === 'RCTScrollView')
   if (!node) throw new Error('no RCTScrollView was created')
   return node
@@ -284,7 +284,7 @@ if (endReachedCount() !== 1) {
 
 const handle = listRef.current
 if (handle === null) throw new Error('FlatList ref did not attach a handle')
-const requiredMethods: ReadonlyArray<keyof FlatListHandle> = [
+const requiredMethods: ReadonlyArray<keyof IFlatListHandle> = [
   'flashScrollIndicators',
   'getNativeScrollRef',
   'getScrollableNode',

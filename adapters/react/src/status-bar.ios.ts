@@ -13,17 +13,17 @@ import {
   STATUS_BAR_MANAGER,
   STATIC_HIDE_TRANSITION,
   hideTransition,
-  type StatusBarAnimation,
-  type StatusBarComponent,
-  type StatusBarStyle,
+  type IStatusBarAnimation,
+  type IStatusBarComponent,
+  type IStatusBarStyle,
 } from './status-bar-shared'
-export type { StatusBarProps, StatusBarStyle } from './status-bar-shared'
+export type { IStatusBarProps, IStatusBarStyle } from './status-bar-shared'
 
 // The native module typed as the interface we vouch for — only the setters we use.
 // This is the single point that accepts the native shape (no per-call `as`).
-interface NativeStatusBarManager {
-  setStyle(statusBarStyle: StatusBarStyle, animated: boolean): void
-  setHidden(hidden: boolean, withAnimation: StatusBarAnimation): void
+interface INativeStatusBarManager {
+  setStyle(statusBarStyle: IStatusBarStyle, animated: boolean): void
+  setHidden(hidden: boolean, withAnimation: IStatusBarAnimation): void
   setNetworkActivityIndicatorVisible(visible: boolean): void
 }
 
@@ -31,14 +31,14 @@ interface NativeStatusBarManager {
 // on mount and on every prop change. Simplification vs RN: RN maintains a
 // prop-merge stack so nested StatusBars compose (deepest/last wins) — we direct-apply
 // a single component's props, which is correct for one StatusBar and a fine first cut.
-export const StatusBar: StatusBarComponent = (props) => {
+export const StatusBar: IStatusBarComponent = (props) => {
   const { barStyle, hidden, animated = false, networkActivityIndicatorVisible } = props
 
   useEffect(() => {
     // Resolve lazily inside the effect, not at import — keeps this module importable
     // headless before a fake __turboModuleProxy is installed. Non-enforcing: a
     // declarative StatusBar must NOT crash the whole render if the module can't resolve.
-    const manager = getNativeModule<NativeStatusBarManager>(STATUS_BAR_MANAGER)
+    const manager = getNativeModule<INativeStatusBarManager>(STATUS_BAR_MANAGER)
     if (manager === null) {
       dlog('StatusBar: StatusBarManager not resolvable via __turboModuleProxy — skipping')
       return
@@ -59,17 +59,17 @@ export const StatusBar: StatusBarComponent = (props) => {
 // native module is a no-op, never a crash.
 StatusBar.setBarStyle = (style, animated = false) => {
   dlog('StatusBar.setBarStyle')
-  getNativeModule<NativeStatusBarManager>(STATUS_BAR_MANAGER)?.setStyle(style, animated)
+  getNativeModule<INativeStatusBarManager>(STATUS_BAR_MANAGER)?.setStyle(style, animated)
 }
 
 StatusBar.setHidden = (hidden, animation = STATIC_HIDE_TRANSITION) => {
   dlog('StatusBar.setHidden')
-  getNativeModule<NativeStatusBarManager>(STATUS_BAR_MANAGER)?.setHidden(hidden, animation)
+  getNativeModule<INativeStatusBarManager>(STATUS_BAR_MANAGER)?.setHidden(hidden, animation)
 }
 
 StatusBar.setNetworkActivityIndicatorVisible = (visible) => {
   dlog('StatusBar.setNetworkActivityIndicatorVisible')
-  getNativeModule<NativeStatusBarManager>(STATUS_BAR_MANAGER)?.setNetworkActivityIndicatorVisible(
+  getNativeModule<INativeStatusBarManager>(STATUS_BAR_MANAGER)?.setNetworkActivityIndicatorVisible(
     visible,
   )
 }

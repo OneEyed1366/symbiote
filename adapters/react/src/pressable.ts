@@ -21,11 +21,11 @@
 //     radius. Wired into the responder-move stream of the same View.
 
 import { createElement, useMemo, useRef, useState, type FC, type ReactNode } from 'react'
-import { dlog, Platform, type SymbioteEvent } from '@symbiote/engine'
+import { dlog, Platform, type ISymbioteEvent } from '@symbiote/engine'
 import { View } from './components'
-import type { HostInstance } from './host-instance'
-import type { AccessibilityProps, AccessibilityStateValue, AriaProps } from './accessibility-props'
-import type { ViewStyle } from './styles'
+import type { IHostInstance } from './host-instance'
+import type { IAccessibilityProps, IAccessibilityStateValue, IAriaProps } from '@symbiote/components'
+import type { IStyleProp, IViewStyle } from './styles'
 
 const DEFAULT_DELAY_LONG_PRESS_MS = 500
 // RN's default extra slop kept around a press once it is active, before a drift
@@ -33,7 +33,7 @@ const DEFAULT_DELAY_LONG_PRESS_MS = 500
 // DEFAULT_PRESS_RECT_OFFSETS). Per-edge, with a deeper bottom (thumb travel).
 const DEFAULT_PRESS_RECT_OFFSETS = { top: 20, left: 20, bottom: 30, right: 20 }
 // Per-edge inset rect, the normalized shape every edge test reads (RN's Rect).
-interface EdgeInsets {
+interface IEdgeInsets {
   top: number
   left: number
   bottom: number
@@ -41,26 +41,26 @@ interface EdgeInsets {
 }
 // The measured on-screen frame the retention test runs against — left/top/right/
 // bottom page coordinates, mirroring Pressability.js `_responderRegion`.
-interface ResponderRegion {
+interface IResponderRegion {
   top: number
   left: number
   bottom: number
   right: number
 }
 
-export interface PressState {
+export interface IPressState {
   pressed: boolean
 }
 
-type PressHandler = (event: SymbioteEvent) => void
-type StyleProp = ViewStyle | ((state: PressState) => ViewStyle)
-type ChildrenProp = ReactNode | ((state: PressState) => ReactNode)
+type IPressHandler = (event: ISymbioteEvent) => void
+type IPressableStyle = IStyleProp<IViewStyle> | ((state: IPressState) => IStyleProp<IViewStyle>)
+type IChildrenProp = ReactNode | ((state: IPressState) => ReactNode)
 
 // Native ripple config Android's ReactViewManager reads off the inner View
 // (nativeBackgroundAndroid). `foreground` routes it to the foreground slot. Inert
 // on iOS, where the inner View is a plain box. Mirrors RN's
-// PressableAndroidRippleConfig (Pressable.js:146 / useAndroidRippleForView.js).
-export interface PressableAndroidRippleConfig {
+// IPressableAndroidRippleConfig (Pressable.js:146 / useAndroidRippleForView.js).
+export interface IPressableAndroidRippleConfig {
   color?: string
   borderless?: boolean
   radius?: number
@@ -70,72 +70,72 @@ export interface PressableAndroidRippleConfig {
 // The RippleAndroid background dict shape Android resolves. Same shape the
 // TouchableNativeFeedback.Ripple factory produces; replicated minimally here so
 // Pressable owns no cross-import to the touchable family.
-interface RippleBackground {
+interface IRippleBackground {
   type: 'RippleAndroid'
   color: string | null
   borderless: boolean
   rippleRadius?: number
 }
 
-type RectOffset = number | { top?: number; left?: number; bottom?: number; right?: number }
+type IRectOffset = number | { top?: number; left?: number; bottom?: number; right?: number }
 
-export interface PressableProps extends AccessibilityProps, AriaProps {
-  onPress?: PressHandler
-  onPressIn?: PressHandler
-  onPressOut?: PressHandler
+export interface IPressableProps extends IAccessibilityProps, IAriaProps {
+  onPress?: IPressHandler
+  onPressIn?: IPressHandler
+  onPressOut?: IPressHandler
   // Fires on every responder move while the press is live (RN Pressable.js onPressMove
   // → Pressability onResponderMove). Distinct from the retention drift bookkeeping.
-  onPressMove?: PressHandler
-  onLongPress?: PressHandler
+  onPressMove?: IPressHandler
+  onLongPress?: IPressHandler
   delayLongPress?: number
   disabled?: boolean
   // false refuses to yield the responder when another view (e.g. a parent ScrollView)
   // asks to take over — RN forwards this to onResponderTerminationRequest, default true
   // (Pressable.js cancelable → Pressability onResponderTerminationRequest).
   cancelable?: boolean
-  hitSlop?: RectOffset
+  hitSlop?: IRectOffset
   // Extra distance outside the visual bounds in which a drifting press stays active
   // before pressOut fires (RN Pressable.js:78). A scalar applies to every edge.
-  pressRetentionOffset?: RectOffset
+  pressRetentionOffset?: IRectOffset
   // Delay (ms) between touch-down and pressIn / pressed activation; 0 = immediate
   // (RN Pressable.js:156).
   unstable_pressDelay?: number
   // Android-only ripple feedback; inert on iOS (RN Pressable.js:146).
-  android_ripple?: PressableAndroidRippleConfig
+  android_ripple?: IPressableAndroidRippleConfig
   // Suppress the Android system tap sound (RN Pressable.js:141). Forwarded to native.
   android_disableSound?: boolean
   // Pointer-hover callbacks (RN Pressability onHoverIn/onHoverOut). This host has no
   // pointer-enter/leave event — there is no mouse on a touch device — so they are
   // accepted, typed, and forwarded but inert (a dlog notes the no-op). On a future
   // pointer-capable host they would wire to onPointerEnter/onPointerLeave.
-  onHoverIn?: PressHandler
-  onHoverOut?: PressHandler
+  onHoverIn?: IPressHandler
+  onHoverOut?: IPressHandler
   delayHoverIn?: number
   delayHoverOut?: number
   testID?: string
-  style?: StyleProp
-  children?: ChildrenProp
+  style?: IPressableStyle
+  children?: IChildrenProp
 }
 
-function resolveStyle(style: StyleProp | undefined, state: PressState): ViewStyle | undefined {
+function resolveStyle(style: IPressableStyle | undefined, state: IPressState): IStyleProp<IViewStyle> | undefined {
   if (typeof style === 'function') return style(state)
   return style
 }
 
-function resolveChildren(children: ChildrenProp | undefined, state: PressState): ReactNode {
+function resolveChildren(children: IChildrenProp | undefined, state: IPressState): ReactNode {
   if (typeof children === 'function') return children(state)
   return children
 }
 
 // A rect offset is a per-edge object (not the scalar shorthand). Used to read the
 // asymmetric form without an `as` cast.
-function isEdgeInsets(value: RectOffset): value is { top?: number; left?: number; bottom?: number; right?: number } {
+function isEdgeInsets(value: IRectOffset): value is { top?: number; left?: number; bottom?: number; right?: number } {
   return typeof value === 'object'
 }
 
 // Normalize a scalar-or-rect offset to a per-edge rect: a number expands all four
 // edges, mirroring RN's normalizeRect (StyleSheet/Rect.js). Absent edges read 0.
-function normalizeRect(offset: RectOffset | undefined): EdgeInsets {
+function normalizeRect(offset: IRectOffset | undefined): IEdgeInsets {
   if (offset === undefined) return { top: 0, left: 0, bottom: 0, right: 0 }
   if (isEdgeInsets(offset)) {
     const { top = 0, left = 0, bottom = 0, right = 0 } = offset
@@ -147,7 +147,7 @@ function normalizeRect(offset: RectOffset | undefined): EdgeInsets {
 // The widest single edge of an offset, for the radius fallback when no measured rect
 // is available (headless). RN tracks per-edge; the distance-from-origin check is
 // symmetric, so the widest edge is the conservative bound.
-function maxEdge(insets: EdgeInsets): number {
+function maxEdge(insets: IEdgeInsets): number {
   return Math.max(insets.top, insets.left, insets.bottom, insets.right)
 }
 
@@ -157,9 +157,9 @@ function maxEdge(insets: EdgeInsets): number {
 // every move (left/top shrink the bound, right/bottom grow it; strict inequalities).
 function isTouchWithinRegion(
   point: { x: number; y: number },
-  region: ResponderRegion,
-  hitSlop: EdgeInsets,
-  pressRectOffset: EdgeInsets,
+  region: IResponderRegion,
+  hitSlop: IEdgeInsets,
+  pressRectOffset: IEdgeInsets,
 ): boolean {
   const left = region.left - hitSlop.left - pressRectOffset.left
   const right = region.right + hitSlop.right + pressRectOffset.right
@@ -170,7 +170,7 @@ function isTouchWithinRegion(
 
 // Page coordinate of a single-touch native event, or undefined when it carried no
 // numeric coords (then the retention drift check is skipped, never guessed).
-function readPoint(event: SymbioteEvent): { x: number; y: number } | undefined {
+function readPoint(event: ISymbioteEvent): { x: number; y: number } | undefined {
   const { pageX, pageY } = event.nativeEvent
   if (typeof pageX === 'number' && typeof pageY === 'number') return { x: pageX, y: pageY }
   return undefined
@@ -181,10 +181,10 @@ function readPoint(event: SymbioteEvent): { x: number; y: number } | undefined {
 // bridge in JS, so we keep the string and let Android resolve it (a null color is
 // the documented "no tint"). Returns the prop dict the inner View spreads.
 function rippleProps(
-  config: PressableAndroidRippleConfig,
-): Record<string, RippleBackground> | undefined {
+  config: IPressableAndroidRippleConfig,
+): Record<string, IRippleBackground> | undefined {
   if (Platform.OS !== 'android') return undefined
-  const background: RippleBackground = {
+  const background: IRippleBackground = {
     type: 'RippleAndroid',
     color: config.color ?? null,
     borderless: config.borderless === true,
@@ -195,7 +195,7 @@ function rippleProps(
     : { nativeBackgroundAndroid: background }
 }
 
-export const Pressable: FC<PressableProps> = (props) => {
+export const Pressable: FC<IPressableProps> = (props) => {
   const {
     onPress,
     onPressIn,
@@ -242,10 +242,10 @@ export const Pressable: FC<PressableProps> = (props) => {
   const driftedOut = useRef(false)
   // The View instance, so we can measure its on-screen rect on responder grant — the
   // retention region RN derives from UIManager.measure (Pressability _responderRegion).
-  const viewRef = useRef<HostInstance | null>(null)
+  const viewRef = useRef<IHostInstance | null>(null)
   // The measured frame from the latest grant; undefined until measure resolves (or on
   // a host where measure is a no-op), which drops the test to the radius fallback.
-  const regionRef = useRef<ResponderRegion | undefined>(undefined)
+  const regionRef = useRef<IResponderRegion | undefined>(undefined)
 
   const handlers = useMemo(() => {
     // Per-edge offsets for the measured-rect retention test (RN's hitSlop +
@@ -311,7 +311,7 @@ export const Pressable: FC<PressableProps> = (props) => {
     // onPressIn. Split out so unstable_pressDelay can defer it behind a timer while
     // an early release can flush it synchronously (RN: a release before the delay
     // still registers the press).
-    function activate(event: SymbioteEvent): void {
+    function activate(event: ISymbioteEvent): void {
       dlog('Pressable pressIn')
       setPressed(true)
       longPressFired.current = false
@@ -328,7 +328,7 @@ export const Pressable: FC<PressableProps> = (props) => {
 
     // Flush a still-pending pressDelay timer immediately, so a pressOut/press that
     // arrives before the delay elapsed still sees an activated press.
-    function flushPressDelay(event: SymbioteEvent): void {
+    function flushPressDelay(event: ISymbioteEvent): void {
       if (pressDelayTimer.current !== undefined) {
         clearPressDelay()
         activate(event)
@@ -336,7 +336,7 @@ export const Pressable: FC<PressableProps> = (props) => {
     }
 
     return {
-      handlePressIn(event: SymbioteEvent): void {
+      handlePressIn(event: ISymbioteEvent): void {
         pressOrigin.current = readPoint(event)
         driftedOut.current = false
         // Measure the on-screen rect now so the move stream tests against the real
@@ -352,7 +352,7 @@ export const Pressable: FC<PressableProps> = (props) => {
         }
         activate(event)
       },
-      handlePressOut(event: SymbioteEvent): void {
+      handlePressOut(event: ISymbioteEvent): void {
         dlog('Pressable pressOut')
         flushPressDelay(event)
         clearLongPress()
@@ -361,7 +361,7 @@ export const Pressable: FC<PressableProps> = (props) => {
         setPressed(false)
         onPressOut?.(event)
       },
-      handlePress(event: SymbioteEvent): void {
+      handlePress(event: ISymbioteEvent): void {
         dlog('Pressable press')
         flushPressDelay(event)
         clearLongPress()
@@ -383,7 +383,7 @@ export const Pressable: FC<PressableProps> = (props) => {
       // move while the press is live (RN). Then the retention test: a move outside the
       // measured region (expanded by hitSlop+pressRectOffset) fires an early pressOut
       // and marks the tap suppressed; a move back inside re-activates.
-      handleResponderMove(event: SymbioteEvent): void {
+      handleResponderMove(event: ISymbioteEvent): void {
         onPressMove?.(event)
         const here = readPoint(event)
         if (!here) return
@@ -423,12 +423,12 @@ export const Pressable: FC<PressableProps> = (props) => {
   void delayHoverIn
   void delayHoverOut
 
-  const state: PressState = { pressed }
+  const state: IPressState = { pressed }
 
   // RN merges `disabled` into the resolved accessibilityState so a disabled
   // Pressable reports the disabled state even if the caller passed none
   // (Pressable.js: `disabled != null ? {...state, disabled} : state`).
-  const resolvedAccessibilityState: AccessibilityStateValue | undefined =
+  const resolvedAccessibilityState: IAccessibilityStateValue | undefined =
     disabled !== undefined ? { ...accessibilityState, disabled } : accessibilityState
 
   const viewProps: Record<string, unknown> = {

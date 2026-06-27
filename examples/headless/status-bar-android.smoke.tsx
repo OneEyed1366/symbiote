@@ -13,15 +13,15 @@ import { StatusBar } from '../../adapters/react/src/status-bar.android'
 
 // ---- fake Fabric slot ---------------------------------------------------
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
-let committed: FakeNode[] = []
+let committed: IFakeNode[] = []
 
 const slot = {
   createNode(
@@ -30,32 +30,32 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
+  ): IFakeNode {
     return { tag, viewName, props, children: [], instanceHandle }
   },
-  cloneNode(node: FakeNode): FakeNode {
+  cloneNode(node: IFakeNode): IFakeNode {
     return { ...node, children: [...node.children] }
   },
-  cloneNodeWithNewChildren(node: FakeNode): FakeNode {
+  cloneNodeWithNewChildren(node: IFakeNode): IFakeNode {
     return { ...node, children: [] }
   },
-  cloneNodeWithNewProps(node: FakeNode, props: Record<string, unknown>): FakeNode {
+  cloneNodeWithNewProps(node: IFakeNode, props: Record<string, unknown>): IFakeNode {
     return { ...node, props: { ...node.props, ...props } }
   },
-  cloneNodeWithNewChildrenAndProps(node: FakeNode, props: Record<string, unknown>): FakeNode {
+  cloneNodeWithNewChildrenAndProps(node: IFakeNode, props: Record<string, unknown>): IFakeNode {
     return { ...node, props: { ...node.props, ...props }, children: [] }
   },
-  createChildSet(): FakeNode[] {
+  createChildSet(): IFakeNode[] {
     return []
   },
-  appendChild(parent: FakeNode, child: FakeNode): FakeNode {
+  appendChild(parent: IFakeNode, child: IFakeNode): IFakeNode {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet(childSet: FakeNode[], child: FakeNode): void {
+  appendChildToSet(childSet: IFakeNode[], child: IFakeNode): void {
     childSet.push(child)
   },
-  completeRoot(_rootTag: number, childSet: FakeNode[]): void {
+  completeRoot(_rootTag: number, childSet: IFakeNode[]): void {
     committed = childSet
   },
   registerEventHandler(): void {},
@@ -63,12 +63,12 @@ const slot = {
 
 // ---- fake Android StatusBarManager native module ------------------------
 
-interface RecordedCall {
+interface IRecordedCall {
   method: string
   args: unknown[]
 }
 
-const recorded: RecordedCall[] = []
+const recorded: IRecordedCall[] = []
 const STATUS_BAR_HEIGHT = 24
 
 const fakeStatusBarManager = {
@@ -115,11 +115,11 @@ setColorProcessor((value) => (value === RED_HEX ? RED_INT : value))
 
 // ---- helpers ------------------------------------------------------------
 
-function find(method: string): RecordedCall | undefined {
+function find(method: string): IRecordedCall | undefined {
   return recorded.find((call) => call.method === method)
 }
 
-function findAll(method: string): RecordedCall[] {
+function findAll(method: string): IRecordedCall[] {
   return recorded.filter((call) => call.method === method)
 }
 

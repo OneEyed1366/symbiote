@@ -10,9 +10,9 @@
 
 // Not on the barrel yet (the integrator wires exports), so reach the source.
 import PanResponder, {
-  type PanResponderGestureState,
+  type IPanResponderGestureState,
 } from '../../adapters/react/src/pan-responder'
-import { createElement, type SymbioteEvent } from '@symbiote/engine'
+import { createElement, type ISymbioteEvent } from '@symbiote/engine'
 
 // ---- synthetic events ---------------------------------------------------
 // shared puts touches on event.nativeEvent.touches with pageX/pageY/locationX/
@@ -24,7 +24,7 @@ const TARGET_TAG = 1
 // the gesture, location coords ride along to prove the event shape is realistic.
 const LOCATION_OFFSET = 5
 
-interface SyntheticTouch {
+interface ISyntheticTouch {
   pageX: number
   pageY: number
   locationX: number
@@ -33,7 +33,7 @@ interface SyntheticTouch {
   timestamp: number
 }
 
-function makeTouch(pageX: number, pageY: number, timestamp: number): SyntheticTouch {
+function makeTouch(pageX: number, pageY: number, timestamp: number): ISyntheticTouch {
   return {
     pageX,
     pageY,
@@ -51,7 +51,7 @@ function makeTouch(pageX: number, pageY: number, timestamp: number): SyntheticTo
 // cast is needed — the gesture never reads them.
 const targetNode = createElement('RCTView')
 
-function buildEvent(pageX: number, pageY: number, timestamp: number): SymbioteEvent {
+function buildEvent(pageX: number, pageY: number, timestamp: number): ISymbioteEvent {
   const touch = makeTouch(pageX, pageY, timestamp)
   const nativeEvent: Record<string, unknown> = {
     touches: [touch],
@@ -83,7 +83,7 @@ function approx(actual: number, expected: number, label: string): void {
 
 // Capture the gestureState handed to each config callback. The object is mutated
 // in place across the gesture, so snapshot the fields we assert at call time.
-interface Snapshot {
+interface ISnapshot {
   dx: number
   dy: number
   vx: number
@@ -91,7 +91,7 @@ interface Snapshot {
   numberActiveTouches: number
 }
 
-function snapshot(gestureState: PanResponderGestureState): Snapshot {
+function snapshot(gestureState: IPanResponderGestureState): ISnapshot {
   return {
     dx: gestureState.dx,
     dy: gestureState.dy,
@@ -101,9 +101,9 @@ function snapshot(gestureState: PanResponderGestureState): Snapshot {
   }
 }
 
-let grantSnapshot: Snapshot | undefined
-const moveSnapshots: Snapshot[] = []
-let releaseSnapshot: Snapshot | undefined
+let grantSnapshot: ISnapshot | undefined
+const moveSnapshots: ISnapshot[] = []
+let releaseSnapshot: ISnapshot | undefined
 
 const responder = PanResponder.create({
   onStartShouldSetPanResponder: () => true,
@@ -189,7 +189,7 @@ approx(releaseSnapshot.dy, STEP_Y * MOVE_COUNT, 'release dy')
 
 // 5) A fresh single-touch start re-initializes the accumulator, so the next
 //    gesture starts clean — assert dx/dy is zeroed after release + new grant.
-let secondGrant: Snapshot | undefined
+let secondGrant: ISnapshot | undefined
 const second = PanResponder.create({
   onStartShouldSetPanResponder: () => true,
   onPanResponderGrant: (_event, gestureState) => {

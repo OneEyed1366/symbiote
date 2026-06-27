@@ -8,34 +8,34 @@
 
 // A light/dark/contrast branch accepts any color the processor understands — a
 // CSS string, a platform int, or another opaque color.
-export interface DynamicColorIOSTuple {
-  light: ColorValue
-  dark: ColorValue
-  highContrastLight?: ColorValue
-  highContrastDark?: ColorValue
+export interface IDynamicColorIOSTuple {
+  light: IColorValue
+  dark: IColorValue
+  highContrastLight?: IColorValue
+  highContrastDark?: IColorValue
 }
 
 // An opaque color the native side resolves: `semantic` names platform colors
 // (e.g. 'systemBlue', 'labelColor'); `dynamic` carries an appearance-aware tuple.
 // Exactly one branch is populated by the constructors below.
-export interface OpaqueColorValue {
+export interface IOpaqueColorValue {
   readonly semantic?: readonly string[]
   readonly dynamic?: {
-    readonly light: ColorValue
-    readonly dark: ColorValue
-    readonly highContrastLight?: ColorValue
-    readonly highContrastDark?: ColorValue
+    readonly light: IColorValue
+    readonly dark: IColorValue
+    readonly highContrastLight?: IColorValue
+    readonly highContrastDark?: IColorValue
   }
 }
 
 // What a color-valued style prop accepts: a CSS string or an opaque platform color.
-export type ColorValue = string | OpaqueColorValue
+export type IColorValue = string | IOpaqueColorValue
 
-export function PlatformColor(...names: string[]): OpaqueColorValue {
+export function PlatformColor(...names: string[]): IOpaqueColorValue {
   return { semantic: names }
 }
 
-export function DynamicColorIOS(tuple: DynamicColorIOSTuple): OpaqueColorValue {
+export function DynamicColorIOS(tuple: IDynamicColorIOSTuple): IOpaqueColorValue {
   return {
     dynamic: {
       light: tuple.light,
@@ -48,7 +48,7 @@ export function DynamicColorIOS(tuple: DynamicColorIOSTuple): OpaqueColorValue {
 
 // True for the opaque objects above — the color seam uses this to route them
 // through the platform processor alongside CSS-string colors.
-export function isOpaqueColorValue(value: unknown): value is OpaqueColorValue {
+export function isOpaqueColorValue(value: unknown): value is IOpaqueColorValue {
   return (
     typeof value === 'object' &&
     value !== null &&

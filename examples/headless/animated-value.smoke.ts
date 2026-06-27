@@ -14,20 +14,20 @@ import {
   setNativeProps,
   setProp,
   type AnimatedInterpolation,
-  type SymbioteNode,
+  type ISymbioteNode,
 } from '@symbiote/engine'
 
 // ---- fake Fabric slot ----------------------------------------------------
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
-let committed: FakeNode[] = []
+let committed: IFakeNode[] = []
 let completeRootCalls = 0
 let nextTag = 100
 
@@ -38,27 +38,27 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
+  ): IFakeNode {
     return { tag: nextTag++, viewName, props, children: [], instanceHandle }
   },
-  cloneNodeWithNewProps: (node: FakeNode, newProps: Record<string, unknown>): FakeNode => ({
+  cloneNodeWithNewProps: (node: IFakeNode, newProps: Record<string, unknown>): IFakeNode => ({
     ...node,
     props: newProps,
   }),
-  cloneNodeWithNewChildren: (node: FakeNode): FakeNode => ({ ...node, children: [] }),
+  cloneNodeWithNewChildren: (node: IFakeNode): IFakeNode => ({ ...node, children: [] }),
   cloneNodeWithNewChildrenAndProps: (
-    node: FakeNode,
+    node: IFakeNode,
     newProps: Record<string, unknown>,
-  ): FakeNode => ({ ...node, props: newProps, children: [] }),
-  createChildSet: (): FakeNode[] => [],
-  appendChild(parent: FakeNode, child: FakeNode): FakeNode {
+  ): IFakeNode => ({ ...node, props: newProps, children: [] }),
+  createChildSet: (): IFakeNode[] => [],
+  appendChild(parent: IFakeNode, child: IFakeNode): IFakeNode {
     parent.children.push(child)
     return parent
   },
-  appendChildToSet(childSet: FakeNode[], child: FakeNode): void {
+  appendChildToSet(childSet: IFakeNode[], child: IFakeNode): void {
     childSet.push(child)
   },
-  completeRoot(_rootTag: number, childSet: FakeNode[]): void {
+  completeRoot(_rootTag: number, childSet: IFakeNode[]): void {
     committed = childSet
     completeRootCalls += 1
   },
@@ -73,7 +73,7 @@ Object.assign(globalThis, { nativeFabricUIManager: slot })
 class PropLeaf extends AnimatedNode {
   constructor(
     private readonly source: AnimatedInterpolation,
-    private readonly target: SymbioteNode,
+    private readonly target: ISymbioteNode,
     private readonly key: string,
   ) {
     super()
@@ -83,7 +83,7 @@ class PropLeaf extends AnimatedNode {
   }
 }
 
-function appView(): FakeNode {
+function appView(): IFakeNode {
   // The synthetic AppContainer root wraps the surface; the app's view is its child.
   if (committed.length !== 1 || committed[0].props.pointerEvents !== 'box-none') {
     throw new Error(`expected one synthetic box-none root, got ${JSON.stringify(committed)}`)

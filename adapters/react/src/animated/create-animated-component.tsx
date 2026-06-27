@@ -23,44 +23,18 @@ import {
   type ReactElement,
   type Ref,
 } from 'react'
-import { AnimatedNode, isNativeAnimatedAvailable } from '@symbiote/engine'
-import { AnimatedProps } from './props'
-import { AnimatedStyle } from './style'
-
-function isAnimatedNode(value: unknown): value is AnimatedNode {
-  return value instanceof AnimatedNode
-}
-
-// RN's `passthroughAnimatedPropExplicitValues` carries explicit (already-rasterized) prop
-// values — e.g. a sticky header's debounced `{style:{transform:[{translateY}]}}` — that must
-// override the animated prop in the COMMITTED props so the Fabric ShadowTree (hit-testing)
-// stays current while the native driver animates. Read its `style` without a cast.
-function readPassthroughStyle(passthrough: unknown): unknown {
-  if (typeof passthrough !== 'object' || passthrough === null) return undefined
-  return Reflect.get(passthrough, 'style')
-}
-
-// Replace animated entries in a props map with their current rasterized values so
-// React's first paint (and every re-render) carries concrete props. `style` is run
-// through AnimatedStyle so an animated style key resolves to its current number.
-function reduceProps(props: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  for (const key of Object.keys(props)) {
-    const value = props[key]
-    if (key === 'style') {
-      const styleNode = AnimatedStyle.from(value)
-      out[key] = styleNode !== undefined ? styleNode.__getValue() : value
-    } else if (isAnimatedNode(value)) {
-      out[key] = value.__getValue()
-    } else {
-      out[key] = value
-    }
-  }
-  return out
-}
+import {
+  AnimatedProps,
+  attachNativeEventHandler,
+  isNativeAnimatedAvailable,
+  reduceProps,
+  readPassthroughStyle,
+  resolveHostNode,
+} from '@symbiote/engine'
 
 // A ref can be a function or a `.current` object; assign through both forms without
-// casting so a forwarded ref from the caller still receives the instance.
+// casting so a forwarded ref from the caller still receives the instance. Framework-
+// ref-specific, so it stays per-adapter (the rest of the wrap helpers are shared).
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
   if (ref === undefined || ref === null) return
   if (typeof ref === 'function') {
@@ -70,7 +44,7 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
   ref.current = value
 }
 
-export interface AnimatedComponentProps {
+export interface IAnimatedComponentProps {
   style?: unknown
   ref?: Ref<unknown>
   [key: string]: unknown
@@ -78,13 +52,13 @@ export interface AnimatedComponentProps {
 
 // Base components carry their own concrete prop shape (View wants ViewStyle, etc.).
 // We stay generic over that P so reduced props type-check against the base, while
-// presenting an open animated-friendly surface (AnimatedComponentProps) to callers.
-type AnimatableProps = { style?: unknown; children?: unknown }
+// presenting an open animated-friendly surface (IAnimatedComponentProps) to callers.
+type IAnimatableProps = { style?: unknown; children?: unknown }
 
-export function createAnimatedComponent<P extends AnimatableProps>(
+export function createAnimatedComponent<P extends IAnimatableProps>(
   Component: ComponentType<P>,
-): ComponentType<AnimatedComponentProps> {
-  function AnimatedComponent(props: AnimatedComponentProps): ReactElement {
+): ComponentType<IAnimatedComponentProps> {
+  function AnimatedComponent(props: IAnimatedComponentProps): ReactElement {
     const { ref: forwardedRef, passthroughAnimatedPropExplicitValues: passthrough, ...rest } = props
     // Native driving is opt-in per the passthrough prop AND requires a real native module;
     // headless / unsupported hosts keep the JS flush path (and the existing JS smokes green).
@@ -98,6 +72,10 @@ export function createAnimatedComponent<P extends AnimatableProps>(
     // The leaf currently wired into the value graph. Tracked across renders so a swap
     // can attach the new leaf BEFORE detaching the old one.
     const attached = useRef<AnimatedProps | null>(null)
+
+    // The committed host node, captured by the ref below. Needed in the event-attach
+    // effect (a native event binds to the node's tag, not the AnimatedProps leaf).
+    const nodeRef = useRef<unknown>(null)
 
     // Swap the graph attachment to the current leaf, attaching the new one FIRST and
     // detaching the previous one SECOND. Order is load-bearing: a shared Value node
@@ -133,10 +111,33 @@ export function createAnimatedComponent<P extends AnimatableProps>(
       }
     }, [])
 
-    // Callback ref: when the base component mounts, capture its public instance (the
-    // SymbioteNode) and bind it to the leaf, then forward to the caller's ref.
+    // Native-attach any Animated.event prop — e.g. onScroll={Animated.event(…,
+    // {useNativeDriver:true})} — to the committed node, so the event drives its values on
+    // the UI thread. attachNativeEventHandler no-ops (returns undefined) unless the prop is
+    // a native event handler with a committed tag, so the JS path stays the fallback. The
+    // __makeNative cascade then carries the bound interpolations/props native too. Keyed on
+    // animatedProps (rebuilt with rest) so a new inline event re-attaches; cleanup detaches.
+    useEffect(() => {
+      const node = nodeRef.current
+      if (node === null) return
+      const detachers: Array<() => void> = []
+      for (const key of Object.keys(rest)) {
+        const attachment = attachNativeEventHandler(node, key, rest[key])
+        if (attachment !== undefined) detachers.push(attachment.detach)
+      }
+      return () => {
+        for (const detach of detachers) detach()
+      }
+    }, [animatedProps])
+
+    // Callback ref: when the base component mounts, capture its public instance, resolve
+    // it to the underlying host node (unwrapping a scroll-container handle), record THAT
+    // for the event-attach effect and bind it to the leaf — but forward the ORIGINAL
+    // instance to the caller, who expects the component's public handle (scrollTo, …).
     const captureRef = (instance: unknown): void => {
-      animatedProps.setNativeView(instance)
+      const node = resolveHostNode(instance)
+      nodeRef.current = node
+      animatedProps.setNativeView(node)
       assignRef(forwardedRef, instance)
     }
 

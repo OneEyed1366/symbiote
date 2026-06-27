@@ -10,13 +10,13 @@ import {
   installDeviceEventHub,
   NativeEventEmitter,
   getNativeModule,
-  type EventEmitterModule,
+  type IEventEmitterModule,
   dlog,
 } from '@symbiote/engine'
 
 // The iOS native module name RN registers this under. NOTE: this is the name the
 // iOS JS wrapper resolves via `TurboModuleRegistry.getEnforcing('SettingsManager')`
-// — the spec filename is `NativeSettingsManager`. Per the symbiote invariant, a
+// — the spec filename is `INativeSettingsManager`. Per the symbiote invariant, a
 // module name is only provable on a real host (a headless fake answers to any
 // name); this iOS name is device-verify-pending.
 // See .docs/native-module-platform-routing.md.
@@ -33,13 +33,13 @@ const FIRST_WATCH_ID = 0
 // The iOS SettingsManager native module: constants carry the seeded snapshot,
 // setValues persists, deleteValues removes. It also drives the device event, so it
 // participates in the addListener/removeListeners observe-counter protocol.
-interface NativeSettingsManager extends EventEmitterModule {
+interface INativeSettingsManager extends IEventEmitterModule {
   getConstants(): { settings: Record<string, unknown> }
   setValues(values: Record<string, unknown>): void
   deleteValues(keys: string[]): void
 }
 
-interface Subscription {
+interface ISubscription {
   keys: string[]
   callback: (() => void) | null
 }
@@ -51,11 +51,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 // Lazily resolved so importing this module has no native side effect. `null` when
 // the module isn't linked (headless): the snapshot then starts empty and `set`
 // updates only JS state + fires watchers.
-let settingsModule: NativeSettingsManager | null | undefined
+let settingsModule: INativeSettingsManager | null | undefined
 
-function getModule(): NativeSettingsManager | null {
+function getModule(): INativeSettingsManager | null {
   if (settingsModule === undefined) {
-    settingsModule = getNativeModule<NativeSettingsManager>(SETTINGS_MODULE)
+    settingsModule = getNativeModule<INativeSettingsManager>(SETTINGS_MODULE)
     dlog(`Settings: module ${settingsModule ? 'resolved' : 'NOT resolved (null)'}`)
   }
   return settingsModule
@@ -75,7 +75,7 @@ function getSnapshot(): Record<string, unknown> {
   return snapshot
 }
 
-const subscriptions: Subscription[] = []
+const subscriptions: ISubscription[] = []
 
 // Fire every watcher whose key set covers `key`. Called only for keys that changed.
 function fireWatchers(key: string): void {

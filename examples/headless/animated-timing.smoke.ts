@@ -6,18 +6,18 @@
 // graph itself is proven by animated-value.smoke.ts; this proves the drivers.
 
 import { AnimatedValue, Easing, parallel, sequence, spring, timing } from '@symbiote/engine'
-import type { EndResult } from '@symbiote/engine'
+import type { IEndResult } from '@symbiote/engine'
 
 // ---- fake Fabric slot ----------------------------------------------------
 // The drivers never touch Fabric directly, but AnimatedValue's flush path runs
 // the commit engine, which reads global.nativeFabricUIManager. A minimal slot
 // keeps that path from throwing even though no view is attached here.
 
-interface FakeNode {
+interface IFakeNode {
   tag: number
   viewName: string
   props: Record<string, unknown>
-  children: FakeNode[]
+  children: IFakeNode[]
   instanceHandle: unknown
 }
 
@@ -30,19 +30,19 @@ const slot = {
     _rootTag: number,
     props: Record<string, unknown>,
     instanceHandle: unknown,
-  ): FakeNode {
+  ): IFakeNode {
     return { tag: nextTag++, viewName, props, children: [], instanceHandle }
   },
-  cloneNodeWithNewProps(node: FakeNode, newProps: Record<string, unknown>): FakeNode {
+  cloneNodeWithNewProps(node: IFakeNode, newProps: Record<string, unknown>): IFakeNode {
     return { ...node, props: { ...node.props, ...newProps } }
   },
-  cloneNodeWithNewChildren(node: FakeNode): FakeNode {
+  cloneNodeWithNewChildren(node: IFakeNode): IFakeNode {
     return { ...node, children: [] }
   },
-  createChildSet(): FakeNode[] {
+  createChildSet(): IFakeNode[] {
     return []
   },
-  appendChildToSet(childSet: FakeNode[], child: FakeNode): void {
+  appendChildToSet(childSet: IFakeNode[], child: IFakeNode): void {
     childSet.push(child)
   },
   completeRoot(): void {},
@@ -91,7 +91,7 @@ async function testTiming(): Promise<void> {
   value.addListener(({ value: v }) => frames.push(v))
 
   let endCount = 0
-  const result = await new Promise<EndResult>((resolve) => {
+  const result = await new Promise<IEndResult>((resolve) => {
     timing(value, { toValue: 1, duration: 100, easing: Easing.linear }).start((r) => {
       endCount += 1
       resolve(r)
@@ -116,7 +116,7 @@ async function testStop(): Promise<void> {
   const value = new AnimatedValue(0)
   const composite = timing(value, { toValue: 1, duration: 500, easing: Easing.linear })
 
-  const result = await new Promise<EndResult>((resolve) => {
+  const result = await new Promise<IEndResult>((resolve) => {
     composite.start(resolve)
     // Let a couple of frames run, then stop mid-flight.
     setTimeout(() => composite.stop(), 50)
@@ -131,7 +131,7 @@ async function testStop(): Promise<void> {
 
 async function testSpring(): Promise<void> {
   const value = new AnimatedValue(0)
-  const result = await new Promise<EndResult>((resolve) => {
+  const result = await new Promise<IEndResult>((resolve) => {
     spring(value, { toValue: 1, stiffness: 200, damping: 20, mass: 1 }).start(resolve)
   })
 
@@ -148,7 +148,7 @@ async function testSpring(): Promise<void> {
 async function testSequence(): Promise<void> {
   const a = new AnimatedValue(0)
   const b = new AnimatedValue(0)
-  const result = await new Promise<EndResult>((resolve) => {
+  const result = await new Promise<IEndResult>((resolve) => {
     sequence([
       timing(a, { toValue: 1, duration: 60, easing: Easing.linear }),
       timing(b, { toValue: 1, duration: 60, easing: Easing.linear }),
@@ -164,7 +164,7 @@ async function testSequence(): Promise<void> {
 async function testParallel(): Promise<void> {
   const a = new AnimatedValue(0)
   const b = new AnimatedValue(0)
-  const result = await new Promise<EndResult>((resolve) => {
+  const result = await new Promise<IEndResult>((resolve) => {
     parallel([
       timing(a, { toValue: 1, duration: 80, easing: Easing.linear }),
       timing(b, { toValue: 1, duration: 80, easing: Easing.linear }),

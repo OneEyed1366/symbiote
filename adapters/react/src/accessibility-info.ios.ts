@@ -13,31 +13,31 @@ import {
   getNativeModule,
   isSymbioteNode,
   sendAccessibilityEvent as sharedSendAccessibilityEvent,
-  type EventEmitterModule,
-  type EventSubscription,
+  type IEventEmitterModule,
+  type IEventSubscription,
   dlog,
 } from '@symbiote/engine'
 import {
   isBoolean,
-  type AccessibilityAnnouncementFinishedEvent,
-  type AccessibilityChangeEventName,
-  type AccessibilityChangeEventHandler,
-  type AccessibilityInfoStatic,
-  type AnnounceForAccessibilityOptions,
-  type AccessibilityEventType,
-  type AccessibilityHandle,
+  type IAccessibilityAnnouncementFinishedEvent,
+  type IAccessibilityChangeEventName,
+  type IAccessibilityChangeEventHandler,
+  type IAccessibilityInfoStatic,
+  type IAnnounceForAccessibilityOptions,
+  type IAccessibilityEventType,
+  type IAccessibilityHandle,
 } from './accessibility-info-shared'
 export type {
-  AccessibilityChangeEvent,
-  AccessibilityChangeEventName,
-  AccessibilityChangeEventHandler,
-  AccessibilityAnnouncementFinishedEvent,
-  AnnounceForAccessibilityOptions,
-  AccessibilityEventType,
+  IAccessibilityChangeEvent,
+  IAccessibilityChangeEventName,
+  IAccessibilityChangeEventHandler,
+  IAccessibilityAnnouncementFinishedEvent,
+  IAnnounceForAccessibilityOptions,
+  IAccessibilityEventType,
 } from './accessibility-info-shared'
 
 // The iOS native module name RN registers this under. NOTE: this is the name the iOS JS
-// wrapper (NativeAccessibilityManagerIOS) resolves via
+// wrapper (INativeAccessibilityManagerIOS) resolves via
 // `TurboModuleRegistry.get('AccessibilityManager')` — NOT the spec filename
 // `NativeAccessibilityManager`. Per the symbiote invariant, a module name is only provable
 // on a real host (a headless fake answers to any name); this iOS name is device-verified
@@ -46,7 +46,7 @@ const ACCESSIBILITY_MODULE = 'AccessibilityManager'
 
 // Public event name -> the iOS device event the native side emits. iOS keeps the names
 // 1:1; the indirection exists only so the mapping stays explicit (Android renames them).
-const IOS_DEVICE_EVENT: Partial<Record<AccessibilityChangeEventName, string>> = {
+const IOS_DEVICE_EVENT: Partial<Record<IAccessibilityChangeEventName, string>> = {
   screenReaderChanged: 'screenReaderChanged',
   reduceMotionChanged: 'reduceMotionChanged',
   boldTextChanged: 'boldTextChanged',
@@ -57,25 +57,25 @@ const IOS_DEVICE_EVENT: Partial<Record<AccessibilityChangeEventName, string>> = 
   announcementFinished: 'announcementFinished',
 }
 
-type StateCallback = (enabled: boolean) => void
-type ErrorCallback = (error: unknown) => void
+type IStateCallback = (enabled: boolean) => void
+type IErrorCallback = (error: unknown) => void
 
 // The iOS AccessibilityManager native module: callback-based state getters, announce /
 // focus side effects, plus the observe-counters. announceForAccessibilityWithOptions is
 // optional — older hosts only have the plain announce.
-interface NativeAccessibilityManagerIOS extends EventEmitterModule {
-  getCurrentVoiceOverState(onSuccess: StateCallback, onError: ErrorCallback): void
-  getCurrentReduceMotionState(onSuccess: StateCallback, onError: ErrorCallback): void
-  getCurrentBoldTextState(onSuccess: StateCallback, onError: ErrorCallback): void
-  getCurrentGrayscaleState(onSuccess: StateCallback, onError: ErrorCallback): void
-  getCurrentInvertColorsState(onSuccess: StateCallback, onError: ErrorCallback): void
-  getCurrentReduceTransparencyState(onSuccess: StateCallback, onError: ErrorCallback): void
-  getCurrentDarkerSystemColorsState?(onSuccess: StateCallback, onError: ErrorCallback): void
-  getCurrentPrefersCrossFadeTransitionsState?(onSuccess: StateCallback, onError: ErrorCallback): void
+interface INativeAccessibilityManagerIOS extends IEventEmitterModule {
+  getCurrentVoiceOverState(onSuccess: IStateCallback, onError: IErrorCallback): void
+  getCurrentReduceMotionState(onSuccess: IStateCallback, onError: IErrorCallback): void
+  getCurrentBoldTextState(onSuccess: IStateCallback, onError: IErrorCallback): void
+  getCurrentGrayscaleState(onSuccess: IStateCallback, onError: IErrorCallback): void
+  getCurrentInvertColorsState(onSuccess: IStateCallback, onError: IErrorCallback): void
+  getCurrentReduceTransparencyState(onSuccess: IStateCallback, onError: IErrorCallback): void
+  getCurrentDarkerSystemColorsState?(onSuccess: IStateCallback, onError: IErrorCallback): void
+  getCurrentPrefersCrossFadeTransitionsState?(onSuccess: IStateCallback, onError: IErrorCallback): void
   announceForAccessibility(announcement: string): void
   announceForAccessibilityWithOptions?(
     announcement: string,
-    options: AnnounceForAccessibilityOptions,
+    options: IAnnounceForAccessibilityOptions,
   ): void
   setAccessibilityFocus(reactTag: number): void
   addListener(eventType: string): void
@@ -85,12 +85,12 @@ interface NativeAccessibilityManagerIOS extends EventEmitterModule {
 // Lazily resolved so importing this module has no native side effect: a headless run
 // without a fake __turboModuleProxy still loads it; resolution happens on first use.
 // `null` when the module isn't linked.
-let accessibilityModule: NativeAccessibilityManagerIOS | null | undefined
+let accessibilityModule: INativeAccessibilityManagerIOS | null | undefined
 let emitter: NativeEventEmitter | undefined
 
-function getModule(): NativeAccessibilityManagerIOS | null {
+function getModule(): INativeAccessibilityManagerIOS | null {
   if (accessibilityModule === undefined) {
-    accessibilityModule = getNativeModule<NativeAccessibilityManagerIOS>(ACCESSIBILITY_MODULE)
+    accessibilityModule = getNativeModule<INativeAccessibilityManagerIOS>(ACCESSIBILITY_MODULE)
     dlog(`AccessibilityInfo(ios): module ${accessibilityModule ? 'resolved' : 'NOT resolved (null)'}`)
   }
   return accessibilityModule
@@ -111,7 +111,7 @@ function getEmitter(): NativeEventEmitter {
 // getters. (RN rejects on iOS, but a false fallback keeps the unified surface uniform with
 // Android's missing-method getters; the dlog records the miss.)
 function queryState(
-  pick: (module: NativeAccessibilityManagerIOS) => (s: StateCallback, e: ErrorCallback) => void,
+  pick: (module: INativeAccessibilityManagerIOS) => (s: IStateCallback, e: IErrorCallback) => void,
   label: string,
 ): Promise<boolean> {
   const module = getModule()
@@ -133,8 +133,8 @@ function queryState(
 // when the module is unlinked OR the method is absent on this host, instead of throwing.
 function queryOptionalState(
   pick: (
-    module: NativeAccessibilityManagerIOS,
-  ) => ((s: StateCallback, e: ErrorCallback) => void) | undefined,
+    module: INativeAccessibilityManagerIOS,
+  ) => ((s: IStateCallback, e: IErrorCallback) => void) | undefined,
   label: string,
 ): Promise<boolean> {
   const module = getModule()
@@ -156,7 +156,7 @@ function queryOptionalState(
   })
 }
 
-class AccessibilityInfoIOS implements AccessibilityInfoStatic {
+class AccessibilityInfoIOS implements IAccessibilityInfoStatic {
   isScreenReaderEnabled(): Promise<boolean> {
     return queryState((m) => m.getCurrentVoiceOverState, 'isScreenReaderEnabled')
   }
@@ -220,7 +220,7 @@ class AccessibilityInfoIOS implements AccessibilityInfoStatic {
   // lacks the options-aware method (older iOS), mirroring RN.
   announceForAccessibilityWithOptions(
     announcement: string,
-    options: AnnounceForAccessibilityOptions,
+    options: IAnnounceForAccessibilityOptions,
   ): void {
     const module = getModule()
     if (module === null) {
@@ -258,7 +258,7 @@ class AccessibilityInfoIOS implements AccessibilityInfoStatic {
   // as its public instance), so resolve it with the runtime guard and route through shared.
   // RN early-returns 'click' on iOS only (AccessibilityInfo.js) — VoiceOver has no click
   // producer — so preserve that one no-op; every other event reaches the slot.
-  sendAccessibilityEvent(handle: AccessibilityHandle, eventType: AccessibilityEventType): void {
+  sendAccessibilityEvent(handle: IAccessibilityHandle, eventType: IAccessibilityEventType): void {
     if (eventType === 'click') {
       dlog('AccessibilityInfo(ios).sendAccessibilityEvent("click") -> iOS no-op (RN parity)')
       return
@@ -276,9 +276,9 @@ class AccessibilityInfoIOS implements AccessibilityInfoStatic {
   // throws — a public event with no iOS device mapping yields an inert subscription, and a
   // missing module yields a live-but-silent one (the counters are no-ops without a module).
   addEventListener(
-    eventName: AccessibilityChangeEventName,
-    handler: AccessibilityChangeEventHandler,
-  ): EventSubscription {
+    eventName: IAccessibilityChangeEventName,
+    handler: IAccessibilityChangeEventHandler,
+  ): IEventSubscription {
     const deviceEvent = IOS_DEVICE_EVENT[eventName]
     dlog(`AccessibilityInfo(ios).addEventListener -> ${eventName} (device: ${deviceEvent ?? 'none'})`)
     if (deviceEvent === undefined) {
@@ -301,7 +301,7 @@ class AccessibilityInfoIOS implements AccessibilityInfoStatic {
 
 function isAnnouncementFinished(
   payload: unknown,
-): payload is AccessibilityAnnouncementFinishedEvent {
+): payload is IAccessibilityAnnouncementFinishedEvent {
   return (
     typeof payload === 'object' &&
     payload !== null &&
@@ -312,4 +312,4 @@ function isAnnouncementFinished(
   )
 }
 
-export const AccessibilityInfo: AccessibilityInfoStatic = new AccessibilityInfoIOS()
+export const AccessibilityInfo: IAccessibilityInfoStatic = new AccessibilityInfoIOS()

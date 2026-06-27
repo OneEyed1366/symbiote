@@ -5,29 +5,29 @@
 // range (values-with-units like '0deg' or colors like '#000') is interpolated
 // per numeric token and reassembled — see createStringInterpolation below.
 
-import { normalizeColor, type RgbaValue } from './color'
-import { Easing, type EasingFunction } from './easing'
+import { normalizeColor, type IRgbaValue } from './color'
+import { Easing, type IEasingFunction } from './easing'
 
-export type ExtrapolateType = 'extend' | 'identity' | 'clamp'
+export type IExtrapolateType = 'extend' | 'identity' | 'clamp'
 
-export interface InterpolationConfig {
+export interface IInterpolationConfig {
   inputRange: readonly number[]
   outputRange: readonly number[] | readonly string[]
-  easing?: EasingFunction
-  extrapolate?: ExtrapolateType
-  extrapolateLeft?: ExtrapolateType
-  extrapolateRight?: ExtrapolateType
+  easing?: IEasingFunction
+  extrapolate?: IExtrapolateType
+  extrapolateLeft?: IExtrapolateType
+  extrapolateRight?: IExtrapolateType
 }
 
 // The numeric-output subset, used by the scalar path and by the per-token
 // interpolations the string path builds.
-interface NumericInterpolationConfig {
+interface INumericInterpolationConfig {
   inputRange: readonly number[]
   outputRange: readonly number[]
-  easing?: EasingFunction
-  extrapolate?: ExtrapolateType
-  extrapolateLeft?: ExtrapolateType
-  extrapolateRight?: ExtrapolateType
+  easing?: IEasingFunction
+  extrapolate?: IExtrapolateType
+  extrapolateLeft?: IExtrapolateType
+  extrapolateRight?: IExtrapolateType
 }
 
 function interpolateSegment(
@@ -36,9 +36,9 @@ function interpolateSegment(
   inputMax: number,
   outputMin: number,
   outputMax: number,
-  easing: EasingFunction,
-  extrapolateLeft: ExtrapolateType,
-  extrapolateRight: ExtrapolateType,
+  easing: IEasingFunction,
+  extrapolateLeft: IExtrapolateType,
+  extrapolateRight: IExtrapolateType,
 ): number {
   let result = input
 
@@ -127,14 +127,14 @@ export function checkValidRanges(
 }
 
 export function createNumericInterpolation(
-  config: NumericInterpolationConfig,
+  config: INumericInterpolationConfig,
 ): (input: number) => number {
   const { inputRange, outputRange } = config
   const easing = config.easing ?? Easing.linear
 
-  const extrapolateLeft: ExtrapolateType =
+  const extrapolateLeft: IExtrapolateType =
     config.extrapolateLeft ?? config.extrapolate ?? 'extend'
-  const extrapolateRight: ExtrapolateType =
+  const extrapolateRight: IExtrapolateType =
     config.extrapolateRight ?? config.extrapolate ?? 'extend'
 
   return (input) => {
@@ -159,13 +159,13 @@ export function createNumericInterpolation(
 const numericComponentRegex = /[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/g
 
 // A color output value, split into its four channels.
-interface ColorComponents {
+interface IColorComponents {
   isColor: true
   components: [number, number, number, number]
 }
 // A string-with-units output value, split into alternating numeric tokens and
 // the literal template segments between them.
-interface TemplateComponents {
+interface ITemplateComponents {
   isColor: false
   components: ReadonlyArray<number | string>
 }
@@ -178,8 +178,8 @@ interface TemplateComponents {
 // int decode replaced by color.ts's RgbaValue (DRY — one RGBA parser).
 function mapStringToNumericComponents(
   input: string,
-): ColorComponents | TemplateComponents {
-  const color: RgbaValue | undefined = normalizeColor(input)
+): IColorComponents | ITemplateComponents {
+  const color: IRgbaValue | undefined = normalizeColor(input)
   if (color !== undefined) {
     return { isColor: true, components: [color.r, color.g, color.b, color.a] }
   }
@@ -214,7 +214,7 @@ function mapStringToNumericComponents(
 //
 // Ported from RN AnimatedInterpolation.js:234 (createStringInterpolation).
 function createStringInterpolation(
-  config: InterpolationConfig,
+  config: IInterpolationConfig,
   outputRange: readonly string[],
 ): (input: number) => string {
   if (outputRange.length < 2) throw new Error('Bad output range')
@@ -283,7 +283,7 @@ function isStringOutputRange(
 // goes through createStringInterpolation, a numeric range through the scalar
 // path. Mirrors RN AnimatedInterpolation.js:373 (_getInterpolation).
 export function createInterpolation(
-  config: InterpolationConfig,
+  config: IInterpolationConfig,
 ): (input: number) => number | string {
   if (isStringOutputRange(config.outputRange)) {
     return createStringInterpolation(config, config.outputRange)
