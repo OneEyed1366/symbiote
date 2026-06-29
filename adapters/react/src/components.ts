@@ -11,8 +11,8 @@ import {
   type IAccessibilityProps,
   type IAriaProps,
 } from '@symbiote/components';
-import type { IResponderProps } from './responder-props';
-import type { IStyleProp, ITextStyle, IViewStyle } from './styles';
+import type { IResponderProps } from './utils/responder-props';
+import type { IStyleProp, ITextStyle, IViewStyle } from './utils/styles';
 
 export interface IViewProps extends IAccessibilityProps, IAriaProps, IResponderProps {
   style?: IStyleProp<IViewStyle>;

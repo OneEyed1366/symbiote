@@ -25,7 +25,7 @@ export type { IHostInstance } from './host-instance';
 // Image. Full parity with React: source/src/srcSet resolution, the width/height → style fold,
 // alt → accessibility, and the Image statics (getSize / prefetch / queryCache / …) are shared
 // verbatim from @symbiote/components via renderImage; Vue supplies only the functional bridge.
-export { Image, setImageSourceResolver } from './image';
+export { Image, setImageSourceResolver } from './components/image';
 export type {
   IImageProps,
   IImageSource,
@@ -33,15 +33,15 @@ export type {
   IResizeMode,
   IImageSize,
   IImageCacheStatus,
-} from './image';
+} from './components/image';
 // First component off the shared @symbiote/components layer: render-only, drives the
 // agnostic renderActivityIndicator through descriptorToVue. Proof the layer is reusable:
 // the render fn is shared verbatim with React; Vue supplies only the bridge.
-export { ActivityIndicator } from './activity-indicator';
+export { ActivityIndicator } from './components/activity-indicator';
 export type { IActivityIndicatorProps } from '@symbiote/components';
 // First component to bring the state half into Vue (the lastNativeReport reducer + the
 // snap-back watch); render shared verbatim with React, Vue supplies the reactive lifecycle.
-export { Switch } from './switch';
+export { Switch } from './components/switch';
 export type { ISwitchProps, ISwitchTrackColor } from '@symbiote/components';
 // ScrollView. Full parity (ADR 0024): vertical + horizontal, every pass-through prop, the
 // synthesized onContentSizeChange, the imperative handle via expose() + shallowRef, RefreshControl
@@ -49,30 +49,38 @@ export type { ISwitchProps, ISwitchTrackColor } from '@symbiote/components';
 // the headerLayoutYs cross-talk, and the per-header Animated.View wrap). The pure math (intrinsics,
 // decelerationRate, content-size dedupe, the handle, the sticky interpolation) is shared verbatim
 // with React from @symbiote/components.
-export { ScrollView } from './scroll-view';
-export type { IScrollViewProps, IScrollViewHandle } from './scroll-view';
+export { ScrollView } from './components/scroll-view';
+export type { IScrollViewProps, IScrollViewHandle } from './components/scroll-view';
 // Pressable family. Full parity with React (the 3-layer split): the press state machine + render
 // decisions are shared in @symbiote/components; Vue supplies the reactivity + descriptor bridge.
-export { Pressable } from './pressable';
-export type { IPressableProps, IPressState, IPressableAndroidRippleConfig } from './pressable';
-export { TouchableOpacity, TouchableHighlight, TouchableWithoutFeedback } from './touchable';
-export { TouchableNativeFeedback } from './touchable-native-feedback';
+export { Pressable } from './components/pressable';
+export type {
+  IPressableProps,
+  IPressState,
+  IPressableAndroidRippleConfig,
+} from './components/pressable';
+export {
+  TouchableOpacity,
+  TouchableHighlight,
+  TouchableWithoutFeedback,
+} from './components/touchable';
+export { TouchableNativeFeedback } from './components/touchable-native-feedback';
 export type {
   INativeFeedbackBackground,
   IThemeAttrBackground,
   IRippleBackground,
-} from './touchable-native-feedback';
-export { Button } from './button';
+} from './components/touchable-native-feedback';
+export { Button } from './components/button';
 export type { IButtonProps } from '@symbiote/components';
 // TextInput. Full parity with React (the 3-layer split): the value/selection folds + the
 // controlled-write predicate live in @symbiote/components; Vue supplies the reactivity
 // (shallowRef host node, post-flush watch) + the imperative handle via expose().
-export { TextInput } from './text-input';
+export { TextInput } from './components/text-input';
 export type { ITextInputProps, ITextInputHandle } from '@symbiote/components';
 // VirtualizedList family. Full parity with React: the windowing math (visible range, cell
 // keys, viewability token diffing, edge-reached, the list plan) is shared in
 // @symbiote/components; Vue supplies the reactive lifecycle + the per-cell element.
-export { VirtualizedList } from './virtualized-list';
+export { VirtualizedList } from './components/virtualized-list';
 export type {
   IVirtualizedListProps,
   IVirtualizedListHandle,
@@ -83,17 +91,17 @@ export type {
   IViewabilityConfig,
   IViewabilityConfigCallbackPair,
   ICellLayout,
-} from './virtualized-list';
-export { FlatList } from './flat-list';
-export type { IFlatListProps, IFlatListHandle } from './flat-list';
-export { VirtualizedSectionList } from './virtualized-section-list';
-export type { IVirtualizedSectionListHandle } from './virtualized-section-list';
-export { SectionList } from './section-list';
-export type { ISection, ISectionListHandle } from './section-list';
+} from './components/virtualized-list';
+export { FlatList } from './components/flat-list';
+export type { IFlatListProps, IFlatListHandle } from './components/flat-list';
+export { VirtualizedSectionList } from './components/virtualized-section-list';
+export type { IVirtualizedSectionListHandle } from './components/virtualized-section-list';
+export { SectionList } from './components/section-list';
+export type { ISection, ISectionListHandle } from './components/section-list';
 // DrawerLayoutAndroid (Android-only; iOS degrades to a plain container). Shared logic
 // (types, command names, slide/state normalization, the imperative handle) in
 // @symbiote/components; Vue supplies the platform-split lifecycle + the slots.
-export { DrawerLayoutAndroid } from './drawer-layout-android';
+export { DrawerLayoutAndroid } from './components/drawer-layout-android';
 export type {
   IDrawerLayoutAndroidProps,
   IDrawerLayoutAndroidHandle,
@@ -102,43 +110,47 @@ export type {
   IKeyboardDismissMode,
   IDrawerState,
   IDrawerSlideEvent,
-} from './drawer-layout-android';
+} from './components/drawer-layout-android';
 // Phase 2 (ADR 0024): SafeAreaView + RefreshControl, wired into ScrollView with the iOS-sibling /
 // Android-wrap platform split. RefreshControl hosts the wrapped scroll view via its default slot.
-export { SafeAreaView } from './safe-area-view';
-export type { ISafeAreaViewProps } from './safe-area-view';
-export { RefreshControl } from './refresh-control';
-export type { IRefreshControlProps } from './refresh-control';
+export { SafeAreaView } from './components/safe-area-view';
+export type { ISafeAreaViewProps } from './components/safe-area-view';
+export { RefreshControl } from './components/refresh-control';
+export type { IRefreshControlProps } from './components/refresh-control';
 export { descriptorToVue } from './descriptor-to-vue';
+// normalizeVueAttrs: the kebab→camel attr fold every component applies at entry. Exported so an
+// external wrapper package (e.g. @symbiote/slider/vue over a third-party native view) can fold
+// its incoming attrs through the SAME transform rather than reimplementing it.
+export { normalizeVueAttrs } from './utils/normalize-attrs';
 export { createSymbioteRenderer } from './renderer';
 // Animated (ADR 0024 Phase 3a): Animated.View/Text/Image + the lazy Animated.ScrollView over the
 // Vue primitives, with the value graph / easing / drivers spread from @symbiote/engine. The wrap
 // mechanism (createAnimatedComponent) is the Vue twin of React's; the pure leaves live in the
 // engine.
-export { Animated, createAnimatedComponent } from './animated';
+export { Animated, createAnimatedComponent } from './modules/animated';
 
 // Visual components off the shared @symbiote/components layer (wave: simple-visual).
-export { ImageBackground } from './image-background';
-export type { IImageBackgroundProps } from './image-background';
-export { InputAccessoryView } from './input-accessory-view';
-export type { IInputAccessoryViewProps } from './input-accessory-view';
-export { Modal } from './modal';
+export { ImageBackground } from './components/image-background';
+export type { IImageBackgroundProps } from './components/image-background';
+export { InputAccessoryView } from './components/input-accessory-view';
+export type { IInputAccessoryViewProps } from './components/input-accessory-view';
+export { Modal } from './components/modal';
 export type {
   IModalProps,
   IModalAnimationType,
   IModalPresentationStyle,
   IModalOrientation,
   IModalOrientationChangeEvent,
-} from './modal';
+} from './components/modal';
 // KeyboardAvoidingView: full parity via the shared inset math; Vue owns the Keyboard subscription.
-export { KeyboardAvoidingView } from './keyboard-avoiding-view';
-export type { IKeyboardAvoidingBehavior } from './keyboard-avoiding-view';
+export { KeyboardAvoidingView } from './components/keyboard-avoiding-view';
+export type { IKeyboardAvoidingBehavior } from './components/keyboard-avoiding-view';
 // StatusBar: declarative component + the shared imperative API.
-export { StatusBar } from './status-bar';
-export type { IStatusBarProps, IStatusBarStyle } from './status-bar';
+export { StatusBar } from './modules/status-bar';
+export type { IStatusBarProps, IStatusBarStyle } from './modules/status-bar';
 // Vue composables over the core device-state modules.
-export { useColorScheme } from './use-color-scheme';
-export { useWindowDimensions } from './use-window-dimensions';
+export { useColorScheme } from './composables/use-color-scheme';
+export { useWindowDimensions } from './composables/use-window-dimensions';
 
 // Imperative runtime modules: the SAME module both adapters share, re-exported from @symbiote/engine.
 export {

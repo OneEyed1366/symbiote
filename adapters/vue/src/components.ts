@@ -10,7 +10,7 @@
 // createAnimatedComponent (which captures the host node via that ref) needs the fall-through.
 
 import { h, type FunctionalComponent } from '@vue/runtime-core';
-import { normalizeVueAttrs } from './normalize-attrs';
+import { normalizeVueAttrs } from './utils/normalize-attrs';
 
 function hostComponent(intrinsic: string, name: string): FunctionalComponent {
   // A functional component's ctx is Omit<SetupContext, 'expose'> (no instance to expose); let the

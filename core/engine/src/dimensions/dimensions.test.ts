@@ -24,7 +24,7 @@ const INITIAL_WINDOW: IWindowMetrics = { width: 400, height: 800, scale: 3, font
 
 let Dimensions: typeof import('@symbiote/engine').Dimensions;
 let PixelRatio: typeof import('@symbiote/engine').PixelRatio;
-let useWindowDimensions: typeof import('../../../../adapters/react/src/use-window-dimensions').useWindowDimensions;
+let useWindowDimensions: typeof import('../../../../adapters/react/src/hooks/use-window-dimensions').useWindowDimensions;
 
 let deviceHub: IDeviceHub | undefined;
 
@@ -48,7 +48,8 @@ beforeEach(async () => {
 
   vi.resetModules();
   ({ Dimensions, PixelRatio } = await import('@symbiote/engine'));
-  ({ useWindowDimensions } = await import('../../../../adapters/react/src/use-window-dimensions'));
+  ({ useWindowDimensions } =
+    await import('../../../../adapters/react/src/hooks/use-window-dimensions'));
 });
 
 afterEach(() => {
