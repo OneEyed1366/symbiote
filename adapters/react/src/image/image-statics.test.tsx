@@ -10,16 +10,24 @@ import { Image, setImageSourceResolver } from '@symbiote/react';
 
 // Fake the native module under the bridgeless key (globalThis.nativeModuleProxy), keyed by the iOS
 // module name `ImageLoader`.
+// Records every prefetchImage call's arguments: the iOS spec is prefetchImage(uri) — a SINGLE
+// arg — and the bridgeless TurboModule throws "Exception in HostFunction" on an extra one. The
+// Android requestId is a second arg only there. We assert the call arity matches the platform.
+const prefetchCalls: unknown[][] = [];
 const fakeImageLoader = {
   getSize: (_uri: string) => Promise.resolve([120, 80]),
   getSizeWithHeaders: (_uri: string, _headers: Record<string, string>) =>
     Promise.resolve({ width: 200, height: 150 }),
-  prefetchImage: (_uri: string) => Promise.resolve(true),
+  prefetchImage: (...args: unknown[]) => {
+    prefetchCalls.push(args);
+    return Promise.resolve(true);
+  },
   queryCache: (_uris: string[]) => Promise.resolve({ 'x://a.png': 'disk/memory' }),
 };
 
 beforeEach(() => {
   Object.assign(globalThis, { nativeModuleProxy: { ImageLoader: fakeImageLoader } });
+  prefetchCalls.length = 0;
   // Restore the default identity resolver before each scenario.
   setImageSourceResolver(source => source);
 });
@@ -48,6 +56,14 @@ describe('Image statics', () => {
   it('prefetch resolves a boolean', async () => {
     const prefetched = await Image.prefetch('x://a.png');
     expect(prefetched).toBe(true);
+  });
+
+  it('prefetch calls the iOS native prefetchImage with a single uri arg (no Android requestId)', async () => {
+    // Headless Platform.OS is 'ios'; the iOS ImageLoader.prefetchImage takes ONLY the uri. Passing
+    // the Android requestId as a second arg makes the bridgeless TurboModule throw in a HostFunction.
+    await Image.prefetch('x://a.png');
+    expect(prefetchCalls).toHaveLength(1);
+    expect(prefetchCalls[0]).toEqual(['x://a.png']);
   });
 
   it('queryCache maps to a known status', async () => {

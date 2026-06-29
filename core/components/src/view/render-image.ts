@@ -2,6 +2,7 @@ import {
   dlog,
   flattenStyle,
   getNativeModule,
+  Platform,
   type IStyleProp,
   type ISymbioteEvent,
   type IViewStyle,
@@ -236,7 +237,10 @@ type ISizeFailure = (error: unknown) => void;
 type INativeImageLoader = {
   getSize(uri: string): Promise<unknown>;
   getSizeWithHeaders(uri: string, headers: Record<string, string>): Promise<unknown>;
-  prefetchImage(uri: string, requestId: number): Promise<unknown>;
+  // iOS takes ONLY the uri (NativeImageLoaderIOS); Android adds the requestId so abortRequest can
+  // key off it. The arg is optional here so the iOS call passes exactly one — a second arg makes the
+  // bridgeless TurboModule throw "Exception in HostFunction".
+  prefetchImage(uri: string, requestId?: number): Promise<unknown>;
   abortRequest?(requestId: number): void;
   queryCache(uris: string[]): Promise<unknown>;
 };
@@ -336,13 +340,22 @@ async function prefetch(uri: string, callback?: (requestId: number) => void): Pr
   prefetchRequestId += 1;
   const requestId = prefetchRequestId;
   if (typeof callback === 'function') callback(requestId);
-  return Promise.resolve()
-    .then(() => requireLoader('prefetch').prefetchImage(uri, requestId))
-    .then(result => result === true)
-    .catch((error: unknown) => {
-      dlog(`Image.prefetch failed for ${uri}: ${String(error)}`);
-      throw error;
-    });
+  const loader = requireLoader('prefetch');
+  return (
+    Promise.resolve()
+      // Android's prefetchImage keys an abortable request on requestId; iOS takes ONLY the uri and
+      // throws on an extra arg (bridgeless TurboModule arg-count check). Match RN's per-platform call.
+      .then(() =>
+        Platform.OS === 'android'
+          ? loader.prefetchImage(uri, requestId)
+          : loader.prefetchImage(uri),
+      )
+      .then(result => result === true)
+      .catch((error: unknown) => {
+        dlog(`Image.prefetch failed for ${uri}: ${String(error)}`);
+        throw error;
+      })
+  );
 }
 
 // Cancel an in-flight prefetch by the requestId prefetch handed back. Android
@@ -379,7 +392,16 @@ function toCacheRecord(result: unknown): Record<string, IImageCacheStatus> {
 
 async function queryCache(uris: string[]): Promise<Record<string, IImageCacheStatus>> {
   return Promise.resolve()
-    .then(() => requireLoader('queryCache').queryCache(uris))
+    .then(() => {
+      const loader = requireLoader('queryCache');
+      // The native queryCache never rejects (RCTImageLoader resolves getImageCacheStatus), so a
+      // rejection here is a JS↔native boundary fault: log whether the method is even callable and
+      // the arg shape, to tell "not a function" (interop gap) from a marshalling reject.
+      dlog(
+        `Image.queryCache: typeof loader.queryCache=${typeof loader.queryCache} uris=${uris.length}`,
+      );
+      return loader.queryCache(uris);
+    })
     .then(toCacheRecord)
     .catch((error: unknown) => {
       dlog(`Image.queryCache failed: ${String(error)}`);
