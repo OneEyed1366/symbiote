@@ -52,9 +52,37 @@ setNativeViewConfigSource(name => (name === SLIDER_VIEW ? RNC_SLIDER_VIEW_CONFIG
 beforeEach(() => fabric.reset());
 afterEach(() => unmount(ROOT_TAG));
 
+const tick = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0));
+
+function findInTree(
+  predicate: (node: IFakeNode) => boolean,
+  nodes = fabric.committed,
+): IFakeNode | undefined {
+  for (const node of nodes) {
+    if (predicate(node)) return node;
+    const child = findInTree(predicate, node.children);
+    if (child) return child;
+  }
+  return undefined;
+}
+
 function sliderNode(): IFakeNode {
   const node = fabric.find(n => n.viewName === SLIDER_VIEW);
   if (!node) throw new Error(`no ${SLIDER_VIEW} was created`);
+  return node;
+}
+
+function currentSliderNode(): IFakeNode {
+  const node = findInTree(n => n.viewName === SLIDER_VIEW);
+  if (!node) throw new Error(`no committed ${SLIDER_VIEW} exists`);
+  return node;
+}
+
+function sliderWrapperNode(): IFakeNode {
+  const node = findInTree(
+    n => n.viewName === 'RCTView' && n.children.some(child => child.viewName === SLIDER_VIEW),
+  );
+  if (!node) throw new Error('no committed Slider wrapper exists');
   return node;
 }
 
@@ -91,6 +119,15 @@ describe('React Slider wrapper', () => {
     fabric.reset();
     mount(ROOT_TAG, createElement(Slider, { value: Number.NaN }));
     expect(sliderNode().props.value).toBeUndefined();
+  });
+
+  it('measures the wrapper and pins the native slider width in the common non-steps path', async () => {
+    mount(ROOT_TAG, createElement(Slider, { value: 0.5 }));
+    fabric.fireEvent(sliderWrapperNode().instanceHandle, 'topLayout', {
+      layout: { x: 0, y: 0, width: 240, height: 40 },
+    });
+    await tick();
+    expect(currentSliderNode().props.width).toBe(240);
   });
 
   it('forwards tint props and runs them through the derived processor', () => {

@@ -9,7 +9,7 @@
 // <third_party_rn_packages_are_react_only> and ADR 0027.
 
 import { defineComponent, h, ref, type SetupContext, type VNode } from '@vue/runtime-core';
-import { descriptorToVue, normalizeVueAttrs, Image } from '@symbiote/vue';
+import { descriptorToVue, normalizeVueAttrs, Image, type IImageSourceProp } from '@symbiote/vue';
 import { dlog, type ISymbioteEvent } from '@symbiote/engine';
 import {
   sanitizeSliderValue,
@@ -43,18 +43,25 @@ import {
   SLIDER_ON_SLIDING_COMPLETE,
   SLIDER_ON_ACCESSIBILITY_ACTION,
   type ISliderPlatform,
+  type ISliderProps as ISliderBaseProps,
   type ISliderViewProps,
   type ISliderAccessibilityState,
 } from '../../core';
 
-type IUnknownHandler = (...args: readonly unknown[]) => void;
+export type ISliderProps = Omit<
+  ISliderBaseProps,
+  'onValueChange' | 'onSlidingStart' | 'onSlidingComplete' | 'onAccessibilityAction'
+>;
+
+type ISliderEmits = {
+  valueChange: (value: number) => boolean;
+  slidingStart: (value: number) => boolean;
+  slidingComplete: (value: number) => boolean;
+  accessibilityAction: (event: ISymbioteEvent) => boolean;
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isHandler(value: unknown): value is IUnknownHandler {
-  return typeof value === 'function';
 }
 
 function asNumber(value: unknown): number | undefined {
@@ -63,6 +70,10 @@ function asNumber(value: unknown): number | undefined {
 
 function asBoolean(value: unknown): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined;
+}
+
+function isImageSourceProp(value: unknown): value is IImageSourceProp {
+  return typeof value === 'number' || (typeof value === 'object' && value !== null);
 }
 
 // accessibilityState arrives untyped; narrow its disabled flag for the fold while preserving the
@@ -105,37 +116,30 @@ function forwardAttrs(attrs: Record<string, unknown>): Record<string, unknown> {
 }
 
 export function createSlider(platform: ISliderPlatform) {
-  return defineComponent({
-    name: 'Slider',
-    inheritAttrs: false,
-    setup(_props, { attrs: rawAttrs, slots }: SetupContext) {
+  return defineComponent<ISliderProps, ISliderEmits>(
+    (_props, { attrs: rawAttrs, slots, emit }: SetupContext<ISliderEmits>) => {
       // The value native last reported, kept only to mark the active step in the indicator. Not
       // the controlled value — the slider is uncontrolled during a drag (no snap-back).
       const reportedValue = ref<number | undefined>(undefined);
       // The measured wrapper width the step indicator lays out against; 0 until the first layout.
       const width = ref(0);
 
-      const callback = (key: string): IUnknownHandler | undefined => {
-        const handler = rawAttrs[key];
-        return isHandler(handler) ? handler : undefined;
-      };
-
       const handleValueChange = (event: ISymbioteEvent): void => {
         const value = valueFromSliderEvent(event);
         if (value === undefined) return;
         reportedValue.value = value;
-        callback('onValueChange')?.(value);
+        emit('valueChange', value);
       };
       const handleSlidingStart = (event: ISymbioteEvent): void => {
         const value = valueFromSliderEvent(event);
-        if (value !== undefined) callback('onSlidingStart')?.(value);
+        if (value !== undefined) emit('slidingStart', value);
       };
       const handleSlidingComplete = (event: ISymbioteEvent): void => {
         const value = valueFromSliderEvent(event);
-        if (value !== undefined) callback('onSlidingComplete')?.(value);
+        if (value !== undefined) emit('slidingComplete', value);
       };
       const handleAccessibilityAction = (event: ISymbioteEvent): void => {
-        callback('onAccessibilityAction')?.(event);
+        emit('accessibilityAction', event);
       };
       const handleLayout = (event: ISymbioteEvent): void => {
         const layout = event.nativeEvent.layout;
@@ -182,7 +186,7 @@ export function createSlider(platform: ISliderPlatform) {
           thumbTintColor: resolveThumbTintColor(attrs.thumbTintColor, hasStepMarker, hasThumbImage),
           thumbImage: nativeThumbImage,
           accessibilityState: resolveSliderAccessibilityState(disabledAttr, accessibilityState),
-          width: showSteps ? width.value : undefined,
+          width: width.value,
           style: attrs.style,
           passthrough: {
             ...forwardAttrs(attrs),
@@ -196,7 +200,7 @@ export function createSlider(platform: ISliderPlatform) {
 
         // Common case: no step overlay. The full slider (wrapper + native leaf) renders agnostic.
         if (!showSteps) {
-          return descriptorToVue(renderSlider(view, platform));
+          return descriptorToVue(renderSlider(view, platform, { onLayout: handleLayout }));
         }
 
         const options = computeStepOptions(
@@ -242,7 +246,17 @@ export function createSlider(platform: ISliderPlatform) {
         return descriptorToVue(renderSlider(view, platform, { steps, onLayout: handleLayout }));
       };
     },
-  });
+    {
+      name: 'Slider',
+      inheritAttrs: false,
+      emits: {
+        valueChange: (_value: number): boolean => true,
+        slidingStart: (_value: number): boolean => true,
+        slidingComplete: (_value: number): boolean => true,
+        accessibilityAction: (_event: ISymbioteEvent): boolean => true,
+      },
+    },
+  );
 }
 
 // The wrapper style for the steps path mirrors renderSlider's wrapper (kept here because the
@@ -282,7 +296,7 @@ function renderCustomStepsOverlay(params: ICustomStepsParams): VNode {
       max,
     });
     if (marker !== undefined) trackChildren.push(h('symbiote-view', {}, marker));
-    if (params.thumbImage !== undefined && value === params.currentValue) {
+    if (isImageSourceProp(params.thumbImage) && value === params.currentValue) {
       trackChildren.push(
         h(
           'symbiote-view',

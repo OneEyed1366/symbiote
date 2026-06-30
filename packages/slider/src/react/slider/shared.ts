@@ -170,7 +170,7 @@ export function createSlider(platform: ISliderPlatform): ISliderComponent {
       thumbTintColor: resolveThumbTintColor(thumbTintColor, hasStepMarker, hasThumbImage),
       thumbImage: nativeThumbImage,
       accessibilityState: resolveSliderAccessibilityState(disabled, accessibilityState),
-      width: showSteps ? width : undefined,
+      width,
       style,
       passthrough: {
         ...passthrough,
@@ -184,7 +184,7 @@ export function createSlider(platform: ISliderPlatform): ISliderComponent {
     };
 
     if (!showSteps) {
-      return descriptorToReact(renderSlider(view, platform));
+      return descriptorToReact(renderSlider(view, platform, { onLayout: handleLayout }));
     }
 
     const options = computeStepOptions(minimum, maximum, stepValue, platform.stepResolution);
